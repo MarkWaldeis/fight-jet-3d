@@ -28,7 +28,7 @@ export class PlayerJet extends Aircraft {
     this.score = 0;
     this.lockTarget = null;
     this.lockProgress = 0;
-    this.object.position.set(0, 600, 3000);
+    this.object.position.set(0, 900, 3000);
     this.object.rotation.set(0, 0, 0);
     this.object.quaternion.identity();
     this.flight.speed = CONFIG.flight.cruiseSpeed;

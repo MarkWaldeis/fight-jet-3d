@@ -46,8 +46,8 @@ export class Input {
   update(dt: number) {
     const k = this.keys;
     this.pitch =
-      (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) -
-      (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0);
+      (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) -
+      (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     this.roll =
       (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) -
       (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);

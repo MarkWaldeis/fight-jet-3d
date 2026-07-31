@@ -32,6 +32,7 @@ export interface HudData {
   enemiesAlive: number;
   lockProgress: number; // 0=kein, 0..1 suchend, 1=lock
   lockedTargetName: string | null;
+  lockScreen: { x: number; y: number } | null; // Bildschirmposition in %
   warning: string | null;
   radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[]; // normiert -1..1
 }
@@ -335,6 +336,18 @@ export class Game {
     const missileThreat = this.missiles.some((m) => m['target'] === p);
     if (missileThreat) warning = 'MISSILE';
 
+    // Lock-Ziel auf Bildschirm projizieren (für wandernde Lock-Raute)
+    let lockScreen: HudData['lockScreen'] = null;
+    if (p.lockTarget && p.lockTarget.alive) {
+      const ndc = p.lockTarget.position.clone().project(this.engine.camera);
+      if (ndc.z < 1) {
+        lockScreen = {
+          x: THREE.MathUtils.clamp((ndc.x * 0.5 + 0.5) * 100, 2, 98),
+          y: THREE.MathUtils.clamp((-ndc.y * 0.5 + 0.5) * 100, 2, 98),
+        };
+      }
+    }
+
     const data: HudData = {
       state: this.state,
       speedKnots: Math.round(p.speedKnots),
@@ -351,6 +364,7 @@ export class Game {
       enemiesAlive: this.enemies.filter((e) => e.alive).length,
       lockProgress: p.lockProgress,
       lockedTargetName: p.lockProgress >= 1 && p.lockTarget ? p.lockTarget.name : null,
+      lockScreen,
       warning,
       radar,
     };

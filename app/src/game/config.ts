@@ -19,7 +19,7 @@ export const CONFIG = {
     afterburnerAccel: 95,
     dragBase: 0.012,
     pitchRate: 1.5,        // rad/s
-    rollRate: 2.8,
+    rollRate: 2.2,
     yawRate: 0.45,
     stallPitchDrop: 0.9,
     gravityPull: 9.81,     // wirkt bei langsamer Flucht stärker
@@ -50,16 +50,16 @@ export const CONFIG = {
     skillEvasionChance: 0.35,
   },
   missile: {
-    speed: 620,
+    speed: 700,
     life: 9,               // s
-    turnRate: 3.2,
+    turnRate: 4.5,
     damage: 70,
-    proximityRadius: 18,
-    lockLoseAngleDeg: 60,
+    proximityRadius: 26,
+    lockLoseAngleDeg: 75,
   },
   camera: {
     chaseOffset: { x: 0, y: 3.2, z: 11 },
-    lerpPos: 6.5,
+    lerpPos: 12.0,
     lerpRot: 8.0,
     baseFov: 68,
     maxFovBoost: 18,       // FOV wächst mit Speed

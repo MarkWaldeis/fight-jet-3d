@@ -61,9 +61,10 @@ export class FlightModel {
     vel.y -= F.gravityPull * gravityFactor * dt * 8;
     this.object.position.addScaledVector(vel, dt);
 
-    // --- G-Kraft (aus Geschwindigkeitsänderung) ---
+    // --- G-Kraft (aus Geschwindigkeitsänderung, geglättet & begrenzt) ---
     const dv = vel.clone().sub(this.prevVel).divideScalar(Math.max(dt, 1e-4)).length();
-    this.gForce = 1 + dv / 19.6;
+    const rawG = THREE.MathUtils.clamp(1 + dv / 19.6, 0.2, 12);
+    this.gForce += (rawG - this.gForce) * Math.min(1, dt * 6);
     this.prevVel.copy(vel);
   }
 

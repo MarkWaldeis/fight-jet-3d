@@ -21,9 +21,13 @@ export function Hud({ data }: { data: HudData }) {
         </svg>
       </div>
 
-      {/* Lock-On-Raute */}
+      {/* Lock-On-Raute (wandert zum Ziel) */}
       {data.lockProgress > 0 && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ transform: `translate(-50%, -50%) scale(${1.6 - data.lockProgress * 0.6})` }}>
+        <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{
+          left: data.lockScreen ? `${data.lockScreen.x}%` : '50%',
+          top: data.lockScreen ? `${data.lockScreen.y}%` : '50%',
+          transform: `translate(-50%, -50%) scale(${1.6 - data.lockProgress * 0.6})`,
+        }}>
           <svg width="150" height="150" viewBox="0 0 150 150">
             <rect x="45" y="45" width="60" height="60" fill="none"
               stroke={data.lockProgress >= 1 ? warnColor : hudColor} strokeWidth="2"

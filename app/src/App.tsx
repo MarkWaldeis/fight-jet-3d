@@ -8,7 +8,7 @@ const initialHud: HudData = {
   speedKnots: 0, altitudeFt: 0, headingDeg: 0, throttle: 0.6,
   afterburner: false, stalled: false, gForce: 1,
   hp: 100, maxHp: 100, score: 0, missiles: 6, enemiesAlive: 4,
-  lockProgress: 0, lockedTargetName: null, warning: null, radar: [],
+  lockProgress: 0, lockedTargetName: null, lockScreen: null, warning: null, radar: [],
 };
 
 export default function App() {
@@ -20,6 +20,7 @@ export default function App() {
     if (!canvasRef.current) return;
     const game = new Game(canvasRef.current);
     gameRef.current = game;
+    (window as unknown as { __game: Game }).__game = game; // für Smoke-Tests/Debug
     game.onHud(setHud);
     return () => game.dispose();
   }, []);

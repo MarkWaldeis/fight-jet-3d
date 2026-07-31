@@ -84,7 +84,7 @@ export class Missile {
   alive = true;
   private vel: THREE.Vector3;
   private life: number;
-  private target: Aircraft;
+  private target: Aircraft | null;
   private effects: Effects;
   private body: THREE.Mesh;
 
@@ -124,7 +124,7 @@ export class Missile {
     }
     this.vel.setLength(Math.min(M.speed, this.vel.length() + 400 * dt));
 
-    if (this.target.alive) {
+    if (this.target && this.target.alive) {
       // Proportional-Navigation (vereinfacht): Richtung zum Ziel drehen
       const toTarget = this.target.object.position.clone().sub(this.object.position).normalize();
       const dir = this.vel.clone().normalize();
