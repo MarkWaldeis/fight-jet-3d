@@ -413,6 +413,8 @@ export function buildF16(opts: F16Options): F16Parts {
 
 function buildCockpit(): THREE.Group {
   const c = new THREE.Group();
+  // Cockpit sitzt auf der Rumpfkontur (unter der Haube), nicht im Rumpf
+  c.position.y = 0.30;
   const tubMat = new THREE.MeshStandardMaterial({ color: 0x24262a, roughness: 0.85 });
   const panelMat = new THREE.MeshStandardMaterial({ color: 0x1a1c1f, roughness: 0.7 });
 

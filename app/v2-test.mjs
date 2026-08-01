@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const OUT = fileURLToPath(new URL('./shots/', import.meta.url));
 fs.mkdirSync(OUT, { recursive: true });
 const errors = [];
-const BASE = process.env.FIGHT_JET_URL || 'http://localhost:3001/';
+const BASE = process.env.FIGHT_JET_URL || 'http://localhost:3000/';
 
 const browser = await puppeteer.launch({
   headless: 'new',

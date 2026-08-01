@@ -18,7 +18,7 @@ export class PlayerJet extends Aircraft {
 
   constructor() {
     // USAF Ghost-Grey — hell genug für gute Lesbarkeit im ACES-Tone-Mapping
-    super('VIPER 01', { bodyColor: 0xb8c2cc, accentColor: 0xc8352e }, CONFIG.player.hp, 'us', true);
+    super('VIPER 01', { bodyColor: 0x9aa4ae, accentColor: 0xc8352e }, CONFIG.player.hp, 'us', true);
   }
 
   reset() {

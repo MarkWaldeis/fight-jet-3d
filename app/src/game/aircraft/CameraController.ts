@@ -19,23 +19,25 @@ export class CameraController {
     camera.updateProjectionMatrix();
 
     if (this.mode === 'cockpit') {
-      // Sitzposition: etwas über dem Tub, Blick nach vorne (-Z im Jet-Local)
-      const offset = new THREE.Vector3(0, 0.78, -3.15);
-      camera.position.copy(offset.applyMatrix4(jet.matrixWorld));
+      // Sitzposition: Pilotenkopf, Blick leicht nach unten (Panel sichtbar).
+      // Position aus position+quaternion (nicht matrixWorld — der kann einen Frame alt sein)
+      const offset = new THREE.Vector3(0, 1.02, -3.42).applyQuaternion(jet.quaternion).add(jet.position);
+      camera.position.copy(offset);
       camera.quaternion.copy(jet.quaternion);
       camera.up.set(0, 1, 0).applyQuaternion(jet.quaternion).normalize();
+      camera.rotateX(-0.11);
       return;
     }
 
     // Chase: Zielposition hinter dem Jet
     const off = C.chaseOffset;
-    const desired = new THREE.Vector3(off.x, off.y, off.z).applyMatrix4(jet.matrixWorld);
+    const desired = new THREE.Vector3(off.x, off.y, off.z).applyQuaternion(jet.quaternion).add(jet.position);
     const k = 1 - Math.exp(-C.lerpPos * dt);
     this.currentPos.lerp(desired, k);
     camera.position.copy(this.currentPos);
 
     // Blickpunkt leicht vor dem Jet
-    const ahead = new THREE.Vector3(0, 1.2, -30).applyMatrix4(jet.matrixWorld);
+    const ahead = new THREE.Vector3(0, 1.2, -30).applyQuaternion(jet.quaternion).add(jet.position);
     const kr = 1 - Math.exp(-C.lerpRot * dt);
     this.lookTarget.lerp(ahead, kr);
     camera.lookAt(this.lookTarget);
@@ -47,7 +49,7 @@ export class CameraController {
 
   snapBehind(jet: THREE.Object3D) {
     const off = CONFIG.camera.chaseOffset;
-    this.currentPos.copy(new THREE.Vector3(off.x, off.y, off.z).applyMatrix4(jet.matrixWorld));
-    this.lookTarget.copy(new THREE.Vector3(0, 1.2, -30).applyMatrix4(jet.matrixWorld));
+    this.currentPos.copy(new THREE.Vector3(off.x, off.y, off.z).applyQuaternion(jet.quaternion).add(jet.position));
+    this.lookTarget.copy(new THREE.Vector3(0, 1.2, -30).applyQuaternion(jet.quaternion).add(jet.position));
   }
 }
