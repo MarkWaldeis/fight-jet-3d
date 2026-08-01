@@ -6,7 +6,7 @@ import { buildF16, Contrails } from './JetModel';
 export abstract class Aircraft {
   readonly object = new THREE.Group();
   readonly flight: FlightModel;
-  readonly contrails: Contrails;
+  contrails: Contrails;
   hp: number;
   alive = true;
   abstract readonly isPlayer: boolean;
@@ -14,6 +14,8 @@ export abstract class Aircraft {
   protected afterburnerMesh: THREE.Mesh;
   protected abLight: THREE.PointLight;
   private deathTimer = 0;
+  /** Prozedurales oder GLB-Visual (Kind von object). */
+  private visual: THREE.Object3D;
 
   constructor(
     name: string,
@@ -30,11 +32,49 @@ export abstract class Aircraft {
       nation,
       withCockpit,
     });
+    this.visual = group;
     this.object.add(group);
     this.afterburnerMesh = afterburner;
     this.abLight = abLight;
     this.flight = new FlightModel(this.object);
     this.contrails = new Contrails(group);
+    this.object.add(this.contrails.group);
+  }
+
+  /**
+   * Ersetzt das prozedurale Modell durch ein externes GLB-Visual (Test).
+   * Afterburner-Effekt bleibt als einfacher Cone am Heck erhalten.
+   */
+  applyExternalVisual(visual: THREE.Object3D) {
+    if (this.visual.parent === this.object) {
+      this.object.remove(this.visual);
+    }
+    // Alte Contrails entfernen
+    if (this.contrails.group.parent === this.object) {
+      this.object.remove(this.contrails.group);
+    }
+
+    this.visual = visual;
+    this.object.add(visual);
+
+    // Einfacher Nachbrenner am Heck (+Z)
+    const abMat = new THREE.MeshBasicMaterial({
+      color: 0x66aaff, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const afterburner = new THREE.Mesh(new THREE.ConeGeometry(0.5, 4.2, 12, 1, true), abMat);
+    afterburner.rotation.x = Math.PI / 2;
+    afterburner.position.set(0, 0, 8.2);
+    afterburner.visible = false;
+    visual.add(afterburner);
+    this.afterburnerMesh = afterburner;
+
+    const abLight = new THREE.PointLight(0x77aaff, 0, 35);
+    abLight.position.set(0, 0, 7.5);
+    visual.add(abLight);
+    this.abLight = abLight;
+
+    this.contrails = new Contrails(visual);
     this.object.add(this.contrails.group);
   }
 

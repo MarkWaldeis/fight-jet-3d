@@ -12,8 +12,12 @@ import { CannonSystem, Missile } from './combat/Weapons';
 import { Effects } from './combat/Effects';
 import { SamSite, type Damageable } from './combat/GroundTarget';
 import { SoundManager } from './audio/SoundManager';
+import { loadJetGlb } from './aircraft/GlbJetLoader';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameover' | 'victory';
+
+/** Test: externes GLB als Spieler-Jet (Vite public/). Leerer String = prozedurales F-16. */
+const PLAYER_GLB_URL = './models/player-jet.glb';
 
 // Daten, die das React-HUD jede Frame (gedrosselt) bekommt.
 export interface HudData {
@@ -86,6 +90,25 @@ export class Game {
     this.cannons = new CannonSystem(this.engine.scene);
     this.loop = new GameLoop(this.update, this.render);
     this.loop.start();
+
+    // Test: externes GLB als Spieler-Modell (async, Fallback bleibt prozedural)
+    if (PLAYER_GLB_URL) {
+      void this.loadPlayerGlb(PLAYER_GLB_URL);
+    }
+  }
+
+  private async loadPlayerGlb(url: string) {
+    try {
+      const { group, size } = await loadJetGlb(url);
+      this.player.applyExternalVisual(group);
+      this.cam.snapBehind(this.player.object);
+      console.info(
+        `[FightJet] Player-GLB geladen (${url}) size≈` +
+          `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m`
+      );
+    } catch (err) {
+      console.warn('[FightJet] Player-GLB konnte nicht geladen werden — prozedurales F-16 bleibt:', err);
+    }
   }
 
   onHud(cb: (d: HudData) => void) {
