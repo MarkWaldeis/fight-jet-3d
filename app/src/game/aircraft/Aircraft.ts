@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FlightModel } from './FlightModel';
 import { buildF16, Contrails } from './JetModel';
+import { EngineFx } from './EngineFx';
 
 // Basis-Klasse für alle Jets (Spieler & KI).
 export abstract class Aircraft {
@@ -11,11 +12,19 @@ export abstract class Aircraft {
   alive = true;
   abstract readonly isPlayer: boolean;
   readonly name: string;
-  protected afterburnerMesh: THREE.Mesh;
-  protected abLight: THREE.PointLight;
+  /** Animiertes Triebwerks-FX (Idle + Nachbrenner). */
+  readonly engineFx: EngineFx;
   private deathTimer = 0;
   /** Prozedurales oder GLB-Visual (Kind von object). */
   private visual: THREE.Object3D;
+
+  // Legacy-Felder für Code, der noch afterburnerMesh erwartet — map auf engineFx
+  protected get afterburnerMesh(): THREE.Mesh {
+    return this.engineFx.group.children[1] as THREE.Mesh;
+  }
+  protected get abLight(): THREE.PointLight {
+    return this.engineFx.group.children.find((c) => (c as THREE.PointLight).isLight) as THREE.PointLight;
+  }
 
   constructor(
     name: string,
@@ -32,10 +41,15 @@ export abstract class Aircraft {
       nation,
       withCockpit,
     });
+    // Prozedurales AB-Mesh ausblenden — EngineFx übernimmt
+    afterburner.visible = false;
+    abLight.intensity = 0;
+
     this.visual = group;
     this.object.add(group);
-    this.afterburnerMesh = afterburner;
-    this.abLight = abLight;
+    this.engineFx = new EngineFx(new THREE.Vector3(0, -0.05, 7.3));
+    group.add(this.engineFx.group);
+
     this.flight = new FlightModel(this.object);
     this.contrails = new Contrails(group);
     this.object.add(this.contrails.group);
@@ -43,13 +57,11 @@ export abstract class Aircraft {
 
   /**
    * Ersetzt das prozedurale Modell durch ein externes GLB-Visual (Test).
-   * Afterburner-Effekt bleibt als einfacher Cone am Heck erhalten.
    */
   applyExternalVisual(visual: THREE.Object3D) {
     if (this.visual.parent === this.object) {
       this.object.remove(this.visual);
     }
-    // Alte Contrails entfernen
     if (this.contrails.group.parent === this.object) {
       this.object.remove(this.contrails.group);
     }
@@ -57,22 +69,9 @@ export abstract class Aircraft {
     this.visual = visual;
     this.object.add(visual);
 
-    // Einfacher Nachbrenner am Heck (+Z)
-    const abMat = new THREE.MeshBasicMaterial({
-      color: 0x66aaff, transparent: true, opacity: 0.9,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-    const afterburner = new THREE.Mesh(new THREE.ConeGeometry(0.5, 4.2, 12, 1, true), abMat);
-    afterburner.rotation.x = Math.PI / 2;
-    afterburner.position.set(0, 0, 8.2);
-    afterburner.visible = false;
-    visual.add(afterburner);
-    this.afterburnerMesh = afterburner;
-
-    const abLight = new THREE.PointLight(0x77aaff, 0, 35);
-    abLight.position.set(0, 0, 7.5);
-    visual.add(abLight);
-    this.abLight = abLight;
+    // EngineFx ans GLB-Heck hängen
+    visual.add(this.engineFx.group);
+    this.engineFx.group.position.set(0, -0.05, 7.5);
 
     this.contrails = new Contrails(visual);
     this.object.add(this.contrails.group);
@@ -85,13 +84,13 @@ export abstract class Aircraft {
     return this.flight.forward;
   }
 
+  /** Schub + Nachbrenner animieren (jeder Frame). */
+  updateEngineFx(dt: number, throttle: number, afterburner: boolean) {
+    this.engineFx.update(dt, throttle, afterburner);
+  }
+
   setAfterburner(on: boolean) {
-    this.afterburnerMesh.visible = on;
-    this.abLight.intensity = on ? 8 : 0;
-    if (on) {
-      const s = 0.9 + Math.random() * 0.3;
-      this.afterburnerMesh.scale.set(s, s, 0.85 + Math.random() * 0.4);
-    }
+    this.engineFx.setAfterburner(on);
   }
 
   takeDamage(dmg: number): boolean {
@@ -99,20 +98,20 @@ export abstract class Aircraft {
     this.hp -= dmg;
     if (this.hp <= 0) {
       this.alive = false;
-      return true; // zerstört
+      return true;
     }
     return false;
   }
 
   updateDeath(dt: number): boolean {
-    // Absturz: trudelnd nach unten
     this.deathTimer += dt;
     this.object.rotateZ(dt * 4);
     this.object.rotateX(dt * 1.5);
     this.object.position.y -= (60 + this.deathTimer * 80) * dt;
     this.object.translateZ(this.flight.speed * dt * 0.6);
     this.flight.speed = Math.max(0, this.flight.speed - dt * 60);
-    return this.deathTimer > 8; // danach entfernen
+    this.engineFx.update(dt, 0.2, false);
+    return this.deathTimer > 8;
   }
 
   get headingDeg(): number {

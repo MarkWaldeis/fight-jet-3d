@@ -58,16 +58,16 @@ export const CONFIG = {
     lockLoseAngleDeg: 75,
   },
   camera: {
-    // War-Thunder-Style: höher & weiter hinter dem Jet (lokale +Z = Heck).
-    chaseOffset: { x: 0, y: 10.5, z: 28 },
-    // Blickpunkt relativ zum Jet: leicht vorne/unten → Jet im unteren Bilddrittel
-    chaseLookY: 1.0,
-    chaseLookZ: -18,
-    lerpPos: 10.0,
-    lerpRot: 8.0,
+    // Hinter dem Jet, etwas näher (noch über dem Rumpf).
+    chaseOffset: { x: 0, y: 7.2, z: 18 },
+    // Blickpunkt: leicht vorne → Jet im unteren Bilddrittel
+    chaseLookY: 0.8,
+    chaseLookZ: -12,
+    lerpPos: 11.0,
+    lerpRot: 9.0,
     baseFov: 68,
     maxFovBoost: 14,
-    freeLookDistance: 30,
+    freeLookDistance: 24,
     freeLookSensitivity: 0.004,
   },
   hud: {

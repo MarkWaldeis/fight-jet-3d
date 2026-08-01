@@ -40,7 +40,7 @@ export class PlayerJet extends Aircraft {
     if (!this.alive) return;
     this.flight.throttle = input.throttle;
     this.flight.update(dt, input, input.afterburner);
-    this.setAfterburner(input.afterburner);
+    this.updateEngineFx(dt, input.throttle, input.afterburner);
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 
     // Weltgrenzen: sanft zurückdrehen (unsichtbare Wand über Warning)

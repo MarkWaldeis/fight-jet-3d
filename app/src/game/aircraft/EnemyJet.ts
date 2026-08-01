@@ -114,7 +114,8 @@ export class EnemyJet extends Aircraft {
     this.steerTowards(aimPoint, dt, terrain);
     this.flight.throttle = this.state === 'attack' ? 0.95 : 0.75;
     this.flight.update(dt, this.input, this.state === 'pursue' && Math.random() > 0.5);
-    this.setAfterburner(this.state === 'pursue' && this.flight.speed > CONFIG.flight.maxSpeed - 40);
+    const ab = this.state === 'pursue' && this.flight.speed > CONFIG.flight.maxSpeed - 40;
+    this.updateEngineFx(dt, this.flight.throttle, ab);
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 
     // Terrain-Vermeidung (Notfall-Pull-Up)

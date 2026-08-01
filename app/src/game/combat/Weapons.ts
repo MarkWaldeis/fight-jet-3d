@@ -3,19 +3,26 @@ import { CONFIG } from '../config';
 import type { Damageable } from './GroundTarget';
 import type { Effects } from './Effects';
 
-// Tracer: gepoolte Leuchtspuren — Pivot an der Mündung, nur nach VORNE,
-// animiert entlang der Schussrichtung (nie hinter dem Jet).
-const MAX_TRACERS = 80;
-const TRACER_LEN = 18;       // sichtbare Strichlänge (m)
-const TRACER_SPEED = 900;    // m/s Flug der Leuchtspur
-const TRACER_LIFE = 0.22;    // s
-// Mündung relativ zum Jet (links vorne, nahe Nase / M61-Port)
-const MUZZLE_LOCAL = new THREE.Vector3(-0.55, 0.15, -7.2);
+// Tracer: gepoolte Leuchtspuren — aus linken/rechten Mündungen, nur nach vorne.
+const MAX_TRACERS = 100;
+const TRACER_LEN = 16;
+const TRACER_SPEED = 950;
+const TRACER_LIFE = 0.2;
+
+// Dual-Mündungen (links/rechts am Bug / Wing-Root) — Arcade-Vulcan-Look
+const MUZZLES_LOCAL = [
+  new THREE.Vector3(-1.15, 0.05, -6.8), // links
+  new THREE.Vector3(1.15, 0.05, -6.8),  // rechts
+  new THREE.Vector3(-0.7, -0.15, -6.5), // links etwas tiefer (Wechsel)
+  new THREE.Vector3(0.7, -0.15, -6.5),  // rechts etwas tiefer
+];
+
 const _zAxis = new THREE.Vector3(0, 0, 1);
 const _muzzle = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _tmp = new THREE.Vector3();
+const _flashPos = new THREE.Vector3();
 
 export class CannonSystem {
   private tracers: {
@@ -24,19 +31,28 @@ export class CannonSystem {
     dir: THREE.Vector3;
     speed: number;
   }[] = [];
+  private flashes: {
+    mesh: THREE.Mesh;
+    life: number;
+  }[] = [];
   private group = new THREE.Group();
   private cursor = 0;
+  private flashCursor = 0;
+  private barrel = 0; // wechselt links/rechts
 
   constructor(scene: THREE.Scene) {
-    // Zylinder entlang +Z, Pivot am HECK des Tracers (z=0), Spitze bei +Z = vorne
-    const geo = new THREE.CylinderGeometry(0.06, 0.14, TRACER_LEN, 5, 1, true);
-    geo.rotateX(Math.PI / 2);           // Y-Achse → Z-Achse
-    geo.translate(0, 0, TRACER_LEN / 2); // Heck bei lokal z=0, Spitze bei +TRACER_LEN
+    // Tracer-Geometrie: Pivot am Heck, erstreckt sich nur nach +Z (= vorne nach Orient)
+    const geo = new THREE.CylinderGeometry(0.05, 0.12, TRACER_LEN, 5, 1, true);
+    geo.rotateX(Math.PI / 2);
+    geo.translate(0, 0, TRACER_LEN / 2);
+
     for (let i = 0; i < MAX_TRACERS; i++) {
-      // Eigenes Material pro Tracer (Opacity-Fade darf sich nicht teilen)
       const mat = new THREE.MeshBasicMaterial({
-        color: 0xffcc55, transparent: true, opacity: 0.95,
-        blending: THREE.AdditiveBlending, depthWrite: false,
+        color: 0xffdd66,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
       });
       const m = new THREE.Mesh(geo, mat);
       m.visible = false;
@@ -48,14 +64,29 @@ export class CannonSystem {
         speed: TRACER_SPEED,
       });
     }
+
+    // Mündungsfeuer (kurze Blitze an der Kanone)
+    const flashGeo = new THREE.SphereGeometry(0.35, 8, 6);
+    for (let i = 0; i < 16; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffee88,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const m = new THREE.Mesh(flashGeo, mat);
+      m.visible = false;
+      this.group.add(m);
+      this.flashes.push({ mesh: m, life: 0 });
+    }
+
     scene.add(this.group);
   }
 
-  /** Richtet local +Z auf world-dir (auch bei exakt entgegengesetzten Vektoren stabil). */
   private orientAlong(dir: THREE.Vector3): THREE.Quaternion {
     const d = Math.abs(dir.dot(_zAxis));
     if (d > 0.9995) {
-      // parallel oder anti-parallel zu +Z
       if (dir.z > 0) _quat.identity();
       else _quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
     } else {
@@ -64,51 +95,88 @@ export class CannonSystem {
     return _quat;
   }
 
-  // Feuert eine Salve: Hitscan entlang Boresight + Tracer nur VOR der Mündung.
+  private spawnFlash(worldPos: THREE.Vector3) {
+    const f = this.flashes[this.flashCursor];
+    this.flashCursor = (this.flashCursor + 1) % this.flashes.length;
+    f.mesh.visible = true;
+    f.mesh.position.copy(worldPos);
+    const s = 0.6 + Math.random() * 0.8;
+    f.mesh.scale.setScalar(s);
+    (f.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
+    f.life = 0.04 + Math.random() * 0.03;
+  }
+
+  private spawnTracer(origin: THREE.Vector3, dir: THREE.Vector3) {
+    const t = this.tracers[this.cursor];
+    this.cursor = (this.cursor + 1) % MAX_TRACERS;
+    t.mesh.visible = true;
+    t.mesh.position.copy(origin);
+    t.mesh.quaternion.copy(this.orientAlong(dir));
+    t.dir.copy(dir);
+    t.speed = TRACER_SPEED + (Math.random() - 0.5) * 100;
+    t.life = TRACER_LIFE * (0.85 + Math.random() * 0.3);
+    (t.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
+    // leicht vor die Mündung, damit der Strich klar am Jet beginnt
+    t.mesh.position.addScaledVector(dir, 0.8);
+  }
+
+  /**
+   * Feuert eine Salve: 1–2 Tracer aus linken/rechten Mündungen + Hitscan.
+   * Schussrichtung = Flugrichtung (Boresight).
+   */
   fire(
     shooter: Damageable & { forward: import('three').Vector3 },
     target: Damageable | null,
     effects: Effects,
     onHit: (victim: Damageable, damage: number) => void
   ) {
-    // Mündung in Weltkoordinaten (mit Jet-Rotation)
-    _muzzle.copy(MUZZLE_LOCAL).applyQuaternion(shooter.object.quaternion).add(shooter.object.position);
-
-    // Schussrichtung = Flugrichtung (+ leichte Streuung)
-    _dir.copy(shooter.forward);
+    const q = shooter.object.quaternion;
+    const pos = shooter.object.position;
     const spread = CONFIG.player.cannonSpread;
-    _dir.x += (Math.random() - 0.5) * spread;
-    _dir.y += (Math.random() - 0.5) * spread;
-    _dir.z += (Math.random() - 0.5) * spread;
-    _dir.normalize();
 
-    // Tracer: Heck an der Mündung, Körper nur nach vorne entlang _dir
-    const t = this.tracers[this.cursor];
-    this.cursor = (this.cursor + 1) % MAX_TRACERS;
-    t.mesh.visible = true;
-    t.mesh.position.copy(_muzzle);
-    t.mesh.quaternion.copy(this.orientAlong(_dir));
-    t.dir.copy(_dir);
-    t.speed = TRACER_SPEED + (Math.random() - 0.5) * 80;
-    t.life = TRACER_LIFE;
-    (t.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
-    // sofort etwas vor die Mündung schieben, damit der Strich klar vor dem Jet startet
-    t.mesh.position.addScaledVector(_dir, 1.2);
+    // Pro Schuss: oft beide Seiten (links + rechts), manchmal nur eine (Vulcan-Burst)
+    const dual = Math.random() > 0.25;
+    const sides = dual
+      ? [this.barrel % 2, (this.barrel + 1) % 2]
+      : [this.barrel % 2];
+    this.barrel++;
 
-    // Hitscan: nur vor der Mündung
-    if (target && target.alive) {
-      const range = shooter.isPlayer ? CONFIG.player.cannonRange : CONFIG.enemy.fireRange;
-      const toTarget = _tmp.copy(target.object.position).sub(_muzzle);
-      const along = toTarget.dot(_dir);
-      if (along > 0 && along < range) {
-        const closest = _muzzle.clone().addScaledVector(_dir, along);
-        const dist = closest.distanceTo(target.object.position);
-        const baseRadius = target.isPlayer ? 6 : (target.name.startsWith('SAM') ? 14 : 6);
-        const hitRadius = baseRadius + along * spread * 2;
-        if (dist < hitRadius) {
-          effects.hitSparks(closest);
-          const dmg = shooter.isPlayer ? CONFIG.player.cannonDamage : CONFIG.enemy.cannonDamage;
-          onHit(target, dmg);
+    let hitOnce = false;
+
+    for (const side of sides) {
+      // Wechsle zwischen vorderen/hinteren Mündungs-Offsets pro Seite
+      const muzzleIdx = side + (Math.random() > 0.5 ? 2 : 0);
+      const local = MUZZLES_LOCAL[muzzleIdx];
+      _muzzle.copy(local).applyQuaternion(q).add(pos);
+
+      _dir.copy(shooter.forward);
+      _dir.x += (Math.random() - 0.5) * spread;
+      _dir.y += (Math.random() - 0.5) * spread;
+      _dir.z += (Math.random() - 0.5) * spread;
+      _dir.normalize();
+
+      this.spawnFlash(_flashPos.copy(_muzzle));
+      this.spawnTracer(_muzzle, _dir);
+
+      // Hitscan einmal pro Salve reicht (gleiche Boresight)
+      if (!hitOnce && target && target.alive) {
+        hitOnce = true;
+        const range = shooter.isPlayer ? CONFIG.player.cannonRange : CONFIG.enemy.fireRange;
+        // Hitscan vom Jet-Zentrum / Boresight (fair), Visuell von den Mündungen
+        const origin = pos.clone().addScaledVector(shooter.forward, 6);
+        const toTarget = _tmp.copy(target.object.position).sub(origin);
+        const along = toTarget.dot(shooter.forward);
+        if (along > 0 && along < range) {
+          const closest = origin.clone().addScaledVector(shooter.forward, along);
+          const dist = closest.distanceTo(target.object.position);
+          const baseRadius = target.isPlayer ? 6 : (target.name.startsWith('SAM') ? 14 : 6);
+          const hitRadius = baseRadius + along * spread * 2;
+          if (dist < hitRadius) {
+            effects.hitSparks(closest);
+            const dmg = shooter.isPlayer ? CONFIG.player.cannonDamage : CONFIG.enemy.cannonDamage;
+            // Dual = etwas mehr Schaden
+            onHit(target, dual ? dmg * 1.15 : dmg);
+          }
         }
       }
     }
@@ -122,11 +190,19 @@ export class CannonSystem {
         t.mesh.visible = false;
         continue;
       }
-      // Leuchtspur fliegt nur nach vorne (nie zurück hinter den Jet)
       t.mesh.position.addScaledVector(t.dir, t.speed * dt);
-      // Ausfaden
       const mat = t.mesh.material as THREE.MeshBasicMaterial;
       mat.opacity = 0.95 * Math.max(0, t.life / TRACER_LIFE);
+    }
+    for (const f of this.flashes) {
+      if (!f.mesh.visible) continue;
+      f.life -= dt;
+      if (f.life <= 0) {
+        f.mesh.visible = false;
+        continue;
+      }
+      f.mesh.scale.multiplyScalar(1 + dt * 8);
+      (f.mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, f.life / 0.05);
     }
   }
 }
@@ -171,7 +247,6 @@ export class Missile {
     return this.target === t;
   }
 
-  // true = getroffen/zerstört
   update(dt: number): { hit: Damageable | null; expired: boolean } {
     const M = CONFIG.missile;
     this.life -= dt;
@@ -182,11 +257,9 @@ export class Missile {
     this.vel.setLength(Math.min(M.speed, this.vel.length() + 400 * dt));
 
     if (this.target && this.target.alive) {
-      // Proportional-Navigation (vereinfacht): Richtung zum Ziel drehen
       const toTarget = this.target.object.position.clone().sub(this.object.position).normalize();
       const dir = this.vel.clone().normalize();
       const angle = dir.angleTo(toTarget);
-      // Ziel verloren?
       if (angle > THREE.MathUtils.degToRad(M.lockLoseAngleDeg) && this.life < M.life - 1) {
         this.target = null;
       } else {
@@ -199,7 +272,6 @@ export class Missile {
           this.vel.copy(dir.multiplyScalar(this.vel.length()));
         }
       }
-      // Näherungszünder
       if (this.target && this.object.position.distanceTo(this.target.object.position) < M.proximityRadius) {
         this.effects.explosion(this.object.position, true);
         return { hit: this.target, expired: true };
