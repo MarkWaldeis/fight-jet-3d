@@ -62,9 +62,9 @@ export const CONFIG = {
   camera: {
     // Hinter + leicht ÜBER dem Jet (Chase).
     // y = Höhe über dem Jet, z = Distanz hinter der Nase.
-    // lookAhead = Blickpunkt VOR der Nase → Fadenkreuz vor dem Flugzeug.
-    chaseOffset: { x: 0, y: 5.0, z: 11 },
-    chaseLookAhead: 38,
+    // lookAhead = Blickdistanz parallel zur Nase (Boresight) → Fadenkreuz vor dem Flugzeug.
+    chaseOffset: { x: 0, y: 7.0, z: 14 },
+    chaseLookAhead: 200,
     chaseLookY: 0,
     chaseLookZ: 0,
     lerpPos: 12.0,

@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { CONFIG } from '../config';
 
 /**
- * Chase-Kamera (Standard):
- * - Immer hinter + leicht über dem Jet
- * - Folgt Pitch & Heading (Nase hoch/runter & Kurs)
- * - Rollt NICHT mit (kein Bank der Kamera)
- * - Blick auf einen Punkt VOR der Nase → Fadenkreuz vor dem Flugzeug, nicht darauf
+ * Chase-Kamera (Standard) — wie zuvor:
+ * - Position: immer hinter + leicht über dem Jet
+ * - Folgt Heading & Pitch (bewegt sich mit), rollt NICHT mit
+ * - Blick PARALLEL zur Nase/Schussachse → Fadenkreuz vor dem Flugzeug, nicht auf dem Rumpf
+ * - Kamera-Up bleibt roll-frei (Horizont kippt nicht mit Bank)
  *
  * Free-Look: Orbit. Cockpit: Pilotensicht.
  */
@@ -15,7 +15,7 @@ export class CameraController {
   private modeBeforeFree: 'chase' | 'cockpit' = 'chase';
 
   private currentPos = new THREE.Vector3(0, 620, 3200);
-  private currentLook = new THREE.Vector3(0, 620, 2900);
+  private currentFwd = new THREE.Vector3(0, 0, -1);
   private currentUp = new THREE.Vector3(0, 1, 0);
   private ready = false;
   private trackBlend = 0;
@@ -89,7 +89,7 @@ export class CameraController {
       if (this.trackBlend > 0.02 && trackTargetWorld) {
         this.buildNoRollBasis(jet);
         camera.up.copy(this._up);
-        const bore = jet.position.clone().addScaledVector(this._fwd, 80);
+        const bore = camera.position.clone().addScaledVector(this._fwd, 80);
         camera.lookAt(bore.lerp(trackTargetWorld, this.trackBlend));
       } else {
         camera.quaternion.copy(jet.quaternion);
@@ -100,43 +100,45 @@ export class CameraController {
       return;
     }
 
-    // ─── Chase: hinter + über dem Jet, Blick VOR die Nase ────────────────
+    // ─── Chase: hinter + über dem Jet, Blick parallel zur Nase ────────────
     this.buildNoRollBasis(jet);
     const off = C.chaseOffset;
-    const lookAhead = C.chaseLookAhead ?? 35;
+    const lookDist = C.chaseLookAhead ?? 200;
 
     // Position: immer hinter dem Jet (entlang der Nase), leicht darüber
+    // → auch beim Drehen bleibt die Kamera hinter dem Flugzeug
     this._desired
       .copy(jet.position)
       .addScaledVector(this._fwd, -off.z)
       .addScaledVector(this._up, off.y);
 
-    // Blickpunkt: VOR dem Jet auf der Schussachse (nicht auf dem Rumpf!)
-    // → Bildschirmmitte / Fadenkreuz liegt vor der Nase
-    this._look
-      .copy(jet.position)
-      .addScaledVector(this._fwd, lookAhead)
-      .addScaledVector(this._up, 0.6);
-
     const k = 1 - Math.exp(-C.lerpPos * dt);
     if (!this.ready) {
       this.currentPos.copy(this._desired);
-      this.currentLook.copy(this._look);
+      this.currentFwd.copy(this._fwd);
       this.currentUp.copy(this._up);
       this.ready = true;
     } else {
       this.currentPos.lerp(this._desired, k);
-      this.currentLook.lerp(this._look, k);
+      // Richtungen weich nachziehen — KEIN Jet-Quaternion-Copy → kein Mitrollen
+      this.currentFwd.lerp(this._fwd, k).normalize();
       this.currentUp.lerp(this._up, k).normalize();
+      // Orthogonal halten
+      this._right.crossVectors(this.currentUp, this.currentFwd).normalize();
+      this.currentUp.crossVectors(this.currentFwd, this._right).normalize();
     }
+
+    // Blick PARALLEL zur Nase von der Kamera aus:
+    // → Bildschirmmitte / Fadenkreuz liegt VOR dem Flugzeug (nicht auf dem Rumpf)
+    this._look
+      .copy(this.currentPos)
+      .addScaledVector(this.currentFwd, lookDist);
 
     // Auto-Track: Blickpunkt mischt zur Zielposition (Kamera bleibt hinter dem Jet)
     const wantTrack = trackTargetWorld ? 0.72 : 0;
     this.trackBlend += (wantTrack - this.trackBlend) * Math.min(1, dt * 3.5);
     if (this.trackBlend > 0.02 && trackTargetWorld) {
-      this._look.copy(this.currentLook).lerp(trackTargetWorld, this.trackBlend);
-    } else {
-      this._look.copy(this.currentLook);
+      this._look.lerp(trackTargetWorld, this.trackBlend);
     }
 
     camera.position.copy(this.currentPos);
@@ -208,16 +210,12 @@ export class CameraController {
 
   snapBehind(jet: THREE.Object3D) {
     const off = CONFIG.camera.chaseOffset;
-    const lookAhead = CONFIG.camera.chaseLookAhead ?? 35;
     this.buildNoRollBasis(jet);
     this.currentPos
       .copy(jet.position)
       .addScaledVector(this._fwd, -off.z)
       .addScaledVector(this._up, off.y);
-    this.currentLook
-      .copy(jet.position)
-      .addScaledVector(this._fwd, lookAhead)
-      .addScaledVector(this._up, 0.6);
+    this.currentFwd.copy(this._fwd);
     this.currentUp.copy(this._up);
     this.ready = true;
     this.trackBlend = 0;

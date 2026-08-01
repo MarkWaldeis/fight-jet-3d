@@ -56,18 +56,24 @@ for (const id of jets) {
     const fwd = p.forward;
     const toJet = { x: jet.x - c.x, y: jet.y - c.y, z: jet.z - c.z };
     const e = cam.matrixWorld.elements;
+    // Three.js camera looks down local -Z
     let cx = -e[8], cy = -e[9], cz = -e[10];
     const clen = Math.hypot(cx, cy, cz) || 1;
     cx /= clen; cy /= clen; cz /= clen;
     const align = cx * fwd.x + cy * fwd.y + cz * fwd.z;
     const tlen = Math.hypot(toJet.x, toJet.y, toJet.z) || 1;
     const jetInFront = (toJet.x * fwd.x + toJet.y * fwd.y + toJet.z * fwd.z) / tlen;
+    // Jet should project BELOW screen center (crosshair ahead of plane)
+    // NDC y: project jet world pos
+    const v = jet.clone().project(cam);
     return {
       jet: p.jetId,
       align: +align.toFixed(3),
       jetInFront: +jetInFront.toFixed(3),
       above: +(c.y - jet.y).toFixed(2),
       camUpY: +cam.up.y.toFixed(3),
+      // ndcY < 0 means jet is below center → Fadenkreuz vor/über dem Flugzeug
+      jetNdcY: +v.y.toFixed(3),
     };
   });
   await page.screenshot({ path: path.join(OUT, `cam-${id}-level.png`) });
@@ -114,10 +120,12 @@ for (const id of jets) {
   });
   await page.screenshot({ path: path.join(OUT, `cam-${id}-roll.png`) });
 
+  // jetNdcY < 0 → Jet unter Bildschirmmitte → Fadenkreuz vor dem Flugzeug
   const ok =
-    level.align > 0.75 &&
+    level.align > 0.9 &&
     level.jetInFront > 0.4 &&
     level.above > 2.0 &&
+    level.jetNdcY < -0.02 &&
     pitched.align > 0.7 &&
     rolled.camUpY > 0.45;
 
