@@ -22,7 +22,7 @@ export class EnemyJet extends Aircraft {
   private evadeTimer = 0;
   private burstTimer = 0;
   private input = { pitch: 0, roll: 0, yaw: 0 };
-  private muzzleCache: THREE.Vector3[];
+  private catalogMuzzles: THREE.Vector3[];
   private readonly maxHp: number;
 
   constructor(index: number, jetId: JetId = 'f16') {
@@ -33,16 +33,16 @@ export class EnemyJet extends Aircraft {
     this.jetId = jetId;
     this.loadout = def;
     this.maxHp = hp;
-    this.muzzleCache = jetFxVectors(def).muzzles;
+    this.catalogMuzzles = jetFxVectors(def).muzzles;
     // KI fliegt etwas unter den Spieler-Werten, behält aber den Jet-Charakter
     this.flight.speedMult = def.stats.speedMult * 0.95;
     this.flight.turnMult = def.stats.turnMult * 0.8;
     this.pickWaypoint();
   }
 
-  /** Mündungen der Bordkanone(n) in Jet-lokalen Koordinaten. */
   getMuzzles(): THREE.Vector3[] {
-    return this.muzzleCache;
+    if (this.anchors?.muzzles?.length) return this.anchors.muzzles.map((v) => v.clone());
+    return this.catalogMuzzles.map((v) => v.clone());
   }
 
   get cannonRPM(): number {

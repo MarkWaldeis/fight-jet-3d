@@ -18,8 +18,8 @@ export class PlayerJet extends Aircraft {
   lockProgress = 0;
   score = 0;
   crashed = false;
-  /** Kanonen-Mündungen des gewählten Jets (lokal, aus dem Katalog). */
-  private muzzleCache: THREE.Vector3[] = jetFxVectors(getJetDef('f16')).muzzles;
+  /** Fallback-Mündungen aus dem Katalog, bis GLB-Anker kalibriert sind. */
+  private catalogMuzzles: THREE.Vector3[] = jetFxVectors(getJetDef('f16')).muzzles;
 
   constructor() {
     super('VIPER 01', { bodyColor: 0x9aa4ae, accentColor: 0xc8352e }, CONFIG.player.hp, 'us', true);
@@ -29,18 +29,18 @@ export class PlayerJet extends Aircraft {
   applyLoadout(def: JetDef) {
     this.jetId = def.id;
     this.loadout = def;
-    // name is readonly on Aircraft — we store callsign in loadout for HUD
     this.hp = def.stats.hp;
     this.missilesLeft = def.stats.missiles;
     this.flaresLeft = def.stats.flareCount;
     this.flight.speedMult = def.stats.speedMult;
     this.flight.turnMult = def.stats.turnMult;
-    this.muzzleCache = jetFxVectors(def).muzzles;
+    this.catalogMuzzles = jetFxVectors(def).muzzles;
   }
 
-  /** Mündungen der Bordkanone(n) in Jet-lokalen Koordinaten. */
+  /** Mündungen: kalibrierte GLB-Anker bevorzugt, sonst Katalog. */
   getMuzzles(): THREE.Vector3[] {
-    return this.muzzleCache;
+    if (this.anchors?.muzzles?.length) return this.anchors.muzzles.map((v) => v.clone());
+    return this.catalogMuzzles.map((v) => v.clone());
   }
 
   reset() {

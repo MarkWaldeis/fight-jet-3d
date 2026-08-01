@@ -3,11 +3,11 @@ import { CONFIG } from '../config';
 import type { Damageable } from './GroundTarget';
 import type { Effects } from './Effects';
 
-// Tracer: starten an den Mündungen VOR dem Jet, fliegen nur nach vorne.
+// Tracer: starten exakt an den Mündungen, fliegen nur nach vorne.
 const MAX_TRACERS = 100;
-const TRACER_LEN = 12;
-const TRACER_SPEED = 980;
-const TRACER_LIFE = 0.18;
+const TRACER_LEN = 9;
+const TRACER_SPEED = 1050;
+const TRACER_LIFE = 0.16;
 
 // Fallback-Mündungen am Bug (local -Z = Nase/Flugrichtung) — nur wenn der
 // Schütze keine eigenen Mündungen aus dem Jet-Katalog mitbringt.
@@ -114,20 +114,19 @@ export class CannonSystem {
     const t = this.tracers[this.cursor];
     this.cursor = (this.cursor + 1) % MAX_TRACERS;
     t.mesh.visible = true;
-    // Heck des Tracers = Mündung, Körper nur entlang dir (nach vorne)
+    // Pivot am Heck des Strichs = Mündung; Geometrie geht nur nach +local Z = dir
     t.mesh.position.copy(origin);
     t.mesh.quaternion.copy(this.orientAlong(dir));
     t.dir.copy(dir);
     t.speed = TRACER_SPEED + (Math.random() - 0.5) * 80;
     t.life = TRACER_LIFE * (0.9 + Math.random() * 0.2);
     (t.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
-    // knappe Mündung vorn freimachen (nur nach vorne, nie nach hinten)
-    t.mesh.position.addScaledVector(dir, 1.5);
+    // minimal vor die Mündung (nicht hinter den Jet!)
+    t.mesh.position.addScaledVector(dir, 0.25);
   }
 
   /**
-   * Salve aus linken/rechten Mündungen. Visuell nur VOR dem Jet.
-   * Hitscan entlang Boresight (Flugrichtung = Fadenkreuz).
+   * Salve aus Jet-Mündungen. Bei vollem Lock: Aim-Assist Richtung Ziel.
    */
   fire(
     shooter: Damageable & {
@@ -138,7 +137,9 @@ export class CannonSystem {
     },
     target: Damageable | null,
     effects: Effects,
-    onHit: (victim: Damageable, damage: number) => void
+    onHit: (victim: Damageable, damage: number) => void,
+    /** Gelocktes Ziel für Aim-Assist (Richtung + Hitscan) */
+    aimAssist?: Damageable | null
   ) {
     const q = shooter.object.quaternion;
     const pos = shooter.object.position;
@@ -149,44 +150,57 @@ export class CannonSystem {
           ? shooter.loadout.stats.cannonDamage * 0.35
           : CONFIG.enemy.cannonDamage);
 
-    // Mündungen des jeweiligen Jets (Katalog), Fallback: Bug-Positionen
     const muzzles = shooter.getMuzzles?.() ?? MUZZLES_LOCAL;
-    const count = muzzles.length;
+    const count = Math.max(1, muzzles.length);
 
-    // Elite railburst: eher einzelne dicke Strahlen; F-16/F-35 dual
     const dualChance =
-      count > 1 && shooter.loadout?.stats.cannonDamage && shooter.loadout.stats.cannonDamage >= 7 ? 0.35 : 0.8;
+      count > 1 && shooter.loadout?.stats.cannonDamage && shooter.loadout.stats.cannonDamage >= 7 ? 0.35 : 0.85;
     const dual = count > 1 && Math.random() < dualChance;
     const first = this.barrel % count;
     const indices = dual ? [first, (first + 1) % count] : [first];
     this.barrel++;
 
+    // Aim-Assist-Richtung (Welt)
+    let assistDir: THREE.Vector3 | null = null;
+    if (aimAssist?.alive) {
+      const to = aimAssist.object.position.clone().sub(pos).normalize();
+      if (to.dot(shooter.forward) > 0.15) assistDir = to;
+    }
+
     let hitOnce = false;
+    const fireDir = assistDir ?? shooter.forward;
 
     for (const muzzleIdx of indices) {
       const local = muzzles[muzzleIdx];
       _muzzle.copy(local).applyQuaternion(q).add(pos);
 
-      _dir.copy(shooter.forward);
+      _dir.copy(fireDir);
+      if (assistDir) {
+        // Leicht von Mündung zum Ziel (noch genauer)
+        _tmp.copy(aimAssist!.object.position).sub(_muzzle).normalize();
+        if (_tmp.dot(shooter.forward) > 0.1) _dir.copy(_tmp);
+      }
       _dir.x += (Math.random() - 0.5) * spread;
       _dir.y += (Math.random() - 0.5) * spread;
       _dir.z += (Math.random() - 0.5) * spread;
       _dir.normalize();
 
-      this.spawnFlash(_flashPos.copy(_muzzle).addScaledVector(_dir, 0.4));
+      this.spawnFlash(_flashPos.copy(_muzzle).addScaledVector(_dir, 0.15));
       this.spawnTracer(_muzzle, _dir);
 
       if (!hitOnce && target && target.alive) {
         hitOnce = true;
         const range = shooter.isPlayer ? CONFIG.player.cannonRange : CONFIG.enemy.fireRange;
-        const origin = pos.clone().addScaledVector(shooter.forward, 8);
+        const origin = _muzzle.clone();
         const toTarget = _tmp.copy(target.object.position).sub(origin);
-        const along = toTarget.dot(shooter.forward);
+        const along = toTarget.dot(_dir);
         if (along > 0 && along < range) {
-          const closest = origin.clone().addScaledVector(shooter.forward, along);
+          const closest = origin.clone().addScaledVector(_dir, along);
           const dist = closest.distanceTo(target.object.position);
           const baseRadius = target.isPlayer ? 6 : (target.name.startsWith('SAM') ? 14 : 6);
-          const hitRadius = baseRadius + along * spread * 2;
+          // Mit Aim-Assist etwas großzügiger
+          const assistBonus = assistDir ? 4 : 0;
+          const hitRadius = baseRadius + assistBonus + along * spread * 2;
           if (dist < hitRadius) {
             effects.hitSparks(closest);
             onHit(target, dual ? baseDmg * 1.15 : baseDmg);

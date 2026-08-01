@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
 
-// Chase: hinter + über dem Jet, Blick = Flugrichtung → Fadenkreuz = Schussachse.
+// Chase: hinter + über dem Jet, Boresight; bei Lock → Auto-Track aufs Ziel.
 // Free-Look: Orbit. Cockpit: Sitz.
 export class CameraController {
   mode: 'chase' | 'cockpit' | 'free' = 'chase';
@@ -10,17 +10,24 @@ export class CameraController {
   private currentPos = new THREE.Vector3(0, 620, 3200);
   private currentQuat = new THREE.Quaternion();
   private ready = false;
+  private trackBlend = 0; // 0 = Boresight, 1 = volles Ziel-Tracking
 
   private freeYaw = 0;
   private freePitch = 0.25;
   private freeDist = 28;
+
+  private _lookBore = new THREE.Vector3();
+  private _lookAim = new THREE.Vector3();
+  private _up = new THREE.Vector3();
 
   update(
     dt: number,
     jet: THREE.Object3D,
     speed: number,
     camera: THREE.PerspectiveCamera,
-    lookDelta?: { x: number; y: number }
+    lookDelta?: { x: number; y: number },
+    /** Weltposition des gelockten Ziels — Kamera/Aim folgt sanft */
+    trackTargetWorld?: THREE.Vector3 | null
   ) {
     const C = CONFIG.camera;
 
@@ -33,22 +40,34 @@ export class CameraController {
 
     if (this.mode === 'free') {
       this.updateFree(dt, jet, camera, lookDelta);
+      this.trackBlend = 0;
       return;
     }
 
     if (this.mode === 'cockpit') {
       const offset = new THREE.Vector3(0, 0.95, -2.55).applyQuaternion(jet.quaternion).add(jet.position);
       camera.position.copy(offset);
-      camera.quaternion.copy(jet.quaternion);
-      camera.up.set(0, 1, 0).applyQuaternion(jet.quaternion).normalize();
-      camera.rotateX(-0.08);
+      // Cockpit: bei Lock ebenfalls leicht zum Ziel schauen
+      const want = trackTargetWorld ? 0.55 : 0;
+      this.trackBlend += (want - this.trackBlend) * Math.min(1, dt * 4);
+      if (this.trackBlend > 0.02 && trackTargetWorld) {
+        this._up.set(0, 1, 0).applyQuaternion(jet.quaternion).normalize();
+        camera.up.copy(this._up);
+        this._lookBore.copy(jet.position).add(
+          new THREE.Vector3(0, 0, -40).applyQuaternion(jet.quaternion)
+        );
+        this._lookAim.copy(this._lookBore).lerp(trackTargetWorld, this.trackBlend);
+        camera.lookAt(this._lookAim);
+      } else {
+        camera.quaternion.copy(jet.quaternion);
+        camera.up.set(0, 1, 0).applyQuaternion(jet.quaternion).normalize();
+        camera.rotateX(-0.08);
+      }
       this.ready = false;
       return;
     }
 
-    // --- Chase (Boresight) ---
-    // Position: hinter + über dem Jet. Orientierung = Jet → Bildschirmmitte = Nase/Kanone.
-    // Der Jet liegt dadurch unter der Mitte, das Fadenkreuz zeigt vor die Nase (Schussrichtung).
+    // --- Chase ---
     const off = C.chaseOffset;
     const desired = new THREE.Vector3(off.x, off.y, off.z)
       .applyQuaternion(jet.quaternion)
@@ -67,8 +86,26 @@ export class CameraController {
     }
 
     camera.position.copy(this.currentPos);
-    camera.quaternion.copy(this.currentQuat);
-    camera.up.set(0, 1, 0).applyQuaternion(this.currentQuat).normalize();
+
+    // Auto-Track: nach vollem Lock Fadenkreuz dem Gegner nachführen
+    const wantTrack = trackTargetWorld ? 0.82 : 0;
+    this.trackBlend += (wantTrack - this.trackBlend) * Math.min(1, dt * 3.5);
+
+    this._up.set(0, 1, 0).applyQuaternion(this.currentQuat).normalize();
+    camera.up.copy(this._up);
+
+    if (this.trackBlend > 0.02 && trackTargetWorld) {
+      // Blickpunkt: Mischung Boresight weit voraus + Zielposition
+      this._lookBore.copy(jet.position).add(
+        new THREE.Vector3(0, 0.5, -90).applyQuaternion(jet.quaternion)
+      );
+      this._lookAim.copy(this._lookBore).lerp(trackTargetWorld, this.trackBlend);
+      camera.lookAt(this._lookAim);
+      this.currentQuat.copy(camera.quaternion);
+    } else {
+      // Reiner Boresight: Bildschirmmitte = Flug-/Schussrichtung
+      camera.quaternion.copy(this.currentQuat);
+    }
   }
 
   private updateFree(
@@ -132,6 +169,10 @@ export class CameraController {
     return this.mode === 'free';
   }
 
+  get isTracking() {
+    return this.trackBlend > 0.35;
+  }
+
   snapBehind(jet: THREE.Object3D) {
     const off = CONFIG.camera.chaseOffset;
     this.currentPos.copy(
@@ -139,6 +180,7 @@ export class CameraController {
     );
     this.currentQuat.copy(jet.quaternion);
     this.ready = true;
+    this.trackBlend = 0;
     if (this.mode === 'free') {
       this.freeYaw = 0;
       this.freePitch = 0.28;

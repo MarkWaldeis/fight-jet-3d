@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { FlightModel } from './FlightModel';
 import { buildF16, Contrails } from './JetModel';
 import { EngineFx } from './EngineFx';
+import { computeFxAnchors, type FxAnchors } from './FxAnchors';
 
 // Basis-Klasse für alle Jets (Spieler & KI).
 export abstract class Aircraft {
@@ -12,11 +13,11 @@ export abstract class Aircraft {
   alive = true;
   abstract readonly isPlayer: boolean;
   readonly name: string;
-  /** Animiertes Triebwerks-FX (Idle + Nachbrenner, ggf. mehrere Düsen). */
   readonly engineFx: EngineFx;
   private deathTimer = 0;
-  /** Prozedurales oder GLB-Visual (Kind von object). */
   private visual: THREE.Object3D;
+  /** Zuletzt berechnete FX-Anker (Mündungen für die Kanone). */
+  protected anchors: FxAnchors | null = null;
 
   constructor(
     name: string,
@@ -33,15 +34,13 @@ export abstract class Aircraft {
       nation,
       withCockpit,
     });
-    // Prozedurales AB-Mesh ausblenden — EngineFx übernimmt
     afterburner.visible = false;
     abLight.intensity = 0;
 
     this.visual = group;
     this.object.add(group);
-    // WICHTIG: EngineFx & Contrails hängen am unskalierten Aircraft-Objekt
-    // (Meter-Raum). Das GLB-Visual ist ~15x skaliert — als Kind davon würden
-    // FX-Positionen und -Größen mit-skaliert und lägen >100 m hinter dem Jet.
+
+    // EngineFx als Kind von object → folgt Position + Quaternion des Jets
     this.engineFx = new EngineFx([new THREE.Vector3(0, -0.05, 7.3)]);
     this.object.add(this.engineFx.group);
 
@@ -51,12 +50,17 @@ export abstract class Aircraft {
   }
 
   /**
-   * Ersetzt das prozedurale Modell durch ein externes GLB-Visual
-   * und konfiguriert Düsen-FX + Kondensstreifen passend zum Jet.
+   * Ersetzt das Visual und kalibriert Düsen/Mündungen am echten Modell-AABB.
+   * @param catalogHint Katalog-Hinweis (Twin-Düsen etc.)
    */
   applyExternalVisual(
     visual: THREE.Object3D,
-    fx?: { nozzles: THREE.Vector3[]; nozzleScale: number; wingHalfSpan: number }
+    catalogHint?: {
+      nozzles: THREE.Vector3[];
+      nozzleScale: number;
+      wingHalfSpan: number;
+      muzzles?: THREE.Vector3[];
+    }
   ) {
     if (this.visual.parent === this.object) {
       this.object.remove(this.visual);
@@ -68,18 +72,38 @@ export abstract class Aircraft {
     this.visual = visual;
     this.object.add(visual);
 
-    // EngineFx bleibt Kind von object (Meter-Raum) — nur die Düsen des
-    // neuen Jets konfigurieren (Positionen aus dem Jet-Katalog)
-    this.object.add(this.engineFx.group);
-    this.engineFx.group.position.set(0, 0, 0);
-    if (fx) {
-      this.engineFx.configure(fx.nozzles, fx.nozzleScale);
-    } else {
-      this.engineFx.configure([new THREE.Vector3(0, -0.05, 7.5)], 1);
+    // Anker aus Geometrie messen (klebt am Heck/Bug des geladenen GLB)
+    const twinN = (catalogHint?.nozzles.length ?? 1) >= 2;
+    const twinM = (catalogHint?.muzzles?.length ?? 0) >= 2 || twinN;
+    const auto = computeFxAnchors(visual, this.object, {
+      twinNozzles: twinN,
+      twinMuzzles: twinM,
+    });
+
+    // Scale aus Katalog mischen (falls gesetzt)
+    if (catalogHint?.nozzleScale) {
+      auto.nozzleScale = (auto.nozzleScale + catalogHint.nozzleScale) * 0.5;
+    }
+    if (catalogHint?.wingHalfSpan) {
+      auto.wingHalfSpan = catalogHint.wingHalfSpan;
     }
 
-    this.contrails = new Contrails(this.object, fx?.wingHalfSpan ?? 4.7);
+    this.anchors = auto;
+    this.object.add(this.engineFx.group);
+    this.engineFx.group.position.set(0, 0, 0);
+    this.engineFx.group.quaternion.identity();
+    this.engineFx.configure(auto.nozzles, auto.nozzleScale);
+
+    this.contrails = new Contrails(this.object, auto.wingHalfSpan);
     this.object.add(this.contrails.group);
+  }
+
+  /** Kanonen-Mündungen im Aircraft-Lokalraum (nach Visual-Kalibrierung). */
+  getMuzzles(): THREE.Vector3[] {
+    if (this.anchors?.muzzles?.length) {
+      return this.anchors.muzzles.map((v) => v.clone());
+    }
+    return [new THREE.Vector3(-0.5, 0, -7.5)];
   }
 
   get position(): THREE.Vector3 {
@@ -89,7 +113,6 @@ export abstract class Aircraft {
     return this.flight.forward;
   }
 
-  /** Schub + Nachbrenner animieren (jeder Frame). */
   updateEngineFx(dt: number, throttle: number, afterburner: boolean) {
     this.engineFx.update(dt, throttle, afterburner);
   }

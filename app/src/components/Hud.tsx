@@ -94,6 +94,14 @@ export function Hud({ data }: { data: HudData }) {
         </div>
       )}
 
+      {/* Auto-Track nach Lock */}
+      {data.autoTrack && !data.freeLook && (
+        <div className="absolute left-1/2 top-[16%] -translate-x-1/2 text-center">
+          <div className="text-sm font-bold tracking-[0.3em]" style={{ color: '#ff8866' }}>AUTO TRACK</div>
+          <div className="mt-0.5 text-xs opacity-70">Aim folgt Ziel · {data.lockedTargetName ?? 'LOCK'}</div>
+        </div>
+      )}
+
       {/* Warnung */}
       {data.warning && (
         <div className="absolute left-1/2 top-[30%] -translate-x-1/2 animate-pulse text-3xl font-black tracking-widest" style={{ color: warnColor, textShadow: '0 0 12px #ff444488' }}>

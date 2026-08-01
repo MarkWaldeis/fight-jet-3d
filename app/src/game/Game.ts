@@ -37,6 +37,7 @@ export interface HudData {
   lockScreen: { x: number; y: number } | null;
   warning: string | null;
   freeLook: boolean;
+  autoTrack: boolean;
   radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[];
   // Mission
   waveIndex: number;      // 0-basiert
@@ -373,7 +374,15 @@ export class Game {
       if (this.input.cannon && player.canFireCannon()) {
         player.firedCannon();
         const target = this.pickCannonTarget();
-        this.cannons.fire(player, target, this.effects, (victim, dmg) => this.onHit(victim, dmg, player));
+        const assist =
+          player.lockProgress >= 1 && player.lockTarget?.alive ? player.lockTarget : null;
+        this.cannons.fire(
+          player,
+          target,
+          this.effects,
+          (victim, dmg) => this.onHit(victim, dmg, player),
+          assist
+        );
         this.sound.cannonShot();
       }
       if (this.input.wasPressed('KeyM') || this.input.wasPressed('KeyF')) {
@@ -471,7 +480,21 @@ export class Game {
 
     // --- Kamera & Sound ---
     const lookDelta = free ? this.input.freeLookDelta(dt) : undefined;
-    this.cam.update(dt, player.object, player.flight.speed, this.engine.camera, lookDelta);
+    // Auto-Track: nach vollständigem Lock folgt das Aiming dem Gegner
+    const trackPos =
+      !free &&
+      player.lockProgress >= 1 &&
+      player.lockTarget?.alive
+        ? player.lockTarget.object.position
+        : null;
+    this.cam.update(
+      dt,
+      player.object,
+      player.flight.speed,
+      this.engine.camera,
+      lookDelta,
+      trackPos
+    );
     this.sound.updateEngine(
       player.flight.speed / CONFIG.flight.afterburnerSpeed,
       this.input.throttle,
@@ -650,6 +673,7 @@ export class Game {
       afterburner: this.input.afterburner,
       stalled: p.flight.stalled,
       freeLook: this.cam.isFreeLook,
+      autoTrack: this.cam.isTracking && p.lockProgress >= 1,
       gForce: p.flight.gForce,
       hp: Math.max(0, Math.round(p.hp)),
       maxHp: p.maxHp,
