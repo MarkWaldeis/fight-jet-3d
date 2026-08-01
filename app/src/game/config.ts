@@ -60,16 +60,16 @@ export const CONFIG = {
     lockLoseAngleDeg: 75,
   },
   camera: {
-    // Näher + darüber: hinter dem Jet ( +Z ), erhöht ( +Y ).
-    // Orientierung = Jet-Quaternion → Fadenkreuz = Schussrichtung (vor der Nase).
-    chaseOffset: { x: 0, y: 9.0, z: 12 },
-    chaseLookY: 0,   // ungenutzt im Boresight-Modus (Quaternion-Match)
+    // Horizon-stabile Chase-Cam: näher am Jet.
+    // y = Höhe über dem Jet, z = Distanz hinter dem Jet (entlang Heading, kein Roll).
+    chaseOffset: { x: 0, y: 5.5, z: 8.5 },
+    chaseLookY: 0,
     chaseLookZ: 0,
-    lerpPos: 12.0,
-    lerpRot: 11.0,
+    lerpPos: 14.0,
+    lerpRot: 10.0,
     baseFov: 68,
-    maxFovBoost: 14,
-    freeLookDistance: 20,
+    maxFovBoost: 12,
+    freeLookDistance: 16,
     freeLookSensitivity: 0.004,
   },
   hud: {
