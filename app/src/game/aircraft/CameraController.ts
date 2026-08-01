@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
 
-// Verfolger- & Cockpit-Kamera mit Trägheit und Speed-FOV.
+// Verfolger- & Cockpit-Kamera.
+// Chase: Kamera hinter/über dem Jet, Blick exakt entlang der Flugrichtung (-Z).
+// Dadurch liegt das Fadenkreuz (Bildschirmmitte) auf der Boresight-/Kanonenachse.
 export class CameraController {
   mode: 'chase' | 'cockpit' = 'chase';
   private currentPos = new THREE.Vector3(0, 620, 3200);
-  private lookTarget = new THREE.Vector3();
+  private currentQuat = new THREE.Quaternion();
+  private ready = false;
 
   update(dt: number, jet: THREE.Object3D, speed: number, camera: THREE.PerspectiveCamera) {
     const C = CONFIG.camera;
@@ -19,37 +22,46 @@ export class CameraController {
     camera.updateProjectionMatrix();
 
     if (this.mode === 'cockpit') {
-      // Sitzposition: Pilotenkopf, Blick leicht nach unten (Panel sichtbar).
-      // Position aus position+quaternion (nicht matrixWorld — der kann einen Frame alt sein)
-      const offset = new THREE.Vector3(0, 1.02, -3.42).applyQuaternion(jet.quaternion).add(jet.position);
+      // Pilotenkopf unter der Bubble-Canopy, Blick leicht nach unten (Panel)
+      const offset = new THREE.Vector3(0, 0.95, -2.55).applyQuaternion(jet.quaternion).add(jet.position);
       camera.position.copy(offset);
       camera.quaternion.copy(jet.quaternion);
       camera.up.set(0, 1, 0).applyQuaternion(jet.quaternion).normalize();
-      camera.rotateX(-0.11);
+      // Leichter Nick nach unten für Instrumente — Schussachse bleibt nah an Mitte
+      camera.rotateX(-0.08);
+      this.ready = false; // chase neu snappen beim Umschalten
       return;
     }
 
-    // Chase: Zielposition hinter dem Jet
+    // Chase: Position hinter + leicht über dem Jet (lokale +Z = Heck)
     const off = C.chaseOffset;
-    const desired = new THREE.Vector3(off.x, off.y, off.z).applyQuaternion(jet.quaternion).add(jet.position);
-    const k = 1 - Math.exp(-C.lerpPos * dt);
-    this.currentPos.lerp(desired, k);
+    const desired = new THREE.Vector3(off.x, off.y, off.z)
+      .applyQuaternion(jet.quaternion)
+      .add(jet.position);
+
+    const kPos = 1 - Math.exp(-C.lerpPos * dt);
+    if (!this.ready) {
+      this.currentPos.copy(desired);
+      this.currentQuat.copy(jet.quaternion);
+      this.ready = true;
+    } else {
+      this.currentPos.lerp(desired, kPos);
+      // Orientierung glatt an Jet angleichen → Bildschirmmitte = Nase/Kanone
+      this.currentQuat.slerp(jet.quaternion, 1 - Math.exp(-C.lerpRot * dt));
+    }
+
     camera.position.copy(this.currentPos);
-
-    // Blickpunkt leicht vor dem Jet
-    const ahead = new THREE.Vector3(0, 1.2, -30).applyQuaternion(jet.quaternion).add(jet.position);
-    const kr = 1 - Math.exp(-C.lerpRot * dt);
-    this.lookTarget.lerp(ahead, kr);
-    camera.lookAt(this.lookTarget);
-
-    // Kamera rollt leicht mit dem Jet
-    const jetUp = new THREE.Vector3(0, 1, 0).applyQuaternion(jet.quaternion);
-    camera.up.lerp(jetUp, Math.min(1, dt * 3)).normalize();
+    camera.quaternion.copy(this.currentQuat);
+    // up aus Quaternion (kein lookAt → kein Boresight-Versatz)
+    camera.up.set(0, 1, 0).applyQuaternion(this.currentQuat).normalize();
   }
 
   snapBehind(jet: THREE.Object3D) {
     const off = CONFIG.camera.chaseOffset;
-    this.currentPos.copy(new THREE.Vector3(off.x, off.y, off.z).applyQuaternion(jet.quaternion).add(jet.position));
-    this.lookTarget.copy(new THREE.Vector3(0, 1.2, -30).applyQuaternion(jet.quaternion).add(jet.position));
+    this.currentPos.copy(
+      new THREE.Vector3(off.x, off.y, off.z).applyQuaternion(jet.quaternion).add(jet.position)
+    );
+    this.currentQuat.copy(jet.quaternion);
+    this.ready = true;
   }
 }

@@ -27,15 +27,17 @@ export class CannonSystem {
     scene.add(this.group);
   }
 
-  // Feuert eine Salve: Hitscan gegen Ziel + visueller Tracer
+  // Feuert eine Salve: Hitscan entlang Boresight (-Z) + visueller Tracer.
+  // Schussrichtung = Flugrichtung = Fadenkreuz (Chase-Kamera teilt Jet-Quaternion).
   fire(
     shooter: Damageable & { forward: import('three').Vector3 },
     target: Damageable | null,
     effects: Effects,
     onHit: (victim: Damageable, damage: number) => void
   ) {
-    const origin = shooter.object.position.clone();
+    // Mündung etwas vor der Nase entlang der Vorwärtsachse
     const dir = shooter.forward.clone();
+    const origin = shooter.object.position.clone().addScaledVector(dir, 6.5);
     // Streuung
     const spread = CONFIG.player.cannonSpread;
     dir.x += (Math.random() - 0.5) * spread;
@@ -43,13 +45,14 @@ export class CannonSystem {
     dir.z += (Math.random() - 0.5) * spread;
     dir.normalize();
 
-    // Tracer-Visual
+    // Tracer-Visual (entlang Schussrichtung, Nase → vorne)
     const t = this.tracers[this.cursor];
     this.cursor = (this.cursor + 1) % MAX_TRACERS;
     t.mesh.visible = true;
-    t.mesh.position.copy(origin).addScaledVector(dir, 10);
-    t.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.clone().negate());
-    t.life = 0.12;
+    t.mesh.position.copy(origin).addScaledVector(dir, 12);
+    // Tracer-Zylinder liegt nach rotateX entlang lokaler Z; ausrichten auf Flugrichtung
+    t.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+    t.life = 0.14;
 
     // Hitscan: Kugel-Test entlang des Strahls
     if (target && target.alive) {
