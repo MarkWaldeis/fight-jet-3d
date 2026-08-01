@@ -60,16 +60,18 @@ export const CONFIG = {
     lockLoseAngleDeg: 75,
   },
   camera: {
-    // Hinter + leicht ÜBER dem Jet. Blick parallel zur Nase (Boresight).
-    // y = Höhe über dem Jet (roll-freies Up), z = Distanz hinter der Nase.
-    chaseOffset: { x: 0, y: 4.2, z: 9.5 },
+    // Hinter + leicht ÜBER dem Jet (Chase).
+    // y = Höhe über dem Jet, z = Distanz hinter der Nase.
+    // lookAhead = Blickpunkt VOR der Nase → Fadenkreuz vor dem Flugzeug.
+    chaseOffset: { x: 0, y: 5.0, z: 11 },
+    chaseLookAhead: 38,
     chaseLookY: 0,
     chaseLookZ: 0,
-    lerpPos: 13.0,
-    lerpRot: 11.0,
+    lerpPos: 12.0,
+    lerpRot: 10.0,
     baseFov: 68,
     maxFovBoost: 12,
-    freeLookDistance: 16,
+    freeLookDistance: 18,
     freeLookSensitivity: 0.004,
   },
   hud: {
