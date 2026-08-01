@@ -4,7 +4,7 @@ import { CONFIG } from '../config';
 import type { Input } from '../core/Input';
 import type { Terrain } from '../world/Terrain';
 import type { Damageable } from '../combat/GroundTarget';
-import { getJetDef, type JetDef, type JetId } from './JetCatalog';
+import { getJetDef, jetFxVectors, type JetDef, type JetId } from './JetCatalog';
 
 // Spieler-Jet: Stats & Loadout kommen aus dem Hangar (JetDef).
 export class PlayerJet extends Aircraft {
@@ -18,6 +18,8 @@ export class PlayerJet extends Aircraft {
   lockProgress = 0;
   score = 0;
   crashed = false;
+  /** Kanonen-Mündungen des gewählten Jets (lokal, aus dem Katalog). */
+  private muzzleCache: THREE.Vector3[] = jetFxVectors(getJetDef('f16')).muzzles;
 
   constructor() {
     super('VIPER 01', { bodyColor: 0x9aa4ae, accentColor: 0xc8352e }, CONFIG.player.hp, 'us', true);
@@ -33,6 +35,12 @@ export class PlayerJet extends Aircraft {
     this.flaresLeft = def.stats.flareCount;
     this.flight.speedMult = def.stats.speedMult;
     this.flight.turnMult = def.stats.turnMult;
+    this.muzzleCache = jetFxVectors(def).muzzles;
+  }
+
+  /** Mündungen der Bordkanone(n) in Jet-lokalen Koordinaten. */
+  getMuzzles(): THREE.Vector3[] {
+    return this.muzzleCache;
   }
 
   reset() {

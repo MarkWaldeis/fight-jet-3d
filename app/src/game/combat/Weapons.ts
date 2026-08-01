@@ -9,7 +9,8 @@ const TRACER_LEN = 12;
 const TRACER_SPEED = 980;
 const TRACER_LIFE = 0.18;
 
-// Mündungen am Bug (local -Z = Nase/Flugrichtung) — links & rechts
+// Fallback-Mündungen am Bug (local -Z = Nase/Flugrichtung) — nur wenn der
+// Schütze keine eigenen Mündungen aus dem Jet-Katalog mitbringt.
 const MUZZLES_LOCAL = [
   new THREE.Vector3(-1.05, 0.0, -8.2), // links vorne
   new THREE.Vector3(1.05, 0.0, -8.2),  // rechts vorne
@@ -133,6 +134,7 @@ export class CannonSystem {
       forward: import('three').Vector3;
       cannonDamage?: number;
       loadout?: { stats: { cannonSpread: number; cannonDamage: number } };
+      getMuzzles?: () => import('three').Vector3[];
     },
     target: Damageable | null,
     effects: Effects,
@@ -143,21 +145,26 @@ export class CannonSystem {
     const spread = shooter.loadout?.stats.cannonSpread ?? CONFIG.player.cannonSpread;
     const baseDmg = shooter.isPlayer
       ? (shooter.cannonDamage ?? shooter.loadout?.stats.cannonDamage ?? CONFIG.player.cannonDamage)
-      : CONFIG.enemy.cannonDamage;
+      : (shooter.loadout?.stats.cannonDamage != null
+          ? shooter.loadout.stats.cannonDamage * 0.35
+          : CONFIG.enemy.cannonDamage);
+
+    // Mündungen des jeweiligen Jets (Katalog), Fallback: Bug-Positionen
+    const muzzles = shooter.getMuzzles?.() ?? MUZZLES_LOCAL;
+    const count = muzzles.length;
 
     // Elite railburst: eher einzelne dicke Strahlen; F-16/F-35 dual
-    const dualChance = shooter.loadout?.stats.cannonDamage && shooter.loadout.stats.cannonDamage >= 7 ? 0.35 : 0.8;
-    const dual = Math.random() < dualChance;
-    const sides = dual
-      ? [this.barrel % 2, (this.barrel + 1) % 2]
-      : [this.barrel % 2];
+    const dualChance =
+      count > 1 && shooter.loadout?.stats.cannonDamage && shooter.loadout.stats.cannonDamage >= 7 ? 0.35 : 0.8;
+    const dual = count > 1 && Math.random() < dualChance;
+    const first = this.barrel % count;
+    const indices = dual ? [first, (first + 1) % count] : [first];
     this.barrel++;
 
     let hitOnce = false;
 
-    for (const side of sides) {
-      const muzzleIdx = side + (Math.random() > 0.5 ? 2 : 0);
-      const local = MUZZLES_LOCAL[muzzleIdx];
+    for (const muzzleIdx of indices) {
+      const local = muzzles[muzzleIdx];
       _muzzle.copy(local).applyQuaternion(q).add(pos);
 
       _dir.copy(shooter.forward);

@@ -12,19 +12,11 @@ export abstract class Aircraft {
   alive = true;
   abstract readonly isPlayer: boolean;
   readonly name: string;
-  /** Animiertes Triebwerks-FX (Idle + Nachbrenner). */
+  /** Animiertes Triebwerks-FX (Idle + Nachbrenner, ggf. mehrere Düsen). */
   readonly engineFx: EngineFx;
   private deathTimer = 0;
   /** Prozedurales oder GLB-Visual (Kind von object). */
   private visual: THREE.Object3D;
-
-  // Legacy-Felder für Code, der noch afterburnerMesh erwartet — map auf engineFx
-  protected get afterburnerMesh(): THREE.Mesh {
-    return this.engineFx.group.children[1] as THREE.Mesh;
-  }
-  protected get abLight(): THREE.PointLight {
-    return this.engineFx.group.children.find((c) => (c as THREE.PointLight).isLight) as THREE.PointLight;
-  }
 
   constructor(
     name: string,
@@ -47,18 +39,25 @@ export abstract class Aircraft {
 
     this.visual = group;
     this.object.add(group);
-    this.engineFx = new EngineFx(new THREE.Vector3(0, -0.05, 7.3));
-    group.add(this.engineFx.group);
+    // WICHTIG: EngineFx & Contrails hängen am unskalierten Aircraft-Objekt
+    // (Meter-Raum). Das GLB-Visual ist ~15x skaliert — als Kind davon würden
+    // FX-Positionen und -Größen mit-skaliert und lägen >100 m hinter dem Jet.
+    this.engineFx = new EngineFx([new THREE.Vector3(0, -0.05, 7.3)]);
+    this.object.add(this.engineFx.group);
 
     this.flight = new FlightModel(this.object);
-    this.contrails = new Contrails(group);
+    this.contrails = new Contrails(this.object);
     this.object.add(this.contrails.group);
   }
 
   /**
-   * Ersetzt das prozedurale Modell durch ein externes GLB-Visual (Test).
+   * Ersetzt das prozedurale Modell durch ein externes GLB-Visual
+   * und konfiguriert Düsen-FX + Kondensstreifen passend zum Jet.
    */
-  applyExternalVisual(visual: THREE.Object3D) {
+  applyExternalVisual(
+    visual: THREE.Object3D,
+    fx?: { nozzles: THREE.Vector3[]; nozzleScale: number; wingHalfSpan: number }
+  ) {
     if (this.visual.parent === this.object) {
       this.object.remove(this.visual);
     }
@@ -69,11 +68,17 @@ export abstract class Aircraft {
     this.visual = visual;
     this.object.add(visual);
 
-    // EngineFx ans GLB-Heck hängen
-    visual.add(this.engineFx.group);
-    this.engineFx.group.position.set(0, -0.05, 7.5);
+    // EngineFx bleibt Kind von object (Meter-Raum) — nur die Düsen des
+    // neuen Jets konfigurieren (Positionen aus dem Jet-Katalog)
+    this.object.add(this.engineFx.group);
+    this.engineFx.group.position.set(0, 0, 0);
+    if (fx) {
+      this.engineFx.configure(fx.nozzles, fx.nozzleScale);
+    } else {
+      this.engineFx.configure([new THREE.Vector3(0, -0.05, 7.5)], 1);
+    }
 
-    this.contrails = new Contrails(visual);
+    this.contrails = new Contrails(this.object, fx?.wingHalfSpan ?? 4.7);
     this.object.add(this.contrails.group);
   }
 

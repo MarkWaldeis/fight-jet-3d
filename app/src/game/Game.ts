@@ -13,7 +13,7 @@ import { Effects } from './combat/Effects';
 import { SamSite, type Damageable } from './combat/GroundTarget';
 import { SoundManager } from './audio/SoundManager';
 import { loadJetGlb } from './aircraft/GlbJetLoader';
-import { getJetDef, type JetId } from './aircraft/JetCatalog';
+import { getJetDef, jetFxVectors, JET_CATALOG, type JetId } from './aircraft/JetCatalog';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameover' | 'victory';
 
@@ -77,7 +77,8 @@ export class Game {
   private selectedJetId: JetId = 'f16';
   /** Cache geladener Visuals pro Jet-Id */
   private visualCache = new Map<JetId, THREE.Object3D>();
-  private loadingJet: JetId | null = null;
+  /** Laufende Lade-Promises pro Jet-Id (verhindert Doppel-Loads) */
+  private visualPromises = new Map<JetId, Promise<THREE.Object3D | null>>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
@@ -97,8 +98,9 @@ export class Game {
     this.loop = new GameLoop(this.update, this.render);
     this.loop.start();
 
-    // Default-Jet im Hangar vorladen
+    // Default-Jet im Hangar vorladen + alle Katalog-Jets für die Gegner
     void this.ensureJetVisual(this.selectedJetId);
+    for (const j of JET_CATALOG) void this.loadJetTemplate(j.id);
   }
 
   getSelectedJetId() {
@@ -116,34 +118,40 @@ export class Game {
     this.emitHud();
   }
 
-  private async ensureJetVisual(id: JetId) {
-    const def = getJetDef(id);
-    if (!def.modelUrl) return;
+  /** Lädt (oder holt aus dem Cache) das GLB-Template eines Jets. */
+  private loadJetTemplate(id: JetId): Promise<THREE.Object3D | null> {
+    const cached = this.visualCache.get(id);
+    if (cached) return Promise.resolve(cached);
 
-    // Aus Cache klonen (jedes Visual nur einmal in der Szene)
-    let template = this.visualCache.get(id);
-    if (!template) {
-      if (this.loadingJet === id) return;
-      this.loadingJet = id;
-      try {
-        const { group, size } = await loadJetGlb(def.modelUrl);
-        this.visualCache.set(id, group);
-        template = group;
-        console.info(
-          `[FightJet] Jet ${id} geladen (${def.modelUrl}) size≈` +
-            `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m`
-        );
-      } catch (err) {
-        console.warn(`[FightJet] Jet ${id} konnte nicht geladen werden:`, err);
-        this.loadingJet = null;
-        return;
-      }
-      this.loadingJet = null;
+    let p = this.visualPromises.get(id);
+    if (!p) {
+      const def = getJetDef(id);
+      if (!def.modelUrl) return Promise.resolve(null);
+      p = loadJetGlb(def.modelUrl)
+        .then(({ group, size }) => {
+          this.visualCache.set(id, group);
+          console.info(
+            `[FightJet] Jet ${id} geladen (${def.modelUrl}) size≈` +
+              `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m`
+          );
+          return group;
+        })
+        .catch((err) => {
+          console.warn(`[FightJet] Jet ${id} konnte nicht geladen werden:`, err);
+          return null;
+        });
+      this.visualPromises.set(id, p);
     }
+    return p;
+  }
 
-    // Frische Kopie für den Spieler (Cache behält Template)
+  private async ensureJetVisual(id: JetId) {
+    const template = await this.loadJetTemplate(id);
+    if (!template) return;
+
+    // Frische Kopie für den Spieler (Cache behält Template) + FX-Anker des Jets
     const instance = template.clone(true);
-    this.player.applyExternalVisual(instance);
+    this.player.applyExternalVisual(instance, jetFxVectors(getJetDef(id)));
     this.cam.snapBehind(this.player.object);
   }
 
@@ -229,12 +237,14 @@ export class Game {
     }
     this.sams = this.sams.filter((s) => s.alive);
 
-    // Bandits
+    // Bandits — zufällige Jets aus dem Katalog (gleiche Assets wie der Hangar)
     for (let i = 0; i < wave.bandits; i++) {
-      const e = new EnemyJet(this.enemyCounter++);
+      const jetId = JET_CATALOG[Math.floor(Math.random() * JET_CATALOG.length)].id;
+      const e = new EnemyJet(this.enemyCounter++, jetId);
       e.spawn(this.player.position);
       this.enemies.push(e);
       this.engine.scene.add(e.object);
+      this.applyEnemyVisual(e);
     }
 
     // SAM-Stellungen auf das Terrain setzen (mind. 1,5 km vom Spieler weg)
@@ -264,6 +274,15 @@ export class Game {
       this.waveBanner = wave.label;
       this.waveBannerTimer = 4;
     }
+  }
+
+  /** Hängt das GLB-Visual des zugewiesenen Jets an einen Gegner (sobald geladen). */
+  private applyEnemyVisual(e: EnemyJet) {
+    void this.loadJetTemplate(e.jetId).then((template) => {
+      if (template && e.alive) {
+        e.applyExternalVisual(template.clone(true), jetFxVectors(e.loadout));
+      }
+    });
   }
 
   private update = (dt: number) => {
@@ -382,7 +401,7 @@ export class Game {
           const timer = (this.enemyFireTimers.get(e) ?? 0) - dt;
           if (timer <= 0) {
             this.cannons.fire(e, player, this.effects, (victim, dmg) => this.onHit(victim, dmg, e));
-            this.enemyFireTimers.set(e, 60 / CONFIG.player.cannonRPM);
+            this.enemyFireTimers.set(e, 60 / e.cannonRPM);
           } else {
             this.enemyFireTimers.set(e, timer);
           }

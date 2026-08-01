@@ -1,6 +1,22 @@
 // Katalog fliegbarer Jets: Modelle, Stats, besondere Fähigkeiten.
+import * as THREE from 'three';
 
 export type JetId = 'f16' | 'f35' | 'elite';
+
+/**
+ * Visuelle Ankerpunkte am normalisierten Modell (lokal, Nase = -Z, Heck = +Z).
+ * Die Werte stammen aus der Geometrie-Analyse der GLBs (Rumpfachse ≈ y -1.0).
+ */
+export interface JetFxSpec {
+  /** Triebwerks-Düsen am Heck (hier glüht der Nachbrenner auf) */
+  nozzles: [number, number, number][];
+  /** Größenfaktor der Triebwerks-FX */
+  nozzleScale: number;
+  /** Kanonen-Mündungen (Schüsse starten hier, nicht in der Mitte) */
+  muzzles: [number, number, number][];
+  /** Halbe Flügelspannweite für Kondensstreifen */
+  wingHalfSpan: number;
+}
 
 export interface JetDef {
   id: JetId;
@@ -33,6 +49,8 @@ export interface JetDef {
     label: string;
     detail: string;
   };
+  /** FX-Anker am Modell (Düsen, Mündungen, Flügelspitzen) */
+  fx: JetFxSpec;
 }
 
 export const JET_CATALOG: JetDef[] = [
@@ -63,6 +81,14 @@ export const JET_CATALOG: JetDef[] = [
       label: 'M61 Vulcan',
       detail: 'Hohe Feuerrate, Twin-Mündungen links/rechts',
     },
+    fx: {
+      // F-16: einzelne Düse mittig am Heck (Austritt ≈ z 6.5, Rohrmitte y -0.45),
+      // M61 an der linken Rumpfseite
+      nozzles: [[0, -0.45, 6.5]],
+      nozzleScale: 1.0,
+      muzzles: [[-0.55, -0.35, -3.4]],
+      wingHalfSpan: 6.5,
+    },
   },
   {
     id: 'f35',
@@ -90,6 +116,13 @@ export const JET_CATALOG: JetDef[] = [
       id: 'amraam',
       label: 'AMRAAM Suite',
       detail: 'Schneller Lock, große Reichweite, mehr Raketen',
+    },
+    fx: {
+      // F-35: einzelne Düse (Ring ≈ y -0.6, reicht bis z 7.4), GAU-22 links oben
+      nozzles: [[0, -0.6, 7.15]],
+      nozzleScale: 1.15,
+      muzzles: [[-0.5, -0.15, -3.6]],
+      wingHalfSpan: 6.3,
     },
   },
   {
@@ -119,9 +152,33 @@ export const JET_CATALOG: JetDef[] = [
       label: 'Rail-Burst Kanone',
       detail: 'Wuchtige Schüsse, enge Streuung, hoher Schaden',
     },
+    fx: {
+      // Elite-Jäger: zwei Düsen links/rechts (Ringe ≈ y -0.95, Austritt z 6.9),
+      // Kanonen an beiden Flügelwurzeln
+      nozzles: [
+        [-0.8, -0.95, 6.9],
+        [0.8, -0.95, 6.9],
+      ],
+      nozzleScale: 0.85,
+      muzzles: [
+        [-0.6, -0.4, -3.2],
+        [0.6, -0.4, -3.2],
+      ],
+      wingHalfSpan: 6.15,
+    },
   },
 ];
 
 export function getJetDef(id: JetId): JetDef {
   return JET_CATALOG.find((j) => j.id === id) ?? JET_CATALOG[0];
+}
+
+/** FX-Tupel als THREE.Vector3-Arrays (frisch pro Aufruf, kein Sharing). */
+export function jetFxVectors(def: JetDef) {
+  return {
+    nozzles: def.fx.nozzles.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+    nozzleScale: def.fx.nozzleScale,
+    muzzles: def.fx.muzzles.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+    wingHalfSpan: def.fx.wingHalfSpan,
+  };
 }

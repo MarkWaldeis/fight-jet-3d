@@ -1,64 +1,95 @@
 import * as THREE from 'three';
 
+interface NozzleFx {
+  group: THREE.Group;
+  core: THREE.Mesh;
+  outer: THREE.Mesh;
+  glow: THREE.Mesh;
+}
+
 /**
- * Animiertes Triebwerks-/Nachbrenner-FX am Heck (+Z).
+ * Animierte Triebwerks-/Nachbrenner-FX an den Düsen (Heck, +Z).
+ * Unterstützt mehrere Düsen pro Jet (z. B. Elite-Jäger: links & rechts).
  * Idle-Glut bei Schub, hell/lang bei Afterburner, flackert mit der Zeit.
  */
 export class EngineFx {
   readonly group = new THREE.Group();
-  private core: THREE.Mesh;
-  private outer: THREE.Mesh;
-  private glow: THREE.Mesh;
-  private light: THREE.PointLight;
+  private nozzles: NozzleFx[] = [];
+  private light = new THREE.PointLight(0x77aaff, 0, 40);
   private time = 0;
   private level = 0; // 0..1 geglättet
+  private fxScale = 1;
 
-  constructor(nozzleLocal = new THREE.Vector3(0, -0.05, 7.4)) {
-    this.group.position.copy(nozzleLocal);
+  constructor(nozzles: THREE.Vector3[] = [new THREE.Vector3(0, -0.05, 7.4)], scale = 1) {
+    this.configure(nozzles, scale);
+  }
 
-    // Innerer heißer Kern (weiß-blau)
-    const coreMat = new THREE.MeshBasicMaterial({
-      color: 0xaaddff,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    this.core = new THREE.Mesh(new THREE.ConeGeometry(0.28, 1, 12, 1, true), coreMat);
-    this.core.rotation.x = Math.PI / 2;
-    this.core.position.z = 0.6;
-    this.group.add(this.core);
+  /** Baut die Düsen-FX neu auf (z. B. nach Jet-Wechsel). */
+  configure(nozzles: THREE.Vector3[], scale = 1) {
+    this.fxScale = scale;
+    for (const child of [...this.group.children]) this.group.remove(child);
+    this.nozzles = [];
 
-    // Äußerer Flammenkegel
-    const outerMat = new THREE.MeshBasicMaterial({
-      color: 0x4488ff,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    this.outer = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1, 14, 1, true), outerMat);
-    this.outer.rotation.x = Math.PI / 2;
-    this.outer.position.z = 1.2;
-    this.group.add(this.outer);
+    for (const pos of nozzles) {
+      const g = new THREE.Group();
+      g.position.copy(pos);
 
-    // Weicher Glow-Sprite (Scheibe)
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: 0x66aaff,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    this.glow = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16), glowMat);
-    this.glow.position.z = 0.15;
-    this.group.add(this.glow);
+      // Innerer heißer Kern (weiß-blau)
+      const core = new THREE.Mesh(
+        new THREE.ConeGeometry(0.28, 1, 12, 1, true),
+        new THREE.MeshBasicMaterial({
+          color: 0xaaddff,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      core.rotation.x = Math.PI / 2;
+      core.position.z = 0.6;
+      g.add(core);
 
-    this.light = new THREE.PointLight(0x77aaff, 0, 40);
-    this.light.position.z = 1.5;
+      // Äußerer Flammenkegel
+      const outer = new THREE.Mesh(
+        new THREE.ConeGeometry(0.55, 1, 14, 1, true),
+        new THREE.MeshBasicMaterial({
+          color: 0x4488ff,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      outer.rotation.x = Math.PI / 2;
+      outer.position.z = 1.2;
+      g.add(outer);
+
+      // Weicher Glow (Scheibe direkt an der Düse — lässt sie aufglühen)
+      const glow = new THREE.Mesh(
+        new THREE.CircleGeometry(0.7, 16),
+        new THREE.MeshBasicMaterial({
+          color: 0x66aaff,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      glow.position.z = 0.15;
+      g.add(glow);
+
+      this.group.add(g);
+      this.nozzles.push({ group: g, core, outer, glow });
+    }
+
+    // Ein Licht am Düsen-Schwerpunkt reicht (Performance)
+    const centroid = new THREE.Vector3();
+    for (const p of nozzles) centroid.add(p);
+    centroid.divideScalar(Math.max(1, nozzles.length));
+    this.light.position.copy(centroid).add(new THREE.Vector3(0, 0, 1.5));
     this.group.add(this.light);
   }
 
@@ -77,35 +108,41 @@ export class EngineFx {
       : flicker;
 
     const L = this.level * abFlicker;
+    const s = this.fxScale;
 
-    // Kern: kurz & hell
-    const coreMat = this.core.material as THREE.MeshBasicMaterial;
-    coreMat.opacity = L * (afterburner ? 0.95 : 0.45);
-    coreMat.color.setHex(afterburner ? 0xfff0cc : 0xaaccff);
-    const coreLen = afterburner ? 3.2 + Math.sin(this.time * 30) * 0.4 : 1.1 + L * 0.8;
-    this.core.scale.set(0.9 + L * 0.3, 0.9 + L * 0.3, coreLen);
-    this.core.position.z = coreLen * 0.45;
-    this.core.visible = L > 0.05;
+    for (const nz of this.nozzles) {
+      // ACHTUNG: Scale wirkt vor der Rotation — die Kegel-Achse ist lokal Y,
+      // also geht die Länge in scale.y (x/z = Breite), nicht in scale.z.
+      // Kern: kurz & hell
+      const coreMat = nz.core.material as THREE.MeshBasicMaterial;
+      coreMat.opacity = L * (afterburner ? 0.95 : 0.45);
+      coreMat.color.setHex(afterburner ? 0xfff0cc : 0xaaccff);
+      const coreLen = (afterburner ? 3.2 + Math.sin(this.time * 30) * 0.4 : 1.1 + L * 0.8) * s;
+      const coreW = (0.9 + L * 0.3) * s;
+      nz.core.scale.set(coreW, coreLen, coreW);
+      nz.core.position.z = coreLen * 0.45;
+      nz.core.visible = L > 0.05;
 
-    // Outer plume
-    const outerMat = this.outer.material as THREE.MeshBasicMaterial;
-    outerMat.opacity = L * (afterburner ? 0.75 : 0.35);
-    outerMat.color.setHex(afterburner ? 0x66aaff : 0x3366aa);
-    const outerLen = afterburner ? 5.5 + Math.sin(this.time * 22) * 0.7 : 1.6 + L * 1.4;
-    this.outer.scale.set(0.85 + L * 0.5, 0.85 + L * 0.5, outerLen);
-    this.outer.position.z = outerLen * 0.42;
-    this.outer.rotation.z = this.time * (afterburner ? 4 : 1.2);
-    this.outer.visible = L > 0.05;
+      // Outer plume
+      const outerMat = nz.outer.material as THREE.MeshBasicMaterial;
+      outerMat.opacity = L * (afterburner ? 0.75 : 0.35);
+      outerMat.color.setHex(afterburner ? 0x66aaff : 0x3366aa);
+      const outerLen = (afterburner ? 5.5 + Math.sin(this.time * 22) * 0.7 : 1.6 + L * 1.4) * s;
+      const outerW = (0.85 + L * 0.5) * s;
+      nz.outer.scale.set(outerW, outerLen, outerW);
+      nz.outer.position.z = outerLen * 0.42;
+      nz.outer.visible = L > 0.05;
 
-    // Düsen-Glow
-    const glowMat = this.glow.material as THREE.MeshBasicMaterial;
-    glowMat.opacity = L * (afterburner ? 0.7 : 0.35);
-    glowMat.color.setHex(afterburner ? 0xaaccff : 0x4488cc);
-    const gs = 0.6 + L * (afterburner ? 1.4 : 0.6);
-    this.glow.scale.setScalar(gs);
+      // Düsen-Glow (die Düse selbst glüht auf)
+      const glowMat = nz.glow.material as THREE.MeshBasicMaterial;
+      glowMat.opacity = L * (afterburner ? 0.7 : 0.35);
+      glowMat.color.setHex(afterburner ? 0xaaccff : 0x4488cc);
+      const gs = (0.6 + L * (afterburner ? 1.4 : 0.6)) * s;
+      nz.glow.scale.setScalar(gs);
+    }
 
-    this.light.intensity = L * (afterburner ? 14 : 4);
-    this.light.distance = afterburner ? 50 : 25;
+    this.light.intensity = L * (afterburner ? 14 : 4) * this.nozzles.length * 0.75;
+    this.light.distance = (afterburner ? 50 : 25) * s;
     this.light.color.setHex(afterburner ? 0x88ccff : 0x5577aa);
   }
 

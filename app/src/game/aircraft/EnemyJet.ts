@@ -2,28 +2,51 @@ import * as THREE from 'three';
 import { Aircraft } from './Aircraft';
 import { CONFIG } from '../config';
 import type { Terrain } from '../world/Terrain';
-
-const CALLSIGNS = ['BANDIT 1', 'BANDIT 2', 'BANDIT 3', 'BANDIT 4', 'BANDIT 5', 'BANDIT 6'];
+import { getJetDef, jetFxVectors, type JetDef, type JetId } from './JetCatalog';
 
 type AIState = 'patrol' | 'pursue' | 'attack' | 'evade';
 
-// KI-Gegner: Zustandsautomat (Patrouille → Verfolgung → Angriff → Ausweichen).
-// Steuert den Jet über dieselben Achsen wie der Spieler.
+// KI-Gegner: nutzt dieselben Jet-Assets wie der Hangar (F-16/F-35/Elite).
+// Zustandsautomat (Patrouille → Verfolgung → Angriff → Ausweichen),
+// steuert den Jet über dieselben Achsen wie der Spieler.
 export class EnemyJet extends Aircraft {
   readonly isPlayer = false;
+  readonly jetId: JetId;
+  /** Jet-Def aus dem Katalog (Mündungen, Streuung, RPM) */
+  readonly loadout: JetDef;
   state: AIState = 'patrol';
   cannonCooldown = 0;
+  respawnTimer = 0;
   private waypoint = new THREE.Vector3();
   private thinkTimer = Math.random();
   private evadeTimer = 0;
   private burstTimer = 0;
   private input = { pitch: 0, roll: 0, yaw: 0 };
-  respawnTimer = 0;
+  private muzzleCache: THREE.Vector3[];
+  private readonly maxHp: number;
 
-  constructor(index: number) {
-    // Feind: wärmeres Braun-Olive, bewusst hellere Werte gegen Silhouetten
-    super(CALLSIGNS[index % CALLSIGNS.length], { bodyColor: 0x8a6a52, accentColor: 0xd8c23a }, CONFIG.enemy.hp, 'enemy');
+  constructor(index: number, jetId: JetId = 'f16') {
+    const def = getJetDef(jetId);
+    // Banditen-Version des Jets: etwas weniger HP als die Spieler-Variante
+    const hp = Math.round(def.stats.hp * 0.55);
+    super(`BANDIT ${index + 1} · ${def.name}`, { bodyColor: 0x8a6a52, accentColor: 0xd8c23a }, hp, 'enemy');
+    this.jetId = jetId;
+    this.loadout = def;
+    this.maxHp = hp;
+    this.muzzleCache = jetFxVectors(def).muzzles;
+    // KI fliegt etwas unter den Spieler-Werten, behält aber den Jet-Charakter
+    this.flight.speedMult = def.stats.speedMult * 0.95;
+    this.flight.turnMult = def.stats.turnMult * 0.8;
     this.pickWaypoint();
+  }
+
+  /** Mündungen der Bordkanone(n) in Jet-lokalen Koordinaten. */
+  getMuzzles(): THREE.Vector3[] {
+    return this.muzzleCache;
+  }
+
+  get cannonRPM(): number {
+    return this.loadout.stats.cannonRPM;
   }
 
   spawn(awayFrom: THREE.Vector3) {
@@ -35,8 +58,8 @@ export class EnemyJet extends Aircraft {
       THREE.MathUtils.clamp(awayFrom.z + Math.sin(angle) * dist, -8000, 8000)
     );
     this.object.quaternion.identity();
-    this.flight.speed = CONFIG.enemy.speed;
-    this.hp = CONFIG.enemy.hp;
+    this.flight.speed = CONFIG.enemy.speed * this.flight.speedMult;
+    this.hp = this.maxHp;
     this.alive = true;
     this.state = 'patrol';
     this.pickWaypoint();
@@ -114,14 +137,14 @@ export class EnemyJet extends Aircraft {
     this.steerTowards(aimPoint, dt, terrain);
     this.flight.throttle = this.state === 'attack' ? 0.95 : 0.75;
     this.flight.update(dt, this.input, this.state === 'pursue' && Math.random() > 0.5);
-    const ab = this.state === 'pursue' && this.flight.speed > CONFIG.flight.maxSpeed - 40;
+    const ab = this.state === 'pursue' && this.flight.speed > CONFIG.flight.maxSpeed * this.flight.speedMult - 40;
     this.updateEngineFx(dt, this.flight.throttle, ab);
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 
-    // Terrain-Vermeidung (Notfall-Pull-Up)
+    // Terrain-Vermeidung (Notfall-Pull-Up, positives Pitch = Nase hoch)
     const ground = terrain.getHeight(this.position.x, this.position.z);
     if (this.position.y < ground + 120) {
-      this.input.pitch = -1; // lokal nach oben ziehen
+      this.input.pitch = 1;
     }
     if (this.position.y > 6000) this.position.y = 6000;
   }
@@ -137,23 +160,26 @@ export class EnemyJet extends Aircraft {
   }
 
   // Dreht den Jet sanft Richtung aimPoint — Pitch/Roll aus lokalem Fehlervektor.
+  // Vorzeichen wie im FlightModel: +Pitch = Nase hoch, +Roll = rechts einrollen,
+  // +Yaw = Nase nach links.
   private steerTowards(aimPoint: THREE.Vector3, _dt: number, terrain: Terrain) {
     const local = this.object.worldToLocal(aimPoint.clone());
-    const dead = 2;
-    // Pitch: lokaler Y-Fehler
-    this.input.pitch = THREE.MathUtils.clamp(-local.y / 120, -1, 1);
+    // Pitch: Ziel über mir (local.y > 0) → Nase hoch (positiv)
+    this.input.pitch = THREE.MathUtils.clamp(local.y / 120, -1, 1);
     // Roll: auf lokale X-Richtung einrollen
     const targetRoll = THREE.MathUtils.clamp(local.x / 200, -1, 1);
-    // aktuelle Schräglage schätzen: Welt-Up vs. lokales Up
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.object.quaternion);
-    const bankError = THREE.MathUtils.clamp(up.dot(new THREE.Vector3(0, 1, 0)), -1, 1);
-    this.input.roll = THREE.MathUtils.clamp(targetRoll * 1.4 - (1 - bankError) * 0.5, -1, 1);
-    this.input.yaw = THREE.MathUtils.clamp(local.x / 600, -1, 1);
+    // Schräglage nivellieren: lokale Rechts-Achse zeigt bei Rechts-Querlage
+    // nach unten (right.y < 0) → gegenrollen
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.object.quaternion);
+    const bankLevel = THREE.MathUtils.clamp(right.y * 1.5, -1, 1);
+    this.input.roll = THREE.MathUtils.clamp(targetRoll * 1.6 + bankLevel, -1, 1);
+    // Yaw: Ziel rechts (local.x > 0) → Nase nach rechts (negativ)
+    this.input.yaw = THREE.MathUtils.clamp(-local.x / 600, -1, 1);
 
     // Mindesthöhe halten
     const ground = terrain.getHeight(this.position.x, this.position.z);
-    if (this.position.y < ground + 200 && local.y > -dead) {
-      this.input.pitch = Math.min(this.input.pitch, -0.5);
+    if (this.position.y < ground + 200 && local.y < 2) {
+      this.input.pitch = Math.max(this.input.pitch, 0.5);
     }
   }
 }

@@ -822,12 +822,12 @@ export class Contrails {
   private trails: { mesh: THREE.Mesh; tipOffset: THREE.Vector3 }[] = [];
   private jet: THREE.Object3D;
 
-  constructor(jet: THREE.Object3D) {
+  constructor(jet: THREE.Object3D, halfSpan = 4.7) {
     this.jet = jet;
     const mat = new THREE.MeshBasicMaterial({
       color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false,
     });
-    for (const side of [-4.7, 4.7]) {
+    for (const side of [-halfSpan, halfSpan]) {
       const geo = new THREE.CylinderGeometry(0.06, 0.5, 26, 6, 1, true);
       geo.rotateX(Math.PI / 2);
       geo.translate(0, 0, 13);
