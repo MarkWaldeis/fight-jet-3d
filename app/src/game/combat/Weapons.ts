@@ -129,16 +129,25 @@ export class CannonSystem {
    * Hitscan entlang Boresight (Flugrichtung = Fadenkreuz).
    */
   fire(
-    shooter: Damageable & { forward: import('three').Vector3 },
+    shooter: Damageable & {
+      forward: import('three').Vector3;
+      cannonDamage?: number;
+      loadout?: { stats: { cannonSpread: number; cannonDamage: number } };
+    },
     target: Damageable | null,
     effects: Effects,
     onHit: (victim: Damageable, damage: number) => void
   ) {
     const q = shooter.object.quaternion;
     const pos = shooter.object.position;
-    const spread = CONFIG.player.cannonSpread;
+    const spread = shooter.loadout?.stats.cannonSpread ?? CONFIG.player.cannonSpread;
+    const baseDmg = shooter.isPlayer
+      ? (shooter.cannonDamage ?? shooter.loadout?.stats.cannonDamage ?? CONFIG.player.cannonDamage)
+      : CONFIG.enemy.cannonDamage;
 
-    const dual = Math.random() > 0.2;
+    // Elite railburst: eher einzelne dicke Strahlen; F-16/F-35 dual
+    const dualChance = shooter.loadout?.stats.cannonDamage && shooter.loadout.stats.cannonDamage >= 7 ? 0.35 : 0.8;
+    const dual = Math.random() < dualChance;
     const sides = dual
       ? [this.barrel % 2, (this.barrel + 1) % 2]
       : [this.barrel % 2];
@@ -149,7 +158,6 @@ export class CannonSystem {
     for (const side of sides) {
       const muzzleIdx = side + (Math.random() > 0.5 ? 2 : 0);
       const local = MUZZLES_LOCAL[muzzleIdx];
-      // Weltposition der Mündung am Bug
       _muzzle.copy(local).applyQuaternion(q).add(pos);
 
       _dir.copy(shooter.forward);
@@ -158,15 +166,12 @@ export class CannonSystem {
       _dir.z += (Math.random() - 0.5) * spread;
       _dir.normalize();
 
-      // Sicherheit: nur wenn dir grob nach vorne (relativ Jet) zeigt
-      // (forward ist bereits Jet-Nase; hier nur normalisieren)
       this.spawnFlash(_flashPos.copy(_muzzle).addScaledVector(_dir, 0.4));
       this.spawnTracer(_muzzle, _dir);
 
       if (!hitOnce && target && target.alive) {
         hitOnce = true;
         const range = shooter.isPlayer ? CONFIG.player.cannonRange : CONFIG.enemy.fireRange;
-        // Boresight-Hitscan (gleich Fadenkreuz / Jet-forward)
         const origin = pos.clone().addScaledVector(shooter.forward, 8);
         const toTarget = _tmp.copy(target.object.position).sub(origin);
         const along = toTarget.dot(shooter.forward);
@@ -177,8 +182,7 @@ export class CannonSystem {
           const hitRadius = baseRadius + along * spread * 2;
           if (dist < hitRadius) {
             effects.hitSparks(closest);
-            const dmg = shooter.isPlayer ? CONFIG.player.cannonDamage : CONFIG.enemy.cannonDamage;
-            onHit(target, dual ? dmg * 1.15 : dmg);
+            onHit(target, dual ? baseDmg * 1.15 : baseDmg);
           }
         }
       }

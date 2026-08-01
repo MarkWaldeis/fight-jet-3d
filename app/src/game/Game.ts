@@ -13,11 +13,9 @@ import { Effects } from './combat/Effects';
 import { SamSite, type Damageable } from './combat/GroundTarget';
 import { SoundManager } from './audio/SoundManager';
 import { loadJetGlb } from './aircraft/GlbJetLoader';
+import { getJetDef, type JetId } from './aircraft/JetCatalog';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameover' | 'victory';
-
-/** Test: externes GLB als Spieler-Jet (Vite public/). Leerer String = prozedurales F-16. */
-const PLAYER_GLB_URL = './models/player-jet.glb';
 
 // Daten, die das React-HUD jede Frame (gedrosselt) bekommt.
 export interface HudData {
@@ -46,6 +44,8 @@ export interface HudData {
   waveLabel: string;
   samsLeft: number;
   waveBanner: string | null; // großer Einblendetext (neue Welle)
+  selectedJetId: JetId;
+  jetName: string;
 }
 
 export class Game {
@@ -74,6 +74,10 @@ export class Game {
   private waveBanner = '';
   private waveBannerTimer = 0;
   private enemyCounter = 0;
+  private selectedJetId: JetId = 'f16';
+  /** Cache geladener Visuals pro Jet-Id */
+  private visualCache = new Map<JetId, THREE.Object3D>();
+  private loadingJet: JetId | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
@@ -83,6 +87,7 @@ export class Game {
     this.engine.scene.add(this.terrain.mesh, this.sea.mesh, this.sky.group, this.effects.group);
 
     this.engine.scene.add(this.player.object);
+    this.player.applyLoadout(getJetDef(this.selectedJetId));
     this.player.reset();
 
     // Startaufstellung für das Menü (ruhige Szene)
@@ -92,32 +97,66 @@ export class Game {
     this.loop = new GameLoop(this.update, this.render);
     this.loop.start();
 
-    // Test: externes GLB als Spieler-Modell (async, Fallback bleibt prozedural)
-    if (PLAYER_GLB_URL) {
-      void this.loadPlayerGlb(PLAYER_GLB_URL);
-    }
+    // Default-Jet im Hangar vorladen
+    void this.ensureJetVisual(this.selectedJetId);
   }
 
-  private async loadPlayerGlb(url: string) {
-    try {
-      const { group, size } = await loadJetGlb(url);
-      this.player.applyExternalVisual(group);
-      this.cam.snapBehind(this.player.object);
-      console.info(
-        `[FightJet] Player-GLB geladen (${url}) size≈` +
-          `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m`
-      );
-    } catch (err) {
-      console.warn('[FightJet] Player-GLB konnte nicht geladen werden — prozedurales F-16 bleibt:', err);
+  getSelectedJetId() {
+    return this.selectedJetId;
+  }
+
+  /** Hangar: Jet wählen (lädt GLB, wendet Stats an). */
+  async selectJet(id: JetId) {
+    this.selectedJetId = id;
+    const def = getJetDef(id);
+    this.player.applyLoadout(def);
+    this.player.reset();
+    await this.ensureJetVisual(id);
+    this.cam.snapBehind(this.player.object);
+    this.emitHud();
+  }
+
+  private async ensureJetVisual(id: JetId) {
+    const def = getJetDef(id);
+    if (!def.modelUrl) return;
+
+    // Aus Cache klonen (jedes Visual nur einmal in der Szene)
+    let template = this.visualCache.get(id);
+    if (!template) {
+      if (this.loadingJet === id) return;
+      this.loadingJet = id;
+      try {
+        const { group, size } = await loadJetGlb(def.modelUrl);
+        this.visualCache.set(id, group);
+        template = group;
+        console.info(
+          `[FightJet] Jet ${id} geladen (${def.modelUrl}) size≈` +
+            `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m`
+        );
+      } catch (err) {
+        console.warn(`[FightJet] Jet ${id} konnte nicht geladen werden:`, err);
+        this.loadingJet = null;
+        return;
+      }
+      this.loadingJet = null;
     }
+
+    // Frische Kopie für den Spieler (Cache behält Template)
+    const instance = template.clone(true);
+    this.player.applyExternalVisual(instance);
+    this.cam.snapBehind(this.player.object);
   }
 
   onHud(cb: (d: HudData) => void) {
     this.hudListeners.push(cb);
   }
 
-  startGame() {
+  async startGame(jetId?: JetId) {
+    if (jetId) await this.selectJet(jetId);
+    else await this.ensureJetVisual(this.selectedJetId);
+
     this.sound.init();
+    this.player.applyLoadout(getJetDef(this.selectedJetId));
     this.player.reset();
     this.clearActors();
     this.waveIndex = 0;
@@ -125,6 +164,16 @@ export class Game {
     this.spawnWave(0);
     this.cam.snapBehind(this.player.object);
     this.state = 'playing';
+    this.emitHud();
+  }
+
+  /** Zurück ins Hauptmenü (Hangar). */
+  returnToMenu() {
+    this.state = 'menu';
+    this.clearActors();
+    this.spawnWave(0, true);
+    this.player.reset();
+    this.cam.snapBehind(this.player.object);
     this.emitHud();
   }
 
@@ -459,9 +508,10 @@ export class Game {
   }
 
   private updateLock(dt: number) {
-    const P = CONFIG.player;
     const player = this.player;
-    const cone = THREE.MathUtils.degToRad(P.lockAngleDeg);
+    const lockRange = player.lockRange;
+    const lockTime = player.lockTime;
+    const cone = THREE.MathUtils.degToRad(player.lockAngleDeg);
 
     const targets: Damageable[] = [
       ...this.enemies.filter((e) => e.alive),
@@ -470,7 +520,7 @@ export class Game {
 
     const valid = (t: Damageable | null): t is Damageable =>
       !!t && t.alive &&
-      t.object.position.distanceTo(player.position) < P.lockRange &&
+      t.object.position.distanceTo(player.position) < lockRange &&
       player.forward.angleTo(t.object.position.clone().sub(player.position).normalize()) < cone;
 
     let target = player.lockTarget;
@@ -487,7 +537,7 @@ export class Game {
 
     player.lockTarget = target;
     if (target) {
-      player.lockProgress = Math.min(1, player.lockProgress + dt / P.lockTime);
+      player.lockProgress = Math.min(1, player.lockProgress + dt / lockTime);
     } else {
       player.lockProgress = 0;
     }
@@ -583,7 +633,7 @@ export class Game {
       freeLook: this.cam.isFreeLook,
       gForce: p.flight.gForce,
       hp: Math.max(0, Math.round(p.hp)),
-      maxHp: CONFIG.player.hp,
+      maxHp: p.maxHp,
       score: p.score,
       missiles: p.missilesLeft,
       enemiesAlive: this.enemies.filter((e) => e.alive).length,
@@ -597,6 +647,8 @@ export class Game {
       waveLabel: wave.label,
       samsLeft: this.sams.filter((s) => s.alive).length,
       waveBanner: this.waveBannerTimer > 0 ? this.waveBanner : null,
+      selectedJetId: this.selectedJetId,
+      jetName: this.player.loadout.name,
     };
     for (const cb of this.hudListeners) cb(data);
   }

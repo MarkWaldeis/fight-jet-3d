@@ -10,6 +10,9 @@ export class FlightModel {
   throttle = 0.6;
   gForce = 1;
   stalled = false;
+  /** Jet-spezifisch (Hangar) */
+  speedMult = 1;
+  turnMult = 1;
 
   private qDelta = new THREE.Quaternion();
   private axis = new THREE.Vector3();
@@ -25,11 +28,13 @@ export class FlightModel {
 
   update(dt: number, input: { pitch: number; roll: number; yaw: number }, afterburner: boolean) {
     const F = CONFIG.flight;
+    const sm = this.speedMult;
+    const tm = this.turnMult;
 
     // --- Geschwindigkeit ---
-    const targetMax = afterburner ? F.afterburnerSpeed : F.maxSpeed;
-    const accel = (afterburner ? F.afterburnerAccel : F.thrustAccel) * this.throttle;
-    const drag = F.dragBase * this.speed * (this.speed / F.maxSpeed);
+    const targetMax = (afterburner ? F.afterburnerSpeed : F.maxSpeed) * sm;
+    const accel = (afterburner ? F.afterburnerAccel : F.thrustAccel) * this.throttle * sm;
+    const drag = F.dragBase * this.speed * (this.speed / (F.maxSpeed * sm));
     // Steigen bremst, Sinken beschleunigt
     const climbEffect = -this.forward.y * 22;
     this.speed += (accel - drag + climbEffect) * dt;
@@ -40,8 +45,8 @@ export class FlightModel {
 
     // --- Rotation (Wendigkeit skaliert mit Speed, fällt im Stall ab) ---
     const agility = THREE.MathUtils.clamp(
-      (this.speed - 30) / (F.cruiseSpeed - 30), 0.15, 1.15
-    );
+      (this.speed - 30) / (F.cruiseSpeed * sm - 30), 0.15, 1.15
+    ) * tm;
     let pitchRate = input.pitch * F.pitchRate * agility;
     const rollRate = input.roll * F.rollRate * agility;
     const yawRate = input.yaw * F.yawRate * agility;

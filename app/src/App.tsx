@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Game, type HudData } from './game/Game';
 import { Hud } from './components/Hud';
 import { Menus } from './components/Menus';
+import type { JetId } from './game/aircraft/JetCatalog';
 
 const initialHud: HudData = {
   state: 'menu',
@@ -10,6 +11,7 @@ const initialHud: HudData = {
   hp: 100, maxHp: 100, score: 0, missiles: 6, enemiesAlive: 4,
   lockProgress: 0, lockedTargetName: null, lockScreen: null, warning: null, radar: [],
   waveIndex: 0, waveCount: 3, waveLabel: '', samsLeft: 0, waveBanner: null,
+  selectedJetId: 'f16', jetName: 'F-16 Fighting Falcon',
 };
 
 export default function App() {
@@ -21,7 +23,7 @@ export default function App() {
     if (!canvasRef.current) return;
     const game = new Game(canvasRef.current);
     gameRef.current = game;
-    (window as unknown as { __game: Game }).__game = game; // für Smoke-Tests/Debug
+    (window as unknown as { __game: Game }).__game = game;
     game.onHud(setHud);
     return () => game.dispose();
   }, []);
@@ -33,8 +35,11 @@ export default function App() {
       <Menus
         state={hud.state}
         score={hud.score}
-        onStart={() => gameRef.current?.startGame()}
+        selectedJetId={hud.selectedJetId}
+        onSelectJet={(id: JetId) => { void gameRef.current?.selectJet(id); }}
+        onStart={(id: JetId) => { void gameRef.current?.startGame(id); }}
         onResume={() => gameRef.current?.togglePause()}
+        onMenu={() => gameRef.current?.returnToMenu()}
       />
     </div>
   );

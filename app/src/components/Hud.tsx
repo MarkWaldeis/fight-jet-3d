@@ -72,7 +72,7 @@ export function Hud({ data }: { data: HudData }) {
 
       {/* Missions-Anzeige (oben links) */}
       <div className="absolute left-6 top-6">
-        <div className="text-xs opacity-70">MISSION</div>
+        <div className="text-xs opacity-70">MISSION · {data.jetName}</div>
         <div className="text-lg font-bold">WELLE {Math.min(data.waveIndex + 1, data.waveCount)}/{data.waveCount}</div>
         <div className="text-sm">BANDITS: {data.enemiesAlive}{data.samsLeft > 0 ? ` · SAM: ${data.samsLeft}` : ''}</div>
       </div>
