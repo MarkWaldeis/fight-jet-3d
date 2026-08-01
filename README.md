@@ -6,6 +6,17 @@ Nachbrenner, Cockpit-Interior und Avionik-HUD.
 
 **Live spielen:** https://markwaldeis.github.io/fight-jet-3d/
 
+## V2-Features
+
+- **Detail-F-16 im USAF-Look**: Roundels, Tailcode „SW", Blasenhaube mit Rahmen,
+  Pilot mit Helm/Visier, Düsenlamellen, Shock-Diamonds im Nachbrenner, Nav-Lights,
+  Formation-Lights, ventrale Finnen, Gun-Port, Panel-Lines-Textur
+- **Cockpit-Interior** (Taste C): Instrumentenpanel mit Radar- & Engine-MFD,
+  HUD-Combiner-Glas, Ejection Seat, Sidestick, Throttle, Seitenkonsolen
+- **Missionsmodus**: 3 Wellen — Luftüberlegenheit → Banditen-Schwarm → SEAD
+  (4 SAM-Stellungen zerstören). SAMs feuern Lenkraketen auf den Spieler (MISSILE-Warnung)
+- Lock-On funktioniert auf Luftziele **und** Bodenziele
+
 ## Mission (V2)
 
 | Welle | Inhalt |
