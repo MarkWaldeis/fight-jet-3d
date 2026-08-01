@@ -10,10 +10,10 @@ import { EnemyJet } from './aircraft/EnemyJet';
 import { CameraController } from './aircraft/CameraController';
 import { CannonSystem, Missile } from './combat/Weapons';
 import { Effects } from './combat/Effects';
+import { SamSite, type Damageable } from './combat/GroundTarget';
 import { SoundManager } from './audio/SoundManager';
-import type { Aircraft } from './aircraft/Aircraft';
 
-export type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
+export type GameState = 'menu' | 'playing' | 'paused' | 'gameover' | 'victory';
 
 // Daten, die das React-HUD jede Frame (gedrosselt) bekommt.
 export interface HudData {
@@ -32,9 +32,15 @@ export interface HudData {
   enemiesAlive: number;
   lockProgress: number; // 0=kein, 0..1 suchend, 1=lock
   lockedTargetName: string | null;
-  lockScreen: { x: number; y: number } | null; // Bildschirmposition in %
+  lockScreen: { x: number; y: number } | null;
   warning: string | null;
-  radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[]; // normiert -1..1
+  radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[];
+  // Mission
+  waveIndex: number;      // 0-basiert
+  waveCount: number;
+  waveLabel: string;
+  samsLeft: number;
+  waveBanner: string | null; // großer Einblendetext (neue Welle)
 }
 
 export class Game {
@@ -46,6 +52,7 @@ export class Game {
   private sky: Sky;
   private player = new PlayerJet();
   private enemies: EnemyJet[] = [];
+  private sams: SamSite[] = [];
   private cam = new CameraController();
   private cannons: CannonSystem;
   private effects = new Effects();
@@ -56,6 +63,12 @@ export class Game {
   private hudTimer = 0;
   private time = 0;
   private enemyFireTimers: Map<EnemyJet, number> = new Map();
+  // Mission
+  private waveIndex = 0;
+  private waveDelay = 0;
+  private waveBanner = '';
+  private waveBannerTimer = 0;
+  private enemyCounter = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
@@ -67,12 +80,8 @@ export class Game {
     this.engine.scene.add(this.player.object);
     this.player.reset();
 
-    for (let i = 0; i < CONFIG.enemy.count; i++) {
-      const e = new EnemyJet(i);
-      e.spawn(this.player.position);
-      this.enemies.push(e);
-      this.engine.scene.add(e.object);
-    }
+    // Startaufstellung für das Menü (ruhige Szene)
+    this.spawnWave(0, true);
 
     this.cannons = new CannonSystem(this.engine.scene);
     this.loop = new GameLoop(this.update, this.render);
@@ -86,9 +95,10 @@ export class Game {
   startGame() {
     this.sound.init();
     this.player.reset();
-    for (const e of this.enemies) e.spawn(this.player.position);
-    for (const m of this.missiles) this.engine.scene.remove(m.object);
-    this.missiles = [];
+    this.clearActors();
+    this.waveIndex = 0;
+    this.waveDelay = 0;
+    this.spawnWave(0);
     this.cam.snapBehind(this.player.object);
     this.state = 'playing';
     this.emitHud();
@@ -100,6 +110,81 @@ export class Game {
     this.emitHud();
   }
 
+  /** Test/Debug: springt zur angegebenen Welle (0-basiert). */
+  debugGotoWave(index: number) {
+    this.clearActors();
+    this.waveIndex = Math.max(0, Math.min(index, CONFIG.mission.waves.length - 1));
+    this.waveDelay = 0;
+    this.spawnWave(this.waveIndex);
+    this.state = 'playing';
+    this.emitHud();
+  }
+
+  get missionWaveIndex() {
+    return this.waveIndex;
+  }
+
+  private clearActors() {
+    for (const e of this.enemies) this.engine.scene.remove(e.object);
+    this.enemies = [];
+    for (const s of this.sams) this.engine.scene.remove(s.object);
+    this.sams = [];
+    for (const m of this.missiles) this.engine.scene.remove(m.object);
+    this.missiles = [];
+    this.enemyFireTimers.clear();
+  }
+
+  private spawnWave(index: number, forMenu = false) {
+    const wave = CONFIG.mission.waves[index];
+    if (!wave) return;
+
+    // Tote Actor aus vorheriger Welle entfernen (Array + Szene sauber halten)
+    for (const e of this.enemies) {
+      if (!e.alive) this.engine.scene.remove(e.object);
+    }
+    this.enemies = this.enemies.filter((e) => e.alive);
+    for (const s of this.sams) {
+      if (!s.alive) this.engine.scene.remove(s.object);
+    }
+    this.sams = this.sams.filter((s) => s.alive);
+
+    // Bandits
+    for (let i = 0; i < wave.bandits; i++) {
+      const e = new EnemyJet(this.enemyCounter++);
+      e.spawn(this.player.position);
+      this.enemies.push(e);
+      this.engine.scene.add(e.object);
+    }
+
+    // SAM-Stellungen auf das Terrain setzen (mind. 1,5 km vom Spieler weg)
+    for (let i = 0; i < wave.sams; i++) {
+      let pos = new THREE.Vector3(
+        this.player.position.x + 2000 + i * 400,
+        50,
+        this.player.position.z - 2500 - i * 300
+      );
+      for (let tries = 0; tries < 40; tries++) {
+        const x = (Math.random() * 2 - 1) * 7000;
+        const z = (Math.random() * 2 - 1) * 7000;
+        const y = this.terrain.getHeight(x, z);
+        if (y > 10 && y < 500 && this.player.position.distanceTo(new THREE.Vector3(x, y, z)) > 1500) {
+          pos.set(x, y, z);
+          break;
+        }
+      }
+      // Terrain-Höhe final setzen (Fallback-Pos ebenfalls)
+      pos.y = this.terrain.getHeight(pos.x, pos.z);
+      const sam = new SamSite(i, pos);
+      this.sams.push(sam);
+      this.engine.scene.add(sam.object);
+    }
+
+    if (!forMenu) {
+      this.waveBanner = wave.label;
+      this.waveBannerTimer = 4;
+    }
+  }
+
   private update = (dt: number) => {
     this.time += dt;
 
@@ -108,7 +193,8 @@ export class Game {
     if (this.input.wasPressed('KeyC')) {
       this.cam.mode = this.cam.mode === 'chase' ? 'cockpit' : 'chase';
     }
-    if (this.input.wasPressed('Enter') && (this.state === 'menu' || this.state === 'gameover')) {
+    if (this.input.wasPressed('Enter') &&
+        (this.state === 'menu' || this.state === 'gameover' || this.state === 'victory')) {
       this.startGame();
     }
     this.input.update(dt);
@@ -117,14 +203,15 @@ export class Game {
       this.updatePlaying(dt);
     }
 
-    // Welt läuft immer weiter (Menü = ruhige Kamerafahrt)
+    // Welt läuft immer weiter
     this.sky.update(dt, this.player.position);
     this.sea.update(this.time);
     this.effects.update(dt);
     this.cannons.update(dt);
+    if (this.waveBannerTimer > 0) this.waveBannerTimer -= dt;
 
-    if (this.state === 'menu' || this.state === 'gameover') {
-      // langsame Orbit-Kamera um den geparkten Jet
+    if (this.state === 'menu' || this.state === 'gameover' || this.state === 'victory') {
+      // langsame Orbit-Kamera
       const t = this.time * 0.1;
       const p = this.player.position;
       this.engine.camera.position.set(p.x + Math.cos(t) * 40, p.y + 8, p.z + Math.sin(t) * 40);
@@ -134,7 +221,6 @@ export class Game {
 
     this.input.endFrame();
 
-    // HUD gedrosselt (30 Hz)
     this.hudTimer -= dt;
     if (this.hudTimer <= 0) {
       this.hudTimer = 1 / 30;
@@ -152,7 +238,7 @@ export class Game {
       this.state = 'gameover';
     });
 
-    // --- Lock-On ---
+    // --- Lock-On (Luft + Boden) ---
     this.updateLock(dt);
 
     // --- Spieler-Waffen ---
@@ -184,7 +270,6 @@ export class Game {
     for (const e of this.enemies) {
       if (e.alive) {
         e.update(dt, player, this.terrain);
-        // Feind feuert
         if (e.wantsToFire() && player.alive) {
           const timer = (this.enemyFireTimers.get(e) ?? 0) - dt;
           if (timer <= 0) {
@@ -195,14 +280,32 @@ export class Game {
           }
         }
       } else {
-        // Absturz-Animation, dann Respawn
         const done = e.updateDeath(dt);
         if (Math.random() < dt * 20) this.effects.damageSmoke(e.position);
-        e.respawnTimer += dt;
-        if (e.respawnTimer > CONFIG.enemy.respawnDelay || done) {
-          e.respawnTimer = 0;
-          e.spawn(player.position);
+        if (done) {
+          // Wrack entfernen (kein Respawn im Missionsmodus)
+          e.position.y = -9999;
         }
+      }
+    }
+
+    // --- SAM-Stellungen ---
+    for (const sam of this.sams) {
+      sam.update(dt, player, (site) => {
+        // SAM-Rakete auf den Spieler
+        const m = new Missile(
+          player,
+          site.position.clone().add(new THREE.Vector3(0, 8, 0)),
+          new THREE.Vector3(0, 1, 0),
+          site,
+          this.effects
+        );
+        this.missiles.push(m);
+        this.engine.scene.add(m.object);
+        this.sound.missileLaunch();
+      });
+      if (!sam.alive && Math.random() < dt * 6) {
+        this.effects.damageSmoke(sam.position.clone().add(new THREE.Vector3(0, 4, 0)));
       }
     }
 
@@ -212,11 +315,18 @@ export class Game {
       const res = m.update(dt);
       if (res.expired) {
         if (res.hit) {
-          const killed = res.hit.takeDamage(CONFIG.missile.damage);
-          if (res.hit.isPlayer) {
+          const victim = res.hit;
+          const isSam = this.sams.includes(victim as SamSite);
+          const killed = victim.takeDamage(isSam ? CONFIG.missile.damage : CONFIG.missile.damage);
+          if (victim.isPlayer) {
             if (killed) this.onPlayerKilled();
+          } else if (isSam) {
+            if (killed) {
+              this.player.score += CONFIG.score.samKill;
+              if (this.player.lockTarget === victim) this.clearLock();
+            }
           } else if (killed) {
-            this.onEnemyKilled(res.hit as EnemyJet);
+            this.onEnemyKilled(victim as unknown as EnemyJet);
           }
         }
         this.engine.scene.remove(m.object);
@@ -228,6 +338,9 @@ export class Game {
     if (player.alive && player.hp < 40 && Math.random() < dt * 8) {
       this.effects.damageSmoke(player.position);
     }
+
+    // --- Missions-Fortschritt ---
+    this.updateMission(dt);
 
     // --- Kamera & Sound ---
     this.cam.update(dt, player.object, player.flight.speed, this.engine.camera);
@@ -241,14 +354,46 @@ export class Game {
     if (player.flight.stalled && player.alive) this.sound.stallWarning(true);
   }
 
-  private pickCannonTarget(): Aircraft | null {
-    // Nächster lebender Feind (Hitscan testet ohnehin Richtung/Reichweite)
-    let best: Aircraft | null = null;
+  private updateMission(dt: number) {
+    const banditsLeft = this.enemies.filter((e) => e.alive).length;
+    const samsLeft = this.sams.filter((s) => s.alive).length;
+
+    if (banditsLeft > 0 || samsLeft > 0) {
+      this.waveDelay = 0;
+      return;
+    }
+
+    // Welle geschafft
+    this.waveDelay += dt;
+    if (this.waveDelay >= CONFIG.mission.waveDelay) {
+      this.waveDelay = 0;
+      this.waveIndex++;
+      if (this.waveIndex >= CONFIG.mission.waves.length) {
+        this.state = 'victory';
+        this.emitHud();
+      } else {
+        this.spawnWave(this.waveIndex);
+      }
+    }
+  }
+
+  private clearLock() {
+    this.player.lockTarget = null;
+    this.player.lockProgress = 0;
+  }
+
+  private pickCannonTarget(): Damageable | null {
+    let best: Damageable | null = null;
     let bestD = Infinity;
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const d = e.position.distanceTo(this.player.position);
       if (d < bestD) { bestD = d; best = e; }
+    }
+    for (const s of this.sams) {
+      if (!s.alive) continue;
+      const d = s.position.distanceTo(this.player.position);
+      if (d < bestD) { bestD = d; best = s; }
     }
     return best;
   }
@@ -258,21 +403,24 @@ export class Game {
     const player = this.player;
     const cone = THREE.MathUtils.degToRad(P.lockAngleDeg);
 
-    // bestätigt: aktuelles Ziel noch valide?
-    let target = player.lockTarget;
-    const valid = (t: Aircraft | null): t is Aircraft =>
-      !!t && t.alive &&
-      t.position.distanceTo(player.position) < P.lockRange &&
-      player.forward.angleTo(t.position.clone().sub(player.position).normalize()) < cone;
+    const targets: Damageable[] = [
+      ...this.enemies.filter((e) => e.alive),
+      ...this.sams.filter((s) => s.alive),
+    ];
 
+    const valid = (t: Damageable | null): t is Damageable =>
+      !!t && t.alive &&
+      t.object.position.distanceTo(player.position) < P.lockRange &&
+      player.forward.angleTo(t.object.position.clone().sub(player.position).normalize()) < cone;
+
+    let target = player.lockTarget;
     if (!valid(target)) {
-      // neues bestes Ziel im Kegel suchen
       target = null;
       let bestAngle = cone;
-      for (const e of this.enemies) {
-        if (!valid(e)) continue;
-        const a = player.forward.angleTo(e.position.clone().sub(player.position).normalize());
-        if (a < bestAngle) { bestAngle = a; target = e; }
+      for (const t of targets) {
+        if (!valid(t)) continue;
+        const a = player.forward.angleTo(t.object.position.clone().sub(player.position).normalize());
+        if (a < bestAngle) { bestAngle = a; target = t; }
       }
       player.lockProgress = 0;
     }
@@ -285,13 +433,23 @@ export class Game {
     }
   }
 
-  private onHit(victim: Aircraft, dmg: number, shooter: Aircraft) {
+  private onHit(victim: Damageable, dmg: number, shooter: Damageable) {
     const killed = victim.takeDamage(dmg);
     if (victim.isPlayer) {
       if (killed) this.onPlayerKilled();
-    } else {
-      if (shooter.isPlayer) this.player.score += CONFIG.score.hitBonus;
-      if (killed) this.onEnemyKilled(victim as EnemyJet);
+      return;
+    }
+    const isSam = this.sams.includes(victim as SamSite);
+    if (shooter.isPlayer) this.player.score += CONFIG.score.hitBonus;
+    if (killed) {
+      if (isSam) {
+        this.effects.explosion((victim as SamSite).position.clone().add(new THREE.Vector3(0, 4, 0)), true);
+        this.sound.explosion(true);
+        this.player.score += CONFIG.score.samKill;
+        if (this.player.lockTarget === victim) this.clearLock();
+      } else {
+        this.onEnemyKilled(victim as unknown as EnemyJet);
+      }
     }
   }
 
@@ -299,11 +457,7 @@ export class Game {
     this.effects.explosion(e.position, true);
     this.sound.explosion(true);
     this.player.score += CONFIG.score.kill;
-    e.respawnTimer = 0;
-    if (this.player.lockTarget === e) {
-      this.player.lockTarget = null;
-      this.player.lockProgress = 0;
-    }
+    if (this.player.lockTarget === (e as unknown as Damageable)) this.clearLock();
   }
 
   private onPlayerKilled() {
@@ -317,7 +471,6 @@ export class Game {
     const p = this.player;
     const range = CONFIG.hud.radarRange;
     const radar: HudData['radar'] = [];
-    // Spieler-Relative Koordinaten: Feinde auf Radar
     const invQ = p.object.quaternion.clone().invert();
     for (const e of this.enemies) {
       if (!e.alive) continue;
@@ -326,20 +479,30 @@ export class Game {
         x: THREE.MathUtils.clamp(rel.x / range, -1, 1),
         y: THREE.MathUtils.clamp(rel.z / range, -1, 1),
         isEnemy: true,
-        locked: p.lockTarget === e && p.lockProgress >= 1,
+        locked: p.lockTarget === (e as unknown as Damageable) && p.lockProgress >= 1,
+      });
+    }
+    for (const s of this.sams) {
+      if (!s.alive) continue;
+      const rel = s.position.clone().sub(p.position).applyQuaternion(invQ);
+      radar.push({
+        x: THREE.MathUtils.clamp(rel.x / range, -1, 1),
+        y: THREE.MathUtils.clamp(rel.z / range, -1, 1),
+        isEnemy: false, // Bodenziel = anderes Symbol
+        locked: p.lockTarget === (s as unknown as Damageable) && p.lockProgress >= 1,
       });
     }
 
     let warning: string | null = null;
     if (p.flight.stalled && p.alive) warning = 'STALL';
     else if (p.hp < 30 && p.alive) warning = 'DAMAGE';
-    const missileThreat = this.missiles.some((m) => m['target'] === p);
+    const missileThreat = this.missiles.some((m) => m.targetIs(p));
     if (missileThreat) warning = 'MISSILE';
 
-    // Lock-Ziel auf Bildschirm projizieren (für wandernde Lock-Raute)
+    // Lock-Ziel auf Bildschirm projizieren
     let lockScreen: HudData['lockScreen'] = null;
     if (p.lockTarget && p.lockTarget.alive) {
-      const ndc = p.lockTarget.position.clone().project(this.engine.camera);
+      const ndc = p.lockTarget.object.position.clone().project(this.engine.camera);
       if (ndc.z < 1) {
         lockScreen = {
           x: THREE.MathUtils.clamp((ndc.x * 0.5 + 0.5) * 100, 2, 98),
@@ -348,6 +511,7 @@ export class Game {
       }
     }
 
+    const wave = CONFIG.mission.waves[Math.min(this.waveIndex, CONFIG.mission.waves.length - 1)];
     const data: HudData = {
       state: this.state,
       speedKnots: Math.round(p.speedKnots),
@@ -367,6 +531,11 @@ export class Game {
       lockScreen,
       warning,
       radar,
+      waveIndex: this.waveIndex,
+      waveCount: CONFIG.mission.waves.length,
+      waveLabel: wave.label,
+      samsLeft: this.sams.filter((s) => s.alive).length,
+      waveBanner: this.waveBannerTimer > 0 ? this.waveBanner : null,
     };
     for (const cb of this.hudListeners) cb(data);
   }

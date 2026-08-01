@@ -16,7 +16,8 @@ export class Engine {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    // Etwas hellere Exposure: Jets bleiben lesbar ohne Env-Map-Reflexionen
+    this.renderer.toneMappingExposure = 1.22;
     this.renderer.shadowMap.enabled = false; // Performance: weiche "fake" Schatten reichen
 
     this.scene = new THREE.Scene();

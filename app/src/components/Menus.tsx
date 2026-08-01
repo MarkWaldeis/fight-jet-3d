@@ -26,7 +26,8 @@ export function Menus({ state, score, onStart, onResume }: {
             </h1>
             <p className="mb-6 text-slate-400">
               Steig in deine F-16 „Viper", jage feindliche Bandits über den Bergen
-              und dominiere den Himmel — Bordkanone, AIM-9 Sidewinder, Nachbrenner.
+              und erfülle die 3-Wellen-Mission inkl. SEAD gegen SAM-Stellungen —
+              Bordkanone, AIM-9 Sidewinder, Nachbrenner, Cockpit-View.
             </p>
             <div className="mb-6 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
               {key('W/S', 'Pitch (Nase hoch/runter)')}
@@ -66,6 +67,21 @@ export function Menus({ state, score, onStart, onResume }: {
             <button onClick={onStart}
               className="w-full rounded-lg bg-emerald-500 py-3 text-lg font-black uppercase tracking-widest text-slate-950 transition hover:bg-emerald-400">
               ↻ Erneut fliegen (Enter)
+            </button>
+          </>
+        )}
+
+        {state === 'victory' && (
+          <>
+            <div className="mb-1 text-xs font-bold uppercase tracking-[0.5em] text-emerald-400">Alle Wellen abgeschlossen</div>
+            <h2 className="mb-2 bg-gradient-to-r from-emerald-300 to-sky-300 bg-clip-text text-4xl font-black text-transparent">
+              MISSION ERFÜLLT
+            </h2>
+            <p className="mb-1 text-slate-400">Der Himmel gehört dir, Viper 01.</p>
+            <p className="mb-6 text-2xl font-bold text-white">Final Score: <span className="font-mono text-emerald-300">{score}</span></p>
+            <button onClick={onStart}
+              className="w-full rounded-lg bg-emerald-500 py-3 text-lg font-black uppercase tracking-widest text-slate-950 transition hover:bg-emerald-400">
+              ↻ Neue Mission (Enter)
             </button>
           </>
         )}

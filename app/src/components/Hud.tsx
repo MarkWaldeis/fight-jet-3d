@@ -70,6 +70,22 @@ export function Hud({ data }: { data: HudData }) {
         <div className="text-xs opacity-60">— N — E — S — W —</div>
       </div>
 
+      {/* Missions-Anzeige (oben links) */}
+      <div className="absolute left-6 top-6">
+        <div className="text-xs opacity-70">MISSION</div>
+        <div className="text-lg font-bold">WELLE {Math.min(data.waveIndex + 1, data.waveCount)}/{data.waveCount}</div>
+        <div className="text-sm">BANDITS: {data.enemiesAlive}{data.samsLeft > 0 ? ` · SAM: ${data.samsLeft}` : ''}</div>
+      </div>
+
+      {/* Wellen-Banner */}
+      {data.waveBanner && (
+        <div className="absolute left-1/2 top-[22%] -translate-x-1/2 text-center">
+          <div className="text-3xl font-black tracking-widest animate-pulse" style={{ textShadow: `0 0 16px ${hudColor}` }}>
+            {data.waveBanner}
+          </div>
+        </div>
+      )}
+
       {/* Warnung */}
       {data.warning && (
         <div className="absolute left-1/2 top-[30%] -translate-x-1/2 animate-pulse text-3xl font-black tracking-widest" style={{ color: warnColor, textShadow: '0 0 12px #ff444488' }}>
@@ -91,7 +107,9 @@ export function Hud({ data }: { data: HudData }) {
             <g key={i}>
               {r.locked
                 ? <rect x={r.x * 90 - 4} y={r.y * 90 - 4} width="8" height="8" fill="none" stroke={warnColor} strokeWidth="1.5" transform={`rotate(45 ${r.x * 90} ${r.y * 90})`} />
-                : <circle cx={r.x * 90} cy={r.y * 90} r="3.5" fill={warnColor} />}
+                : r.isEnemy
+                  ? <circle cx={r.x * 90} cy={r.y * 90} r="3.5" fill={warnColor} />
+                  : <rect x={r.x * 90 - 3} y={r.y * 90 - 3} width="6" height="6" fill="#ffaa33" />}
             </g>
           ))}
         </svg>

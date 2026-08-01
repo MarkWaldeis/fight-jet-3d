@@ -21,7 +21,8 @@ export class EnemyJet extends Aircraft {
   respawnTimer = 0;
 
   constructor(index: number) {
-    super(CALLSIGNS[index % CALLSIGNS.length], { bodyColor: 0x6b4a3a, accentColor: 0xd8c23a }, CONFIG.enemy.hp);
+    // Feind: wärmeres Braun-Olive, bewusst hellere Werte gegen Silhouetten
+    super(CALLSIGNS[index % CALLSIGNS.length], { bodyColor: 0x8a6a52, accentColor: 0xd8c23a }, CONFIG.enemy.hp, 'enemy');
     this.pickWaypoint();
   }
 

@@ -15,10 +15,21 @@ export abstract class Aircraft {
   protected abLight: THREE.PointLight;
   private deathTimer = 0;
 
-  constructor(name: string, colors: { bodyColor: number; accentColor: number }, hp: number) {
+  constructor(
+    name: string,
+    colors: { bodyColor: number; accentColor: number },
+    hp: number,
+    nation: 'us' | 'enemy' = 'us',
+    withCockpit = false
+  ) {
     this.name = name;
     this.hp = hp;
-    const { group, afterburner, abLight } = buildF16(colors);
+    const { group, afterburner, abLight } = buildF16({
+      bodyColor: colors.bodyColor,
+      accentColor: colors.accentColor,
+      nation,
+      withCockpit,
+    });
     this.object.add(group);
     this.afterburnerMesh = afterburner;
     this.abLight = abLight;

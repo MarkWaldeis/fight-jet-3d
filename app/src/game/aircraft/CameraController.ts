@@ -19,9 +19,11 @@ export class CameraController {
     camera.updateProjectionMatrix();
 
     if (this.mode === 'cockpit') {
-      const offset = new THREE.Vector3(0, 0.95, -3.2);
+      // Sitzposition: etwas über dem Tub, Blick nach vorne (-Z im Jet-Local)
+      const offset = new THREE.Vector3(0, 0.78, -3.15);
       camera.position.copy(offset.applyMatrix4(jet.matrixWorld));
       camera.quaternion.copy(jet.quaternion);
+      camera.up.set(0, 1, 0).applyQuaternion(jet.quaternion).normalize();
       return;
     }
 

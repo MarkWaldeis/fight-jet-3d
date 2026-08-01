@@ -9,6 +9,7 @@ const initialHud: HudData = {
   afterburner: false, stalled: false, gForce: 1,
   hp: 100, maxHp: 100, score: 0, missiles: 6, enemiesAlive: 4,
   lockProgress: 0, lockedTargetName: null, lockScreen: null, warning: null, radar: [],
+  waveIndex: 0, waveCount: 3, waveLabel: '', samsLeft: 0, waveBanner: null,
 };
 
 export default function App() {

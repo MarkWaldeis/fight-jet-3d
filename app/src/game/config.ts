@@ -71,6 +71,19 @@ export const CONFIG = {
   score: {
     kill: 500,
     hitBonus: 25,
+    samKill: 300,
+  },
+  mission: {
+    waves: [
+      { bandits: 3, sams: 0, label: 'WELLE 1 — Luftüberlegenheit' },
+      { bandits: 5, sams: 0, label: 'WELLE 2 — Banditen-Schwarm' },
+      { bandits: 4, sams: 4, label: 'WELLE 3 — SEAD: Zerstöre die SAM-Stellungen' },
+    ],
+    waveDelay: 3.5,        // s bis zur nächsten Welle
+    samHp: 40,
+    samRange: 3500,
+    samFireInterval: 9,
+    samMissileDamage: 35,
   },
 } as const;
 

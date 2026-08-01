@@ -3,6 +3,7 @@ import { Aircraft } from './Aircraft';
 import { CONFIG } from '../config';
 import type { Input } from '../core/Input';
 import type { Terrain } from '../world/Terrain';
+import type { Damageable } from '../combat/GroundTarget';
 
 // Spieler-F-16: liest Input, fährt das Flugmodell, Terrain-Kollision.
 export class PlayerJet extends Aircraft {
@@ -10,13 +11,14 @@ export class PlayerJet extends Aircraft {
   missilesLeft = CONFIG.player.missileCount;
   flaresLeft = CONFIG.player.flareCount;
   cannonCooldown = 0;
-  lockTarget: Aircraft | null = null;
+  lockTarget: Damageable | null = null;
   lockProgress = 0; // 0..1
   score = 0;
   crashed = false;
 
   constructor() {
-    super('VIPER 01', { bodyColor: 0x8a929e, accentColor: 0xc8352e }, CONFIG.player.hp);
+    // USAF Ghost-Grey — hell genug für gute Lesbarkeit im ACES-Tone-Mapping
+    super('VIPER 01', { bodyColor: 0xb8c2cc, accentColor: 0xc8352e }, CONFIG.player.hp, 'us', true);
   }
 
   reset() {

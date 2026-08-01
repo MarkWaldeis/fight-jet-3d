@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
-import type { Aircraft } from '../aircraft/Aircraft';
+import type { Damageable } from './GroundTarget';
 import type { Effects } from './Effects';
 
 // Tracer: gepoolte leuchtende Geschoss-Linien (visuell), Treffer per Hitscan.
@@ -29,10 +29,10 @@ export class CannonSystem {
 
   // Feuert eine Salve: Hitscan gegen Ziel + visueller Tracer
   fire(
-    shooter: Aircraft,
-    target: Aircraft | null,
+    shooter: Damageable & { forward: import('three').Vector3 },
+    target: Damageable | null,
     effects: Effects,
-    onHit: (victim: Aircraft, damage: number) => void
+    onHit: (victim: Damageable, damage: number) => void
   ) {
     const origin = shooter.object.position.clone();
     const dir = shooter.forward.clone();
@@ -59,7 +59,9 @@ export class CannonSystem {
       if (along > 0 && along < range) {
         const closest = origin.clone().addScaledVector(dir, along);
         const dist = closest.distanceTo(target.object.position);
-        const hitRadius = 6 + along * spread * 2;
+        // Bodenziele (SAM) sind größer → großzügigerer Trefferradius
+        const baseRadius = target.isPlayer ? 6 : (target.name.startsWith('SAM') ? 14 : 6);
+        const hitRadius = baseRadius + along * spread * 2;
         if (dist < hitRadius) {
           effects.hitSparks(closest);
           const dmg = shooter.isPlayer ? CONFIG.player.cannonDamage : CONFIG.enemy.cannonDamage;
@@ -84,15 +86,15 @@ export class Missile {
   alive = true;
   private vel: THREE.Vector3;
   private life: number;
-  private target: Aircraft | null;
+  private target: Damageable | null;
   private effects: Effects;
   private body: THREE.Mesh;
 
   constructor(
-    target: Aircraft,
+    target: Damageable,
     start: THREE.Vector3,
     startDir: THREE.Vector3,
-    _owner: Aircraft,
+    _owner: Damageable,
     effects: Effects
   ) {
     this.target = target;
@@ -114,8 +116,12 @@ export class Missile {
     this.object.add(flame);
   }
 
+  targetIs(t: Damageable): boolean {
+    return this.target === t;
+  }
+
   // true = getroffen/zerstört
-  update(dt: number): { hit: Aircraft | null; expired: boolean } {
+  update(dt: number): { hit: Damageable | null; expired: boolean } {
     const M = CONFIG.missile;
     this.life -= dt;
     if (this.life <= 0 || !this.alive) {
@@ -131,7 +137,7 @@ export class Missile {
       const angle = dir.angleTo(toTarget);
       // Ziel verloren?
       if (angle > THREE.MathUtils.degToRad(M.lockLoseAngleDeg) && this.life < M.life - 1) {
-        this.target = null as unknown as Aircraft;
+        this.target = null;
       } else {
         const maxTurn = M.turnRate * dt;
         const turn = Math.min(angle, maxTurn);
@@ -143,7 +149,7 @@ export class Missile {
         }
       }
       // Näherungszünder
-      if (this.object.position.distanceTo(this.target.object.position) < M.proximityRadius) {
+      if (this.target && this.object.position.distanceTo(this.target.object.position) < M.proximityRadius) {
         this.effects.explosion(this.object.position, true);
         return { hit: this.target, expired: true };
       }

@@ -44,11 +44,18 @@ export class Sky {
     });
     this.group.add(new THREE.Mesh(skyGeo, skyMat));
 
-    // Licht
-    this.sunLight = new THREE.DirectionalLight(0xfff2dd, 2.4);
+    // Licht — kräftig genug, dass MeshStandardMaterial ohne Env-Map hell bleibt
+    this.sunLight = new THREE.DirectionalLight(0xfff2dd, 3.4);
     this.sunLight.position.set(5000, 7000, 4000);
     this.group.add(this.sunLight);
-    this.group.add(new THREE.HemisphereLight(0xbdd5ee, 0x5a6b4a, 0.9));
+    // Target muss im Scene-Graph hängen, sonst zeigt die Sonne dauerhaft auf (0,0,0)
+    this.group.add(this.sunLight.target);
+    this.group.add(new THREE.HemisphereLight(0xd0e4f8, 0x6a7a58, 1.15));
+    this.group.add(new THREE.AmbientLight(0xffffff, 0.55));
+    // Fülllicht von vorne unten — verhindert Silhouetten-Schwarz
+    const fill = new THREE.DirectionalLight(0xc8daf0, 0.85);
+    fill.position.set(-3000, 2000, -4000);
+    this.group.add(fill);
 
     // Wolken: weiche Sprite-Cluster auf 800–1400 m
     const cloudTex = Sky.makeCloudTexture();
@@ -92,9 +99,10 @@ export class Sky {
   update(dt: number, playerPos: THREE.Vector3) {
     // Kuppel folgt dem Spieler, Wolken driften
     this.group.position.set(playerPos.x, 0, playerPos.z);
-    this.sunLight.position.set(playerPos.x + 5000, 7000, playerPos.z + 4000);
-    this.sunLight.target.position.copy(playerPos);
-    this.sunLight.target.updateMatrixWorld();
+    // Sonne bleibt relativ zur Gruppe (Gruppe sitzt schon auf playerPos)
+    this.sunLight.position.set(5000, 7000, 4000);
+    this.sunLight.target.position.set(0, 0, 0);
+
     for (const c of this.clouds) {
       c.position.x += dt * 6;
       if (c.position.x - playerPos.x > CONFIG.world.size / 2) {
