@@ -11,10 +11,17 @@ export class Input {
   afterburner = false;
   cannon = false;
 
+  // Maus-Delta (Pixel/Frame) für Free-Look — wird in endFrame genullt
+  mouseDX = 0;
+  mouseDY = 0;
+  private accumMX = 0;
+  private accumMY = 0;
+
   constructor() {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
+    window.addEventListener('mousemove', this.onMouseMove);
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
@@ -34,6 +41,11 @@ export class Input {
     this.keys.clear();
   };
 
+  private onMouseMove = (e: MouseEvent) => {
+    this.accumMX += e.movementX;
+    this.accumMY += e.movementY;
+  };
+
   wasPressed(code: string): boolean {
     return this.pressedThisFrame.has(code);
   }
@@ -41,6 +53,10 @@ export class Input {
   // Muss am Ende jedes Frames aufgerufen werden.
   endFrame() {
     this.pressedThisFrame.clear();
+    this.accumMX = 0;
+    this.accumMY = 0;
+    this.mouseDX = 0;
+    this.mouseDY = 0;
   }
 
   update(dt: number) {
@@ -60,11 +76,30 @@ export class Input {
 
     this.afterburner = k.has('Tab') || (this.throttle >= 0.99);
     this.cannon = k.has('Space');
+
+    // Maus-Delta dieses Frames (auch Tastatur-Pfeile als Free-Look-Hilfe)
+    this.mouseDX = this.accumMX;
+    this.mouseDY = this.accumMY;
+    this.accumMX = 0;
+    this.accumMY = 0;
+  }
+
+  /** Free-Look: Maus + optional Pfeiltasten / IJKL zum Orbit. */
+  freeLookDelta(dt: number): { x: number; y: number } {
+    const keySpeed = 1.8;
+    let x = this.mouseDX;
+    let y = this.mouseDY;
+    if (this.keys.has('ArrowLeft') || this.keys.has('KeyJ')) x -= keySpeed * 60 * dt * 16;
+    if (this.keys.has('ArrowRight') || this.keys.has('KeyL')) x += keySpeed * 60 * dt * 16;
+    if (this.keys.has('ArrowUp') || this.keys.has('KeyI')) y -= keySpeed * 60 * dt * 16;
+    if (this.keys.has('ArrowDown') || this.keys.has('KeyK')) y += keySpeed * 60 * dt * 16;
+    return { x, y };
   }
 
   dispose() {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('mousemove', this.onMouseMove);
   }
 }

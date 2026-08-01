@@ -38,6 +38,7 @@ export interface HudData {
   lockedTargetName: string | null;
   lockScreen: { x: number; y: number } | null;
   warning: string | null;
+  freeLook: boolean;
   radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[];
   // Mission
   waveIndex: number;      // 0-basiert
@@ -128,8 +129,16 @@ export class Game {
   }
 
   togglePause() {
-    if (this.state === 'playing') this.state = 'paused';
-    else if (this.state === 'paused') this.state = 'playing';
+    if (this.state === 'playing') {
+      // Free-Look beenden bei Pause
+      if (this.cam.isFreeLook) {
+        this.cam.toggleFreeLook();
+        if (document.pointerLockElement) document.exitPointerLock?.();
+      }
+      this.state = 'paused';
+    } else if (this.state === 'paused') {
+      this.state = 'playing';
+    }
     this.emitHud();
   }
 
@@ -214,7 +223,17 @@ export class Game {
     // Globale Tasten
     if (this.input.wasPressed('KeyP') || this.input.wasPressed('Escape')) this.togglePause();
     if (this.input.wasPressed('KeyC')) {
-      this.cam.mode = this.cam.mode === 'chase' ? 'cockpit' : 'chase';
+      this.cam.toggleCockpit();
+    }
+    // V = Free-Look (Orbit um Jet, Jet fliegt geradeaus weiter)
+    if (this.input.wasPressed('KeyV') && this.state === 'playing') {
+      this.cam.toggleFreeLook();
+      // Pointer-Lock für flüssiges Maus-Orbit (ESC löst, V beendet Free-Look)
+      if (this.cam.isFreeLook) {
+        this.engine.renderer.domElement.requestPointerLock?.();
+      } else if (document.pointerLockElement) {
+        document.exitPointerLock?.();
+      }
     }
     if (this.input.wasPressed('Enter') &&
         (this.state === 'menu' || this.state === 'gameover' || this.state === 'victory')) {
@@ -254,12 +273,29 @@ export class Game {
   private updatePlaying(dt: number) {
     const player = this.player;
 
+    // Free-Look: Jet behält Kurs (keine Stick-Eingabe), Kamera orbitet frei
+    const free = this.cam.isFreeLook;
+    const savedPitch = this.input.pitch;
+    const savedRoll = this.input.roll;
+    const savedYaw = this.input.yaw;
+    if (free) {
+      this.input.pitch = 0;
+      this.input.roll = 0;
+      this.input.yaw = 0;
+    }
+
     // --- Spieler ---
     player.update(dt, this.input, this.terrain, () => {
       this.effects.explosion(player.position, true);
       this.sound.explosion(true);
       this.state = 'gameover';
     });
+
+    if (free) {
+      this.input.pitch = savedPitch;
+      this.input.roll = savedRoll;
+      this.input.yaw = savedYaw;
+    }
 
     // --- Lock-On (Luft + Boden) ---
     this.updateLock(dt);
@@ -366,7 +402,8 @@ export class Game {
     this.updateMission(dt);
 
     // --- Kamera & Sound ---
-    this.cam.update(dt, player.object, player.flight.speed, this.engine.camera);
+    const lookDelta = free ? this.input.freeLookDelta(dt) : undefined;
+    this.cam.update(dt, player.object, player.flight.speed, this.engine.camera, lookDelta);
     this.sound.updateEngine(
       player.flight.speed / CONFIG.flight.afterburnerSpeed,
       this.input.throttle,
@@ -543,6 +580,7 @@ export class Game {
       throttle: this.input.throttle,
       afterburner: this.input.afterburner,
       stalled: p.flight.stalled,
+      freeLook: this.cam.isFreeLook,
       gForce: p.flight.gForce,
       hp: Math.max(0, Math.round(p.hp)),
       maxHp: CONFIG.player.hp,

@@ -58,13 +58,17 @@ export const CONFIG = {
     lockLoseAngleDeg: 75,
   },
   camera: {
-    // Hinter + leicht über dem Jet (lokale +Z = Heck, -Z = Nase/Flugrichtung).
-    // Kamera teilt Jet-Quaternion → Fadenkreuz = Boresight/Kanone.
-    chaseOffset: { x: 0, y: 4.2, z: 15 },
-    lerpPos: 14.0,
-    lerpRot: 10.0,
-    baseFov: 70,
-    maxFovBoost: 16,       // FOV wächst mit Speed
+    // War-Thunder-Style: höher & weiter hinter dem Jet (lokale +Z = Heck).
+    chaseOffset: { x: 0, y: 10.5, z: 28 },
+    // Blickpunkt relativ zum Jet: leicht vorne/unten → Jet im unteren Bilddrittel
+    chaseLookY: 1.0,
+    chaseLookZ: -18,
+    lerpPos: 10.0,
+    lerpRot: 8.0,
+    baseFov: 68,
+    maxFovBoost: 14,
+    freeLookDistance: 30,
+    freeLookSensitivity: 0.004,
   },
   hud: {
     radarRange: 4000,

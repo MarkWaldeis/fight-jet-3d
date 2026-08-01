@@ -38,6 +38,7 @@ export function Menus({ state, score, onStart, onResume }: {
               {key('Leertaste', 'Bordkanone')}
               {key('F / M', 'Rakete (nach Lock)')}
               {key('C', 'Cockpit-/Chase-Kamera')}
+              {key('V', 'Free-Look (Orbit, Jet fliegt weiter)')}
               {key('P / Esc', 'Pause')}
               {key('Enter', 'Start')}
             </div>
