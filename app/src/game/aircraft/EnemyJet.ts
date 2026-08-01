@@ -34,15 +34,19 @@ export class EnemyJet extends Aircraft {
     this.loadout = def;
     this.maxHp = hp;
     this.catalogMuzzles = jetFxVectors(def).muzzles;
-    // KI fliegt etwas unter den Spieler-Werten, behält aber den Jet-Charakter
-    this.flight.speedMult = def.stats.speedMult * 0.95;
-    this.flight.turnMult = def.stats.turnMult * 0.8;
+    // Deutlich langsamer als der Spieler → Auto-Track / Dogfight greifbarer
+    this.flight.speedMult = def.stats.speedMult * CONFIG.enemy.speedScale;
+    this.flight.turnMult = def.stats.turnMult * 0.72;
     this.pickWaypoint();
   }
 
   getMuzzles(): THREE.Vector3[] {
     if (this.anchors?.muzzles?.length) return this.anchors.muzzles.map((v) => v.clone());
     return this.catalogMuzzles.map((v) => v.clone());
+  }
+
+  get maxHpPublic(): number {
+    return this.maxHp;
   }
 
   get cannonRPM(): number {

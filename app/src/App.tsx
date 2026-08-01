@@ -10,6 +10,18 @@ const initialHud: HudData = {
   afterburner: false, stalled: false, freeLook: false, autoTrack: false, gForce: 1,
   hp: 100, maxHp: 100, score: 0, missiles: 6, enemiesAlive: 4,
   lockProgress: 0, lockedTargetName: null, lockScreen: null, warning: null, radar: [],
+  worldMarkers: [],
+  damage: {
+    hullPct: 100,
+    status: 'NOMINAL',
+    systems: [
+      { name: 'ENGINE', ok: true },
+      { name: 'FLIGHT CTRL', ok: true },
+      { name: 'RADAR', ok: true },
+      { name: 'WEAPONS', ok: true },
+      { name: 'HYDRAULICS', ok: true },
+    ],
+  },
   waveIndex: 0, waveCount: 3, waveLabel: '', samsLeft: 0, waveBanner: null,
   selectedJetId: 'f16', jetName: 'F-16 Fighting Falcon',
 };

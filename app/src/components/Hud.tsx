@@ -6,6 +6,11 @@ export function Hud({ data }: { data: HudData }) {
   const hudColor = '#4dff6a';
   const warnColor = '#ff4444';
   const lockPct = Math.round(data.lockProgress * 100);
+  const dmg = data.damage;
+  const hullPct = dmg?.hullPct ?? Math.round((data.hp / Math.max(1, data.maxHp)) * 100);
+  const hullColor = hullPct > 60 ? hudColor : hullPct > 30 ? '#ffaa33' : warnColor;
+
+  if (data.state === 'menu') return null;
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none font-mono" style={{ color: hudColor, textShadow: `0 0 6px ${hudColor}66` }}>
@@ -20,6 +25,41 @@ export function Hud({ data }: { data: HudData }) {
           <circle cx="60" cy="60" r="2.5" fill={hudColor} />
         </svg>
       </div>
+
+      {/* Gegner-Leisten (HP + Distanz) */}
+      {data.worldMarkers?.map((m, i) => {
+        if (!m.visible) return null;
+        const pct = Math.max(0, Math.min(100, (m.hp / Math.max(1, m.maxHp)) * 100));
+        const barColor = pct > 50 ? '#ff6666' : pct > 25 ? '#ffaa33' : '#ff2222';
+        const distLabel = m.distM >= 1000 ? `${(m.distM / 1000).toFixed(1)} km` : `${m.distM} m`;
+        return (
+          <div
+            key={`wm-${i}`}
+            className="absolute -translate-x-1/2 -translate-y-full"
+            style={{
+              left: `${m.x}%`,
+              top: `${m.y}%`,
+              opacity: m.locked ? 1 : 0.9,
+            }}
+          >
+            <div
+              className="mb-0.5 text-center text-[10px] font-bold tracking-wide whitespace-nowrap"
+              style={{ color: m.locked ? warnColor : '#ff8888', textShadow: '0 0 4px #000' }}
+            >
+              {m.locked ? '◆ ' : ''}{distLabel}
+            </div>
+            <div
+              className="h-1.5 w-16 overflow-hidden rounded-sm border"
+              style={{ borderColor: m.locked ? warnColor : '#ff666688', background: 'rgba(0,0,0,0.55)' }}
+            >
+              <div className="h-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
+            </div>
+            <div className="mt-0.5 text-center text-[9px] opacity-80 whitespace-nowrap" style={{ color: '#ffaaaa' }}>
+              {m.name.replace(/^BANDIT \d+ · /, '')}
+            </div>
+          </div>
+        );
+      })}
 
       {/* Lock-On-Raute (wandert zum Ziel) */}
       {data.lockProgress > 0 && (
@@ -77,6 +117,35 @@ export function Hud({ data }: { data: HudData }) {
         <div className="text-sm">BANDITS: {data.enemiesAlive}{data.samsLeft > 0 ? ` · SAM: ${data.samsLeft}` : ''}</div>
       </div>
 
+      {/* Damage-Übersicht (oben rechts) */}
+      <div
+        className="absolute right-6 top-6 w-48 rounded border px-3 py-2"
+        style={{
+          borderColor: hullPct > 50 ? `${hudColor}55` : `${warnColor}88`,
+          background: 'rgba(0,12,6,0.55)',
+        }}
+      >
+        <div className="text-[10px] tracking-widest opacity-70">AIRFRAME DAMAGE</div>
+        <div className="mt-0.5 text-sm font-bold" style={{ color: hullColor }}>
+          {dmg?.status ?? 'NOMINAL'}
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <div className="h-2 flex-1 border" style={{ borderColor: hullColor }}>
+            <div className="h-full transition-all" style={{ width: `${hullPct}%`, background: hullColor }} />
+          </div>
+          <div className="w-10 text-right text-xs font-bold" style={{ color: hullColor }}>{hullPct}%</div>
+        </div>
+        <div className="mt-2 space-y-0.5 text-[10px]">
+          {(dmg?.systems ?? []).map((s) => (
+            <div key={s.name} className="flex justify-between gap-2">
+              <span className="opacity-60">{s.name}</span>
+              <span style={{ color: s.ok ? hudColor : warnColor }}>{s.ok ? 'OK' : 'FAIL'}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 text-[10px] opacity-50">HULL {data.hp}/{data.maxHp}</div>
+      </div>
+
       {/* Wellen-Banner */}
       {data.waveBanner && (
         <div className="absolute left-1/2 top-[22%] -translate-x-1/2 text-center">
@@ -117,7 +186,6 @@ export function Hud({ data }: { data: HudData }) {
           <circle cx="0" cy="0" r="30" fill="none" stroke={hudColor} strokeWidth="0.5" opacity="0.4" />
           <line x1="-98" y1="0" x2="98" y2="0" stroke={hudColor} strokeWidth="0.5" opacity="0.4" />
           <line x1="0" y1="-98" x2="0" y2="98" stroke={hudColor} strokeWidth="0.5" opacity="0.4" />
-          {/* eigener Jet */}
           <polygon points="0,-6 4,5 -4,5" fill={hudColor} />
           {data.radar.map((r, i) => (
             <g key={i}>
@@ -138,13 +206,6 @@ export function Hud({ data }: { data: HudData }) {
         <div className="text-3xl font-bold">{data.score}</div>
         <div className="mt-2 text-sm">AIM-9 × {data.missiles}</div>
         <div className="text-sm">BANDITS: {data.enemiesAlive}</div>
-        <div className="mt-2 text-xs opacity-70">HULL</div>
-        <div className="ml-auto h-2 w-32 border border-current">
-          <div className="h-full transition-all" style={{
-            width: `${(data.hp / data.maxHp) * 100}%`,
-            background: data.hp > 50 ? hudColor : data.hp > 25 ? '#ffaa33' : warnColor,
-          }} />
-        </div>
       </div>
     </div>
   );

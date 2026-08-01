@@ -39,6 +39,23 @@ export interface HudData {
   freeLook: boolean;
   autoTrack: boolean;
   radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[];
+  /** Welt→Bildschirm Marker über Gegnern (HP + Distanz) */
+  worldMarkers: {
+    x: number; // % Bildschirm
+    y: number;
+    name: string;
+    hp: number;
+    maxHp: number;
+    distM: number;
+    locked: boolean;
+    visible: boolean;
+  }[];
+  /** Strukturierter Schaden für Damage-Panel */
+  damage: {
+    hullPct: number;
+    status: string;
+    systems: { name: string; ok: boolean }[];
+  };
   // Mission
   waveIndex: number;      // 0-basiert
   waveCount: number;
@@ -663,6 +680,46 @@ export class Game {
       }
     }
 
+    // Gegner-Marker (Leiste über dem Jet + Distanz)
+    const worldMarkers: HudData['worldMarkers'] = [];
+    if (this.state === 'playing' || this.state === 'paused') {
+      for (const e of this.enemies) {
+        if (!e.alive) continue;
+        // Marker etwas über dem Jet
+        const world = e.object.position.clone().add(new THREE.Vector3(0, 8, 0));
+        const ndc = world.project(this.engine.camera);
+        const inFront = ndc.z < 1 && ndc.x > -1.2 && ndc.x < 1.2 && ndc.y > -1.2 && ndc.y < 1.2;
+        const distM = Math.round(e.position.distanceTo(p.position));
+        worldMarkers.push({
+          x: THREE.MathUtils.clamp((ndc.x * 0.5 + 0.5) * 100, 1, 99),
+          y: THREE.MathUtils.clamp((-ndc.y * 0.5 + 0.5) * 100, 1, 99),
+          name: e.name,
+          hp: Math.max(0, Math.round(e.hp)),
+          maxHp: e.maxHpPublic,
+          distM,
+          locked: p.lockTarget === (e as unknown as Damageable) && p.lockProgress >= 1,
+          visible: inFront && distM < 6000,
+        });
+      }
+    }
+
+    const hullPct = Math.round((Math.max(0, p.hp) / Math.max(1, p.maxHp)) * 100);
+    let dmgStatus = 'NOMINAL';
+    if (hullPct <= 25) dmgStatus = 'CRITICAL';
+    else if (hullPct <= 50) dmgStatus = 'HEAVY DAMAGE';
+    else if (hullPct <= 75) dmgStatus = 'LIGHT DAMAGE';
+    const damage: HudData['damage'] = {
+      hullPct,
+      status: dmgStatus,
+      systems: [
+        { name: 'ENGINE', ok: hullPct > 20 },
+        { name: 'FLIGHT CTRL', ok: hullPct > 35 },
+        { name: 'RADAR', ok: hullPct > 40 },
+        { name: 'WEAPONS', ok: hullPct > 15 },
+        { name: 'HYDRAULICS', ok: hullPct > 50 },
+      ],
+    };
+
     const wave = CONFIG.mission.waves[Math.min(this.waveIndex, CONFIG.mission.waves.length - 1)];
     const data: HudData = {
       state: this.state,
@@ -685,6 +742,8 @@ export class Game {
       lockScreen,
       warning,
       radar,
+      worldMarkers,
+      damage,
       waveIndex: this.waveIndex,
       waveCount: CONFIG.mission.waves.length,
       waveLabel: wave.label,

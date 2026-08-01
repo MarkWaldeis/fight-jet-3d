@@ -11,16 +11,16 @@ export const CONFIG = {
     fogFar: 16000,
   },
   flight: {
-    minSpeed: 60,          // m/s, darunter Stall
-    cruiseSpeed: 180,
-    maxSpeed: 340,         // ~Mach 1
-    afterburnerSpeed: 430,
-    thrustAccel: 55,       // m/s^2
-    afterburnerAccel: 95,
-    dragBase: 0.012,
-    pitchRate: 1.5,        // rad/s
-    rollRate: 2.2,
-    yawRate: 0.45,
+    minSpeed: 55,          // m/s, darunter Stall
+    cruiseSpeed: 140,      // langsamer → Auto-Track greift besser
+    maxSpeed: 260,
+    afterburnerSpeed: 320,
+    thrustAccel: 42,       // m/s^2
+    afterburnerAccel: 70,
+    dragBase: 0.014,
+    pitchRate: 1.45,       // rad/s
+    rollRate: 2.1,
+    yawRate: 0.42,
     stallPitchDrop: 0.9,
     gravityPull: 9.81,     // wirkt bei langsamer Flucht stärker
   },
@@ -39,15 +39,17 @@ export const CONFIG = {
   enemy: {
     count: 4,
     hp: 60,
-    speed: 200,
-    turnRate: 0.9,         // rad/s Begrenzung der KI
+    speed: 135,            // langsamer als Spieler-Cruise → leichter zu verfolgen
+    turnRate: 0.75,        // rad/s Begrenzung der KI
     cannonDamage: 2,
-    fireRange: 800,
+    fireRange: 750,
     fireConeDeg: 8,
     burstLength: 0.5,
     thinkInterval: 0.25,
     respawnDelay: 6,
-    skillEvasionChance: 0.35,
+    skillEvasionChance: 0.28,
+    /** Multiplikator auf Jet-speedMult der Banditen (zusätzlich zu 0.95) */
+    speedScale: 0.72,
   },
   missile: {
     speed: 700,
