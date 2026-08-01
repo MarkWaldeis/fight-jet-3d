@@ -19,8 +19,12 @@ export const CONFIG = {
     afterburnerAccel: 70,
     dragBase: 0.014,
     pitchRate: 1.45,       // rad/s
-    rollRate: 2.1,
-    yawRate: 0.42,
+    rollRate: 2.0,
+    yawRate: 0.55,
+    // Arcade: A/D bankt + dreht Kurs (Welt-Yaw) → Fadenkreuz wandert seitlich
+    rollYawCoupling: 1.15, // Heading-Rate bei vollem A/D (rad/s)
+    bankTurnRate: 0.7,     // zusätzliche Kurve aus Schräglage
+    autoLevelRate: 1.6,    // Bank flacht ohne A/D ab
     stallPitchDrop: 0.9,
     gravityPull: 9.81,     // wirkt bei langsamer Flucht stärker
   },
@@ -67,6 +71,8 @@ export const CONFIG = {
     chaseLookAhead: 200,
     chaseLookY: 0,
     chaseLookZ: 0,
+    // Anteil der Jet-Bank, den die Chase-Cam mitnimmt (0 = nie, 1 = voll mitrollen)
+    chaseRollFollow: 0.28,
     lerpPos: 12.0,
     lerpRot: 10.0,
     baseFov: 68,

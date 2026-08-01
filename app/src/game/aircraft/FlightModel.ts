@@ -17,6 +17,8 @@ export class FlightModel {
   private qDelta = new THREE.Quaternion();
   private axis = new THREE.Vector3();
   private prevVel = new THREE.Vector3();
+  private _right = new THREE.Vector3();
+  private _worldUp = new THREE.Vector3(0, 1, 0);
 
   constructor(object: THREE.Object3D) {
     this.object = object;
@@ -48,16 +50,49 @@ export class FlightModel {
       (this.speed - 30) / (F.cruiseSpeed * sm - 30), 0.15, 1.15
     ) * tm;
     let pitchRate = input.pitch * F.pitchRate * agility;
-    const rollRate = input.roll * F.rollRate * agility;
+    let rollRate = input.roll * F.rollRate * agility;
+    // Q/E = reines Seitenruder (lokal)
     const yawRate = input.yaw * F.yawRate * agility;
+
+    // Schräglage messen (+bank = rechts eingerollt, ≈ sin(Bankwinkel))
+    this._right.set(1, 0, 0).applyQuaternion(this.object.quaternion);
+    const bank = THREE.MathUtils.clamp(-this._right.y, -1, 1);
+
+    // Auto-Level: ohne A/D flacht die Bank sanft ab (Arcade)
+    const autoLevel = F.autoLevelRate ?? 1.5;
+    if (Math.abs(input.roll) < 0.08) {
+      rollRate += -bank * autoLevel * agility;
+    } else {
+      // Weiches Bank-Limit ~55° — verhindert Dauer-Tonne, A/D bleibt Kurve
+      const maxBank = 0.82;
+      if (input.roll * bank > 0 && Math.abs(bank) > maxBank) {
+        rollRate *= 0.08;
+      }
+    }
+
     if (this.stalled) {
       // Nase fällt durch
       pitchRate -= F.stallPitchDrop * (1 - this.speed / F.minSpeed);
     }
 
+    // Lokale Achsen: Pitch / Rudder / Roll (Bank)
     this.rotateLocal(new THREE.Vector3(1, 0, 0), pitchRate * dt);
     this.rotateLocal(new THREE.Vector3(0, 1, 0), yawRate * dt);
     this.rotateLocal(new THREE.Vector3(0, 0, 1), -rollRate * dt);
+
+    // Arcade-Kurvenflug: A/D und Schräglage drehen den Kurs in der WELTEBENE.
+    // → Nase + Fadenkreuz wandern seitlich, ohne Spiralsturz über Body-Yaw.
+    const rollYaw = F.rollYawCoupling ?? 1.0;
+    const bankTurn = F.bankTurnRate ?? 0.75;
+    // bank nach dem Roll-Schritt neu messen
+    this._right.set(1, 0, 0).applyQuaternion(this.object.quaternion);
+    const bankAfter = THREE.MathUtils.clamp(-this._right.y, -1, 1);
+    const headingRate =
+      (-input.roll * rollYaw - bankAfter * bankTurn) * agility;
+    if (Math.abs(headingRate) > 1e-6) {
+      this.object.rotateOnWorldAxis(this._worldUp, headingRate * dt);
+      this.object.quaternion.normalize();
+    }
 
     // --- Position ---
     const vel = this.forward.multiplyScalar(this.speed);

@@ -2,11 +2,10 @@ import * as THREE from 'three';
 import { CONFIG } from '../config';
 
 /**
- * Chase-Kamera (Standard) — wie zuvor:
+ * Chase-Kamera (Standard):
  * - Position: immer hinter + leicht über dem Jet
- * - Folgt Heading & Pitch (bewegt sich mit), rollt NICHT mit
- * - Blick PARALLEL zur Nase/Schussachse → Fadenkreuz vor dem Flugzeug, nicht auf dem Rumpf
- * - Kamera-Up bleibt roll-frei (Horizont kippt nicht mit Bank)
+ * - Folgt Heading & Pitch; Bank nur teilweise (chaseRollFollow)
+ * - Blick PARALLEL zur Nase → Fadenkreuz vor dem Flugzeug
  *
  * Free-Look: Orbit. Cockpit: Pilotensicht.
  */
@@ -27,28 +26,43 @@ export class CameraController {
   private _fwd = new THREE.Vector3();
   private _right = new THREE.Vector3();
   private _up = new THREE.Vector3();
+  private _jetUp = new THREE.Vector3();
   private _desired = new THREE.Vector3();
   private _look = new THREE.Vector3();
   private _worldUp = new THREE.Vector3(0, 1, 0);
 
   /**
-   * Roll-freie Basis aus der Jet-Nase:
+   * Basis aus der Jet-Nase:
    * - forward = echte Flug-/Schussrichtung (Pitch + Heading)
-   * - right/up ohne Jet-Roll (Welt-Up als Referenz)
+   * - up = roll-frei, dann leicht mit Jet-Bank gemischt (chaseRollFollow)
    */
-  private buildNoRollBasis(jet: THREE.Object3D) {
+  private buildChaseBasis(jet: THREE.Object3D, rollFollow: number) {
     this._fwd.set(0, 0, -1).applyQuaternion(jet.quaternion);
     if (this._fwd.lengthSq() < 1e-8) this._fwd.set(0, 0, -1);
     else this._fwd.normalize();
 
+    // Roll-freie Right/Up
     this._right.crossVectors(this._worldUp, this._fwd);
     if (this._right.lengthSq() < 1e-6) {
-      // fast senkrecht: stabile Right-Achse
       this._right.set(1, 0, 0);
     } else {
       this._right.normalize();
     }
     this._up.crossVectors(this._fwd, this._right).normalize();
+
+    // Leicht mit der Bank mitkippen (nicht voll mitdrehen)
+    if (rollFollow > 0.001) {
+      this._jetUp.set(0, 1, 0).applyQuaternion(jet.quaternion).normalize();
+      this._up.lerp(this._jetUp, THREE.MathUtils.clamp(rollFollow, 0, 1)).normalize();
+      // orthogonal halten
+      this._right.crossVectors(this._up, this._fwd).normalize();
+      this._up.crossVectors(this._fwd, this._right).normalize();
+    }
+  }
+
+  /** Free-Look / Cockpit: weiterhin roll-freie Basis */
+  private buildNoRollBasis(jet: THREE.Object3D) {
+    this.buildChaseBasis(jet, 0);
   }
 
   update(
@@ -101,7 +115,8 @@ export class CameraController {
     }
 
     // ─── Chase: hinter + über dem Jet, Blick parallel zur Nase ────────────
-    this.buildNoRollBasis(jet);
+    const rollFollow = C.chaseRollFollow ?? 0.28;
+    this.buildChaseBasis(jet, rollFollow);
     const off = C.chaseOffset;
     const lookDist = C.chaseLookAhead ?? 200;
 
@@ -120,7 +135,7 @@ export class CameraController {
       this.ready = true;
     } else {
       this.currentPos.lerp(this._desired, k);
-      // Richtungen weich nachziehen — KEIN Jet-Quaternion-Copy → kein Mitrollen
+      // Richtungen weich nachziehen — Bank nur teilweise (rollFollow)
       this.currentFwd.lerp(this._fwd, k).normalize();
       this.currentUp.lerp(this._up, k).normalize();
       // Orthogonal halten
@@ -142,7 +157,7 @@ export class CameraController {
     }
 
     camera.position.copy(this.currentPos);
-    camera.up.copy(this.currentUp); // kein Mitrollen
+    camera.up.copy(this.currentUp); // leichte Bank, kein Voll-Mitrollen
     camera.lookAt(this._look);
   }
 
@@ -210,7 +225,8 @@ export class CameraController {
 
   snapBehind(jet: THREE.Object3D) {
     const off = CONFIG.camera.chaseOffset;
-    this.buildNoRollBasis(jet);
+    const rollFollow = CONFIG.camera.chaseRollFollow ?? 0.28;
+    this.buildChaseBasis(jet, this.mode === 'chase' ? rollFollow : 0);
     this.currentPos
       .copy(jet.position)
       .addScaledVector(this._fwd, -off.z)

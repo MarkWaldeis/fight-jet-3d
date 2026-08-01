@@ -127,7 +127,8 @@ for (const id of jets) {
     level.above > 2.0 &&
     level.jetNdcY < -0.02 &&
     pitched.align > 0.7 &&
-    rolled.camUpY > 0.45;
+    // leichte Bank-Mitnahme erlaubt, aber kein Voll-Mitrollen
+    rolled.camUpY > 0.55;
 
   report.push({ id, ok, level, pitched, rolled });
   console.log(id, ok ? 'OK' : 'CHECK', JSON.stringify({ level, pitched, rolled }));
