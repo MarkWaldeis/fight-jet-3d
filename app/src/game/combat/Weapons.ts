@@ -3,18 +3,18 @@ import { CONFIG } from '../config';
 import type { Damageable } from './GroundTarget';
 import type { Effects } from './Effects';
 
-// Tracer: gepoolte Leuchtspuren — aus linken/rechten Mündungen, nur nach vorne.
+// Tracer: starten an den Mündungen VOR dem Jet, fliegen nur nach vorne.
 const MAX_TRACERS = 100;
-const TRACER_LEN = 16;
-const TRACER_SPEED = 950;
-const TRACER_LIFE = 0.2;
+const TRACER_LEN = 12;
+const TRACER_SPEED = 980;
+const TRACER_LIFE = 0.18;
 
-// Dual-Mündungen (links/rechts am Bug / Wing-Root) — Arcade-Vulcan-Look
+// Mündungen am Bug (local -Z = Nase/Flugrichtung) — links & rechts
 const MUZZLES_LOCAL = [
-  new THREE.Vector3(-1.15, 0.05, -6.8), // links
-  new THREE.Vector3(1.15, 0.05, -6.8),  // rechts
-  new THREE.Vector3(-0.7, -0.15, -6.5), // links etwas tiefer (Wechsel)
-  new THREE.Vector3(0.7, -0.15, -6.5),  // rechts etwas tiefer
+  new THREE.Vector3(-1.05, 0.0, -8.2), // links vorne
+  new THREE.Vector3(1.05, 0.0, -8.2),  // rechts vorne
+  new THREE.Vector3(-0.75, -0.12, -7.9),
+  new THREE.Vector3(0.75, -0.12, -7.9),
 ];
 
 const _zAxis = new THREE.Vector3(0, 0, 1);
@@ -23,6 +23,7 @@ const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _tmp = new THREE.Vector3();
 const _flashPos = new THREE.Vector3();
+const _yAxis = new THREE.Vector3(0, 1, 0);
 
 export class CannonSystem {
   private tracers: {
@@ -38,12 +39,11 @@ export class CannonSystem {
   private group = new THREE.Group();
   private cursor = 0;
   private flashCursor = 0;
-  private barrel = 0; // wechselt links/rechts
+  private barrel = 0;
 
   constructor(scene: THREE.Scene) {
-    // Tracer-Geometrie: Pivot am Heck, erstreckt sich nur nach +Z (= vorne nach Orient)
-    const geo = new THREE.CylinderGeometry(0.05, 0.12, TRACER_LEN, 5, 1, true);
-    geo.rotateX(Math.PI / 2);
+    // Box von z=0 (Heck/Mündung) bis z=+LEN (Spitze) — nur nach vorne, nie hinter die Mündung
+    const geo = new THREE.BoxGeometry(0.07, 0.07, TRACER_LEN);
     geo.translate(0, 0, TRACER_LEN / 2);
 
     for (let i = 0; i < MAX_TRACERS; i++) {
@@ -56,6 +56,7 @@ export class CannonSystem {
       });
       const m = new THREE.Mesh(geo, mat);
       m.visible = false;
+      m.frustumCulled = false;
       this.group.add(m);
       this.tracers.push({
         mesh: m,
@@ -65,8 +66,7 @@ export class CannonSystem {
       });
     }
 
-    // Mündungsfeuer (kurze Blitze an der Kanone)
-    const flashGeo = new THREE.SphereGeometry(0.35, 8, 6);
+    const flashGeo = new THREE.SphereGeometry(0.28, 8, 6);
     for (let i = 0; i < 16; i++) {
       const mat = new THREE.MeshBasicMaterial({
         color: 0xffee88,
@@ -84,14 +84,18 @@ export class CannonSystem {
     scene.add(this.group);
   }
 
+  /** Richtet lokale +Z des Tracers auf world-dir (Schussrichtung). */
   private orientAlong(dir: THREE.Vector3): THREE.Quaternion {
-    const d = Math.abs(dir.dot(_zAxis));
-    if (d > 0.9995) {
-      if (dir.z > 0) _quat.identity();
-      else _quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
-    } else {
-      _quat.setFromUnitVectors(_zAxis, dir);
+    // Stabil auch bei dir ≈ (0,0,-1)
+    if (Math.abs(dir.z + 1) < 1e-4 && Math.abs(dir.x) < 1e-4 && Math.abs(dir.y) < 1e-4) {
+      _quat.setFromAxisAngle(_yAxis, Math.PI);
+      return _quat;
     }
+    if (Math.abs(dir.z - 1) < 1e-4 && Math.abs(dir.x) < 1e-4 && Math.abs(dir.y) < 1e-4) {
+      _quat.identity();
+      return _quat;
+    }
+    _quat.setFromUnitVectors(_zAxis, dir);
     return _quat;
   }
 
@@ -100,29 +104,29 @@ export class CannonSystem {
     this.flashCursor = (this.flashCursor + 1) % this.flashes.length;
     f.mesh.visible = true;
     f.mesh.position.copy(worldPos);
-    const s = 0.6 + Math.random() * 0.8;
-    f.mesh.scale.setScalar(s);
+    f.mesh.scale.setScalar(0.5 + Math.random() * 0.6);
     (f.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
-    f.life = 0.04 + Math.random() * 0.03;
+    f.life = 0.035 + Math.random() * 0.025;
   }
 
   private spawnTracer(origin: THREE.Vector3, dir: THREE.Vector3) {
     const t = this.tracers[this.cursor];
     this.cursor = (this.cursor + 1) % MAX_TRACERS;
     t.mesh.visible = true;
+    // Heck des Tracers = Mündung, Körper nur entlang dir (nach vorne)
     t.mesh.position.copy(origin);
     t.mesh.quaternion.copy(this.orientAlong(dir));
     t.dir.copy(dir);
-    t.speed = TRACER_SPEED + (Math.random() - 0.5) * 100;
-    t.life = TRACER_LIFE * (0.85 + Math.random() * 0.3);
+    t.speed = TRACER_SPEED + (Math.random() - 0.5) * 80;
+    t.life = TRACER_LIFE * (0.9 + Math.random() * 0.2);
     (t.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
-    // leicht vor die Mündung, damit der Strich klar am Jet beginnt
-    t.mesh.position.addScaledVector(dir, 0.8);
+    // knappe Mündung vorn freimachen (nur nach vorne, nie nach hinten)
+    t.mesh.position.addScaledVector(dir, 1.5);
   }
 
   /**
-   * Feuert eine Salve: 1–2 Tracer aus linken/rechten Mündungen + Hitscan.
-   * Schussrichtung = Flugrichtung (Boresight).
+   * Salve aus linken/rechten Mündungen. Visuell nur VOR dem Jet.
+   * Hitscan entlang Boresight (Flugrichtung = Fadenkreuz).
    */
   fire(
     shooter: Damageable & { forward: import('three').Vector3 },
@@ -134,8 +138,7 @@ export class CannonSystem {
     const pos = shooter.object.position;
     const spread = CONFIG.player.cannonSpread;
 
-    // Pro Schuss: oft beide Seiten (links + rechts), manchmal nur eine (Vulcan-Burst)
-    const dual = Math.random() > 0.25;
+    const dual = Math.random() > 0.2;
     const sides = dual
       ? [this.barrel % 2, (this.barrel + 1) % 2]
       : [this.barrel % 2];
@@ -144,9 +147,9 @@ export class CannonSystem {
     let hitOnce = false;
 
     for (const side of sides) {
-      // Wechsle zwischen vorderen/hinteren Mündungs-Offsets pro Seite
       const muzzleIdx = side + (Math.random() > 0.5 ? 2 : 0);
       const local = MUZZLES_LOCAL[muzzleIdx];
+      // Weltposition der Mündung am Bug
       _muzzle.copy(local).applyQuaternion(q).add(pos);
 
       _dir.copy(shooter.forward);
@@ -155,15 +158,16 @@ export class CannonSystem {
       _dir.z += (Math.random() - 0.5) * spread;
       _dir.normalize();
 
-      this.spawnFlash(_flashPos.copy(_muzzle));
+      // Sicherheit: nur wenn dir grob nach vorne (relativ Jet) zeigt
+      // (forward ist bereits Jet-Nase; hier nur normalisieren)
+      this.spawnFlash(_flashPos.copy(_muzzle).addScaledVector(_dir, 0.4));
       this.spawnTracer(_muzzle, _dir);
 
-      // Hitscan einmal pro Salve reicht (gleiche Boresight)
       if (!hitOnce && target && target.alive) {
         hitOnce = true;
         const range = shooter.isPlayer ? CONFIG.player.cannonRange : CONFIG.enemy.fireRange;
-        // Hitscan vom Jet-Zentrum / Boresight (fair), Visuell von den Mündungen
-        const origin = pos.clone().addScaledVector(shooter.forward, 6);
+        // Boresight-Hitscan (gleich Fadenkreuz / Jet-forward)
+        const origin = pos.clone().addScaledVector(shooter.forward, 8);
         const toTarget = _tmp.copy(target.object.position).sub(origin);
         const along = toTarget.dot(shooter.forward);
         if (along > 0 && along < range) {
@@ -174,7 +178,6 @@ export class CannonSystem {
           if (dist < hitRadius) {
             effects.hitSparks(closest);
             const dmg = shooter.isPlayer ? CONFIG.player.cannonDamage : CONFIG.enemy.cannonDamage;
-            // Dual = etwas mehr Schaden
             onHit(target, dual ? dmg * 1.15 : dmg);
           }
         }
