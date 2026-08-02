@@ -51,9 +51,9 @@ export const CONFIG = {
     /** Angular damping (Ruder-Loslassen → weiches Auslaufen) */
     angularDamping: 3.5,
 
-    // Arcade-Bank-Kurven (Manual-Mode / KI)
-    rollYawCoupling: 0.85,
-    bankTurnRate: 0.65,
+    // A/D nur reines Rollen — kein Heading aus Bank (Kurven = Roll + Pitch/S)
+    rollYawCoupling: 0,
+    bankTurnRate: 0,
     autoLevelRate: 1.2,
     stallPitchDrop: 0.95,
     gravityPull: 9.81,
@@ -93,28 +93,28 @@ export const CONFIG = {
     lockLoseAngleDeg: 75,
   },
   camera: {
-    // Hinter + leicht über der Heckflosse (War Thunder Chase)
+    // Nah von hinten-oben auf den Jet schauen (dicht am Rumpf)
     // y = Höhe über Jet (m), z = Distanz hinter der Nase (m)
-    chaseOffset: { x: 0, y: 3.0, z: 12 },
-    chaseLookAhead: 180,
+    chaseOffset: { x: 0, y: 4.8, z: 7.5 },
+    chaseLookAhead: 140,
     chaseLookY: 0,
     chaseLookZ: 0,
-    /** Look-down ~7° damit Fadenkreuz vor der Nase liegt */
-    lookDownAngle: 0.12,
+    /** Look-down: Blick von schräg oben auf den Jet + Ziel vor der Nase */
+    lookDownAngle: 0.18,
     /** Roll-Kopplung 15–20 % — Horizont bleibt stabil */
     chaseRollFollow: 0.17,
     /** Position spring-damper (höher = enger) */
-    lerpPos: 8.5,
-    lerpRot: 7.5,
+    lerpPos: 9.5,
+    lerpRot: 8.0,
     /** Free-Look Rückschwenk-Dauer (s) */
     freeLookReturnTime: 0.3,
-    /** Speed Pull-Back: zusätzliche Distanz bei WEP */
-    speedPullBack: 3.5,
+    /** Speed Pull-Back: nur leicht weiter bei WEP */
+    speedPullBack: 1.8,
     /** High-G / Airbrake: Kamera rückt näher */
-    highGPullIn: 2.2,
+    highGPullIn: 1.5,
     baseFov: 60,
     maxFovBoost: 18,       // → ~78° bei Max-Speed/WEP
-    freeLookDistance: 16,
+    freeLookDistance: 12,
     freeLookSensitivity: 0.004,
     /** Kamera-Shake Amplitude (m / rad) */
     shakeSpeed: 0.012,

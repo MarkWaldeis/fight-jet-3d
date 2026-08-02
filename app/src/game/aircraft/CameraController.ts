@@ -205,10 +205,11 @@ export class CameraController {
 
     // Distanz: Base × Jet-Fit + Speed Pull-Back − High-G/Airbrake Pull-In
     let dist = C.chaseOffset.z * dScale + speedNorm * (C.speedPullBack ?? 3.5);
-    if (afterburner) dist += 1.2;
-    if (airbrake) dist -= C.highGPullIn ?? 2.2;
-    if (gForce > 4.5) dist -= (C.highGPullIn ?? 2.2) * THREE.MathUtils.clamp((gForce - 4.5) / 4, 0, 1);
-    dist = Math.max(7, dist);
+    if (afterburner) dist += 0.8;
+    if (airbrake) dist -= C.highGPullIn ?? 1.5;
+    if (gForce > 4.5) dist -= (C.highGPullIn ?? 1.5) * THREE.MathUtils.clamp((gForce - 4.5) / 4, 0, 1);
+    // Nah-Chase: nicht unter ~5 m, damit man den Jet noch sieht
+    dist = Math.max(5, dist);
 
     const height = C.chaseOffset.y * hScale;
     const lookDist = C.chaseLookAhead ?? 180;

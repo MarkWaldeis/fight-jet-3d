@@ -47,7 +47,6 @@ export class FlightModel {
   private _fwd = new THREE.Vector3();
   private _right = new THREE.Vector3();
   private _up = new THREE.Vector3();
-  private _worldUp = new THREE.Vector3(0, 1, 0);
   private _localAim = new THREE.Vector3();
   private _tmp = new THREE.Vector3();
   private _tmp2 = new THREE.Vector3();
@@ -155,21 +154,10 @@ export class FlightModel {
     }
 
     // --- Rotation (lokale Achsen) ---
+    // A/D = reines Rollen um die Längsachse (kein seitliches Wegdrehen / Heading-Zwang)
     this.rotateLocal(new THREE.Vector3(1, 0, 0), pitchRate * dt);
     this.rotateLocal(new THREE.Vector3(0, 1, 0), yawRate * dt);
     this.rotateLocal(new THREE.Vector3(0, 0, 1), -rollRate * dt);
-
-    // Arcade: Bank erzeugt Heading-Änderung in der Weltebene (Manual + FBW)
-    this._right.set(1, 0, 0).applyQuaternion(this.object.quaternion);
-    const bankAfter = THREE.MathUtils.clamp(-this._right.y, -1, 1);
-    const headingRate =
-      (-this.cmdRoll * (F.rollYawCoupling ?? 0.85) - bankAfter * (F.bankTurnRate ?? 0.65)) *
-      agility *
-      0.85;
-    if (Math.abs(headingRate) > 1e-6) {
-      this.object.rotateOnWorldAxis(this._worldUp, headingRate * dt);
-      this.object.quaternion.normalize();
-    }
 
     // Angular damping wenn fast keine Eingabe
     const stickMag = Math.abs(this.cmdPitch) + Math.abs(this.cmdRoll) + Math.abs(this.cmdYaw);
