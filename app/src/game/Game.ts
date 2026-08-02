@@ -17,6 +17,9 @@ import { getJetDef, jetFxVectors, JET_CATALOG, type JetId } from './aircraft/Jet
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameover' | 'victory';
 
+/** Bildschirmposition in Prozent (0–100), CSS left/top */
+export type ScreenPos = { x: number; y: number; visible: boolean };
+
 // Daten, die das React-HUD jede Frame (gedrosselt) bekommt.
 export interface HudData {
   state: GameState;
@@ -38,6 +41,12 @@ export interface HudData {
   warning: string | null;
   freeLook: boolean;
   autoTrack: boolean;
+  /** War Thunder Dual/Triple-Reticle */
+  mouseReticle: ScreenPos;   // Reticle 1: Maus-Zielkreuz
+  velocityVector: ScreenPos; // Reticle 2: Velocity Vector
+  gunCrosshair: ScreenPos;   // Reticle 3: Nase / Gun
+  manualOverride: boolean;
+  airbrake: boolean;
   radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[];
   /** Welt→Bildschirm Marker über Gegnern (HP + Distanz) */
   worldMarkers: {
@@ -98,8 +107,16 @@ export class Game {
   /** Laufende Lade-Promises pro Jet-Id (verhindert Doppel-Loads) */
   private visualPromises = new Map<JetId, Promise<THREE.Object3D | null>>();
 
+  private aimDir = new THREE.Vector3(0, 0, -1);
+  private _ndc = new THREE.Vector3();
+  private _proj = new THREE.Vector3();
+  private onContextMenu = (e: Event) => e.preventDefault();
+
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas);
+    this.input.setCanvas(canvas);
+    canvas.addEventListener('contextmenu', this.onContextMenu);
+
     this.terrain = new Terrain();
     this.sea = new Sea();
     this.sky = new Sky();
@@ -190,6 +207,7 @@ export class Game {
     this.spawnWave(0);
     this.cam.snapBehind(this.player.object);
     this.state = 'playing';
+    this.setPlayCursor(true);
     this.emitHud();
   }
 
@@ -200,6 +218,7 @@ export class Game {
     this.spawnWave(0, true);
     this.player.reset();
     this.cam.snapBehind(this.player.object);
+    this.setPlayCursor(false);
     this.emitHud();
   }
 
@@ -211,10 +230,17 @@ export class Game {
         if (document.pointerLockElement) document.exitPointerLock?.();
       }
       this.state = 'paused';
+      this.setPlayCursor(false);
     } else if (this.state === 'paused') {
       this.state = 'playing';
+      this.setPlayCursor(true);
     }
     this.emitHud();
+  }
+
+  /** System-Cursor ausblenden — Aim-Reticle ist der Cursor */
+  private setPlayCursor(playing: boolean) {
+    this.engine.renderer.domElement.style.cursor = playing ? 'none' : '';
   }
 
   /** Test/Debug: springt zur angegebenen Welle (0-basiert). */
@@ -308,24 +334,21 @@ export class Game {
 
     // Globale Tasten
     if (this.input.wasPressed('KeyP') || this.input.wasPressed('Escape')) this.togglePause();
-    if (this.input.wasPressed('KeyC')) {
-      this.cam.toggleCockpit();
-    }
-    // V = Free-Look (Orbit um Jet, Jet fliegt geradeaus weiter)
+    // V = Cockpit / Chase umschalten
     if (this.input.wasPressed('KeyV') && this.state === 'playing') {
-      this.cam.toggleFreeLook();
-      // Pointer-Lock für flüssiges Maus-Orbit (ESC löst, V beendet Free-Look)
-      if (this.cam.isFreeLook) {
-        this.engine.renderer.domElement.requestPointerLock?.();
-      } else if (document.pointerLockElement) {
-        document.exitPointerLock?.();
-      }
+      this.cam.toggleCockpit();
     }
     if (this.input.wasPressed('Enter') &&
         (this.state === 'menu' || this.state === 'gameover' || this.state === 'victory')) {
       this.startGame();
     }
-    this.input.update(dt);
+
+    // Free-Look vor Input-Update lesen (C halten / RMB)
+    const freeHeldPreview = this.input.isDown('KeyC') || this.input.rightMouse;
+    this.input.update(dt, {
+      freeLook: freeHeldPreview || this.cam.isFreeLook,
+      playing: this.state === 'playing',
+    });
 
     if (this.state === 'playing') {
       this.updatePlaying(dt);
@@ -359,8 +382,8 @@ export class Game {
   private updatePlaying(dt: number) {
     const player = this.player;
 
-    // Free-Look: Jet behält Kurs (keine Stick-Eingabe), Kamera orbitet frei
-    const free = this.cam.isFreeLook;
+    // Free-Look: C halten / RMB — Jet behält Kurs, Kamera orbitet
+    const free = this.input.freeLookHeld || this.cam.isFreeLook;
     const savedPitch = this.input.pitch;
     const savedRoll = this.input.roll;
     const savedYaw = this.input.yaw;
@@ -370,12 +393,26 @@ export class Game {
       this.input.yaw = 0;
     }
 
-    // --- Spieler ---
-    player.update(dt, this.input, this.terrain, () => {
-      this.effects.explosion(player.position, true);
-      this.sound.explosion(true);
-      this.state = 'gameover';
-    });
+    // Mouse-Aim: Strahl von Kamera durch Aim-Reticle → Welt-Richtung
+    this.computeAimDir();
+
+    // --- Spieler (FBW + Manual Override) ---
+    player.update(
+      dt,
+      this.input,
+      this.terrain,
+      () => {
+        this.effects.explosion(player.position, true);
+        this.sound.explosion(true);
+        this.state = 'gameover';
+        this.setPlayCursor(false);
+      },
+      {
+        aimDir: this.aimDir,
+        mouseAim: !free && !this.input.manualOverride,
+        freeLook: free,
+      }
+    );
 
     if (free) {
       this.input.pitch = savedPitch;
@@ -497,7 +534,6 @@ export class Game {
 
     // --- Kamera & Sound ---
     const lookDelta = free ? this.input.freeLookDelta(dt) : undefined;
-    // Auto-Track: nach vollständigem Lock folgt das Aiming dem Gegner
     const trackPos =
       !free &&
       player.lockProgress >= 1 &&
@@ -510,7 +546,16 @@ export class Game {
       player.flight.speed,
       this.engine.camera,
       lookDelta,
-      trackPos
+      trackPos,
+      {
+        freeLookHeld: this.input.freeLookHeld,
+        gForce: player.flight.gForce,
+        afterburner: this.input.afterburner && player.alive,
+        firing: this.input.cannon && player.alive,
+        stalled: player.flight.stalled && player.alive,
+        airbrake: this.input.airbrake,
+        camFit: player.camFit,
+      }
     );
     this.sound.updateEngine(
       player.flight.speed / CONFIG.flight.afterburnerSpeed,
@@ -520,6 +565,41 @@ export class Game {
     );
     this.sound.setLockTone(player.alive ? player.lockProgress : 0);
     if (player.flight.stalled && player.alive) this.sound.stallWarning(true);
+  }
+
+  /** Unproject Aim-NDC → Welt-Richtungsvektor für FBW */
+  private computeAimDir() {
+    const cam = this.engine.camera;
+    const margin = CONFIG.flight.aimMargin;
+    const ax = THREE.MathUtils.clamp(this.input.aimX, -margin, margin);
+    const ay = THREE.MathUtils.clamp(this.input.aimY, -margin, margin);
+
+    // Ray durch Near-Plane-Punkt
+    this._ndc.set(ax, ay, 0.5);
+    this._ndc.unproject(cam);
+    this.aimDir.copy(this._ndc).sub(cam.position).normalize();
+
+    // Fallback: wenn unproject degeneriert, Nase nutzen
+    if (this.aimDir.lengthSq() < 0.5) {
+      this.aimDir.copy(this.player.forward);
+    }
+  }
+
+  /** Weltpunkt → HUD % Position */
+  private projectToScreen(world: THREE.Vector3): ScreenPos {
+    this._proj.copy(world).project(this.engine.camera);
+    const inFront = this._proj.z < 1;
+    const onScreen =
+      inFront &&
+      this._proj.x > -1.35 &&
+      this._proj.x < 1.35 &&
+      this._proj.y > -1.35 &&
+      this._proj.y < 1.35;
+    return {
+      x: THREE.MathUtils.clamp((this._proj.x * 0.5 + 0.5) * 100, 0, 100),
+      y: THREE.MathUtils.clamp((-this._proj.y * 0.5 + 0.5) * 100, 0, 100),
+      visible: onScreen,
+    };
   }
 
   private updateMission(dt: number) {
@@ -538,6 +618,7 @@ export class Game {
       this.waveIndex++;
       if (this.waveIndex >= CONFIG.mission.waves.length) {
         this.state = 'victory';
+        this.setPlayCursor(false);
         this.emitHud();
       } else {
         this.spawnWave(this.waveIndex);
@@ -633,6 +714,7 @@ export class Game {
     this.effects.explosion(this.player.position, true);
     this.sound.explosion(true);
     this.state = 'gameover';
+    this.setPlayCursor(false);
     this.emitHud();
   }
 
@@ -720,6 +802,21 @@ export class Game {
       ],
     };
 
+    // Triple-Reticle — Gun-Boresight aus echten Mündungen (pro Jet kalibriert)
+    const aimDist = 800;
+    const gunWorld = p.getGunBoresight(aimDist);
+    const velWorld = p.position
+      .clone()
+      .addScaledVector(p.flight.velocityDir, aimDist);
+    const gunCrosshair = this.projectToScreen(gunWorld);
+    const velocityVector = this.projectToScreen(velWorld);
+    // Maus-Reticle: NDC → %
+    const mouseReticle: ScreenPos = {
+      x: (this.input.aimX * 0.5 + 0.5) * 100,
+      y: (-this.input.aimY * 0.5 + 0.5) * 100,
+      visible: this.state === 'playing' && !this.cam.isFreeLook,
+    };
+
     const wave = CONFIG.mission.waves[Math.min(this.waveIndex, CONFIG.mission.waves.length - 1)];
     const data: HudData = {
       state: this.state,
@@ -731,6 +828,11 @@ export class Game {
       stalled: p.flight.stalled,
       freeLook: this.cam.isFreeLook,
       autoTrack: this.cam.isTracking && p.lockProgress >= 1,
+      mouseReticle,
+      velocityVector,
+      gunCrosshair,
+      manualOverride: this.input.manualOverride,
+      airbrake: this.input.airbrake,
       gForce: p.flight.gForce,
       hp: Math.max(0, Math.round(p.hp)),
       maxHp: p.maxHp,
@@ -762,6 +864,7 @@ export class Game {
   dispose() {
     this.loop.stop();
     this.input.dispose();
+    this.engine.renderer.domElement.removeEventListener('contextmenu', this.onContextMenu);
     this.engine.dispose();
   }
 }

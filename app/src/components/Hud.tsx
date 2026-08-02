@@ -1,10 +1,13 @@
 import type { HudData } from '../game/Game';
 import { CONFIG } from '../game/config';
 
-// Avionik-HUD im F-16-Stil: grüne Symbologie auf transparentem Glas.
+// Avionik-HUD im F-16 / War Thunder-Stil: grüne Symbologie + Triple-Reticle.
 export function Hud({ data }: { data: HudData }) {
   const hudColor = '#4dff6a';
   const warnColor = '#ff4444';
+  const aimColor = '#7dff9a';
+  const vvColor = '#44ffaa';
+  const gunColor = '#c8ffd8';
   const lockPct = Math.round(data.lockProgress * 100);
   const dmg = data.damage;
   const hullPct = dmg?.hullPct ?? Math.round((data.hp / Math.max(1, data.maxHp)) * 100);
@@ -12,19 +15,79 @@ export function Hud({ data }: { data: HudData }) {
 
   if (data.state === 'menu') return null;
 
+  const showReticles = data.state === 'playing' || data.state === 'paused';
+
   return (
     <div className="pointer-events-none absolute inset-0 select-none font-mono" style={{ color: hudColor, textShadow: `0 0 6px ${hudColor}66` }}>
-      {/* Fadenkreuz / Boresight */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <svg width="120" height="120" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="26" fill="none" stroke={hudColor} strokeWidth="1.5" opacity="0.9" />
-          <line x1="60" y1="20" x2="60" y2="34" stroke={hudColor} strokeWidth="1.5" />
-          <line x1="60" y1="86" x2="60" y2="100" stroke={hudColor} strokeWidth="1.5" />
-          <line x1="20" y1="60" x2="34" y2="60" stroke={hudColor} strokeWidth="1.5" />
-          <line x1="86" y1="60" x2="100" y2="60" stroke={hudColor} strokeWidth="1.5" />
-          <circle cx="60" cy="60" r="2.5" fill={hudColor} />
-        </svg>
-      </div>
+      {/* ═══ Triple-Reticle (War Thunder Mouse-Aim) ═══ */}
+      {showReticles && !data.freeLook && (
+        <>
+          {/* Reticle 3: Gun / Nase (feines Kreuz) */}
+          {data.gunCrosshair?.visible && (
+            <div
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${data.gunCrosshair.x}%`, top: `${data.gunCrosshair.y}%`, opacity: 0.75 }}
+            >
+              <svg width="36" height="36" viewBox="0 0 36 36">
+                <line x1="18" y1="4" x2="18" y2="12" stroke={gunColor} strokeWidth="1.2" />
+                <line x1="18" y1="24" x2="18" y2="32" stroke={gunColor} strokeWidth="1.2" />
+                <line x1="4" y1="18" x2="12" y2="18" stroke={gunColor} strokeWidth="1.2" />
+                <line x1="24" y1="18" x2="32" y2="18" stroke={gunColor} strokeWidth="1.2" />
+                <circle cx="18" cy="18" r="1.5" fill={gunColor} />
+              </svg>
+            </div>
+          )}
+
+          {/* Reticle 2: Velocity Vector (Flugbahn-Kreis) */}
+          {data.velocityVector?.visible && (
+            <div
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ left: `${data.velocityVector.x}%`, top: `${data.velocityVector.y}%` }}
+            >
+              <svg width="44" height="44" viewBox="0 0 44 44">
+                <circle cx="22" cy="22" r="10" fill="none" stroke={vvColor} strokeWidth="1.4" opacity="0.95" />
+                <circle cx="22" cy="22" r="2" fill={vvColor} opacity="0.9" />
+                <line x1="22" y1="2" x2="22" y2="10" stroke={vvColor} strokeWidth="1.2" opacity="0.7" />
+              </svg>
+            </div>
+          )}
+
+          {/* Reticle 1: Maus-Zielkreuz (Direct Aim) */}
+          {data.mouseReticle?.visible && (
+            <div
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: `${data.mouseReticle.x}%`,
+                top: `${data.mouseReticle.y}%`,
+                opacity: data.manualOverride ? 0.25 : 0.95,
+              }}
+            >
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="18" fill="none" stroke={aimColor} strokeWidth="1.6" opacity="0.95" />
+                <line x1="36" y1="8" x2="36" y2="22" stroke={aimColor} strokeWidth="1.6" />
+                <line x1="36" y1="50" x2="36" y2="64" stroke={aimColor} strokeWidth="1.6" />
+                <line x1="8" y1="36" x2="22" y2="36" stroke={aimColor} strokeWidth="1.6" />
+                <line x1="50" y1="36" x2="64" y2="36" stroke={aimColor} strokeWidth="1.6" />
+                <circle cx="36" cy="36" r="2.2" fill={aimColor} />
+              </svg>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Fallback-Boresight wenn keine Reticle-Daten */}
+      {showReticles && !data.mouseReticle && (
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="26" fill="none" stroke={hudColor} strokeWidth="1.5" opacity="0.9" />
+            <line x1="60" y1="20" x2="60" y2="34" stroke={hudColor} strokeWidth="1.5" />
+            <line x1="60" y1="86" x2="60" y2="100" stroke={hudColor} strokeWidth="1.5" />
+            <line x1="20" y1="60" x2="34" y2="60" stroke={hudColor} strokeWidth="1.5" />
+            <line x1="86" y1="60" x2="100" y2="60" stroke={hudColor} strokeWidth="1.5" />
+            <circle cx="60" cy="60" r="2.5" fill={hudColor} />
+          </svg>
+        </div>
+      )}
 
       {/* Gegner-Leisten (HP + Distanz) */}
       {data.worldMarkers?.map((m, i) => {
@@ -61,7 +124,7 @@ export function Hud({ data }: { data: HudData }) {
         );
       })}
 
-      {/* Lock-On-Raute (wandert zum Ziel) */}
+      {/* Lock-On-Raute */}
       {data.lockProgress > 0 && (
         <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{
           left: data.lockScreen ? `${data.lockScreen.x}%` : '50%',
@@ -89,7 +152,8 @@ export function Hud({ data }: { data: HudData }) {
         <div className="mx-auto h-24 w-2 border border-current opacity-80">
           <div className="w-full bg-current transition-all" style={{ height: `${data.throttle * 100}%`, marginTop: `${(1 - data.throttle) * 96}px` }} />
         </div>
-        {data.afterburner && <div className="mt-1 text-xs font-bold" style={{ color: '#ffaa33' }}>AB</div>}
+        {data.afterburner && <div className="mt-1 text-xs font-bold" style={{ color: '#ffaa33' }}>WEP</div>}
+        {data.airbrake && <div className="mt-1 text-xs font-bold" style={{ color: '#66ccff' }}>BRK</div>}
       </div>
 
       {/* Altitude + Heading (rechts) */}
@@ -159,7 +223,16 @@ export function Hud({ data }: { data: HudData }) {
       {data.freeLook && (
         <div className="absolute left-1/2 top-[18%] -translate-x-1/2 text-center">
           <div className="text-sm font-bold tracking-[0.35em] opacity-90">FREE LOOK</div>
-          <div className="mt-1 text-xs opacity-60">Maus / Pfeile · V zum Beenden · Jet fliegt weiter</div>
+          <div className="mt-1 text-xs opacity-60">Maus orbit · C/RMB loslassen · Jet behält Kurs</div>
+        </div>
+      )}
+
+      {/* Manual Override */}
+      {data.manualOverride && !data.freeLook && data.state === 'playing' && (
+        <div className="absolute left-1/2 top-[14%] -translate-x-1/2 text-center">
+          <div className="text-xs font-bold tracking-[0.25em] opacity-80" style={{ color: '#ffcc66' }}>
+            MANUAL STICK
+          </div>
         </div>
       )}
 

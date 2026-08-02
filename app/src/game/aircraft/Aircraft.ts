@@ -4,6 +4,16 @@ import { buildF16, Contrails } from './JetModel';
 import { EngineFx } from './EngineFx';
 import { computeFxAnchors, type FxAnchors } from './FxAnchors';
 
+/** Chase-Cam-Anpassung je nach Modellgröße (wingspan / height). */
+export type CamFit = {
+  /** Multiplikator auf Chase-Distanz (1 = Standard) */
+  distScale: number;
+  /** Multiplikator auf Chase-Höhe */
+  heightScale: number;
+  /** Zusätzlicher Look-Down (rad) bei großen Jets */
+  lookDownBias: number;
+};
+
 // Basis-Klasse für alle Jets (Spieler & KI).
 export abstract class Aircraft {
   readonly object = new THREE.Group();
@@ -18,6 +28,11 @@ export abstract class Aircraft {
   private visual: THREE.Object3D;
   /** Zuletzt berechnete FX-Anker (Mündungen für die Kanone). */
   protected anchors: FxAnchors | null = null;
+  /** Per-Jet Kamera-Fit aus gemessener Geometrie */
+  camFit: CamFit = { distScale: 1, heightScale: 1, lookDownBias: 0 };
+  /** Rumpflänge / Spannweite (m), für HUD & Cam */
+  visualLength = 15.5;
+  visualSpan = 10;
 
   constructor(
     name: string,
@@ -96,6 +111,14 @@ export abstract class Aircraft {
 
     this.contrails = new Contrails(this.object, auto.wingHalfSpan);
     this.object.add(this.contrails.group);
+
+    // Kamera/Fadenkreuz: aus realer Modellgröße kalibrieren
+    this.visualSpan = Math.max(4, auto.wingHalfSpan * 2);
+    // Länge aus Bug–Heck der Mündungen/Düsen abschätzen
+    const noseZ = auto.muzzles.reduce((m, v) => Math.min(m, v.z), 0);
+    const aftZ = auto.nozzles.reduce((m, v) => Math.max(m, v.z), 0);
+    this.visualLength = Math.max(8, aftZ - noseZ + 1.5);
+    this.camFit = computeCamFit(this.visualSpan, this.visualLength);
   }
 
   /** Kanonen-Mündungen im Aircraft-Lokalraum (nach Visual-Kalibrierung). */
@@ -104,6 +127,20 @@ export abstract class Aircraft {
       return this.anchors.muzzles.map((v) => v.clone());
     }
     return [new THREE.Vector3(-0.5, 0, -7.5)];
+  }
+
+  /**
+   * Weltpunkt, auf den das Gun-Crosshair zielt:
+   * Mittelpunkt der Mündungen + Forward * range (echter Boresight pro Jet).
+   */
+  getGunBoresight(range = 800): THREE.Vector3 {
+    const muzzles = this.getMuzzles();
+    const mid = new THREE.Vector3();
+    for (const m of muzzles) mid.add(m);
+    mid.multiplyScalar(1 / Math.max(1, muzzles.length));
+    mid.applyQuaternion(this.object.quaternion).add(this.object.position);
+    mid.addScaledVector(this.forward, range);
+    return mid;
   }
 
   get position(): THREE.Vector3 {
@@ -149,4 +186,17 @@ export abstract class Aircraft {
   get speedKnots(): number {
     return this.flight.speed * 1.944;
   }
+}
+
+/** F-16 als Referenz: ~13 m Spannweite, ~15.5 m Länge → scale 1 */
+function computeCamFit(span: number, length: number): CamFit {
+  const refSpan = 13;
+  const refLen = 15.5;
+  const size = 0.55 * (span / refSpan) + 0.45 * (length / refLen);
+  // Weite Jets (F-14, Su-34) etwas weiter weg, damit der Rumpf das Fadenkreuz nicht verdeckt
+  const distScale = THREE.MathUtils.clamp(0.88 + (size - 1) * 0.55, 0.85, 1.35);
+  const heightScale = THREE.MathUtils.clamp(0.92 + (size - 1) * 0.4, 0.85, 1.3);
+  // Größere Jets: etwas mehr Look-Down, damit Nase/Kreuz frei vor dem Rumpf liegt
+  const lookDownBias = THREE.MathUtils.clamp((size - 1) * 0.04, -0.02, 0.08);
+  return { distScale, heightScale, lookDownBias };
 }

@@ -70,14 +70,16 @@ export function Menus({
             </div>
 
             <div className="mb-6 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-              {key('W/S', 'Pitch')}
-              {key('A/D', 'Rollen')}
-              {key('Shift/Ctrl', 'Schub')}
-              {key('Tab', 'Nachbrenner')}
+              {key('Maus', 'Mouse-Aim (FBW)')}
+              {key('S / W', 'Ziehen / Drücken')}
+              {key('A/D', 'Rollen (Override)')}
+              {key('Q/E', 'Seitenruder')}
+              {key('Shift/Ctrl · Rad', 'Schub / WEP')}
+              {key('B', 'Luftbremse')}
               {key('Leertaste', 'Kanone')}
               {key('F / M', 'Rakete')}
-              {key('C', 'Cockpit')}
-              {key('V', 'Free-Look')}
+              {key('C / RMB', 'Free-Look (halten)')}
+              {key('V', 'Cockpit-Kamera')}
             </div>
 
             <div className="flex flex-col gap-3">

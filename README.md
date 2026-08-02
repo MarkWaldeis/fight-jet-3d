@@ -27,22 +27,29 @@ Nachbrenner, Cockpit-Interior und Avionik-HUD.
 
 Lock-On funktioniert auf Luft- **und** Bodenziele. Sieg = alle Wellen geschafft.
 
-## Steuerung
+## Steuerung (War Thunder Mouse-Aim)
 
 | Taste | Aktion |
 |---|---|
-| W / S (oder Pfeile) | Pitch — Nase hoch / runter |
-| A / D | Rollen |
-| Q / E | Gieren |
-| Shift / Strg | Schub hoch / runter |
-| Tab (oder Vollschub) | Nachbrenner |
-| Leertaste | Bordkanone (M61 Vulcan) |
-| F oder M | AIM-9-Rakete abfeuern (nach Lock-On) |
-| C | Cockpit- / Verfolgerkamera |
+| **Maus** | Virtual Aim Point — Jet fliegt FBW zum Zielkreuz |
+| S / W (Pfeile) | Pitch — **S = Ziehen (max G)** / W = Drücken (Manual Override) |
+| A / D | Rollen (Manual Override) |
+| Q / E | Seitenruder (Feinkorrektur) |
+| Shift / Strg / Mausrad | Schub 0–100 % |
+| Tab (oder Vollschub) | WEP / Nachbrenner (~110 %) |
+| B | Luftbremse |
+| Leertaste | Bordkanone |
+| F oder M | AIM-9-Rakete (nach Lock-On) |
+| **C halten** oder **RMB** | Free-Look (Orbit); Jet behält Kurs |
+| V | Cockpit- / Chase-Kamera |
 | P / Esc | Pause |
 | Enter | Start / Neustart |
 
-**Lock-On:** Feind im Fadenkreuz-Kegel halten, bis „LOCK" erscheint (Dauerton), dann F drücken.
+**Mouse-Aim:** Maus steuert das grüne Zielkreuz; der Jet rollt zuerst (Roll-to-Turn), dann zieht er Richtung Aim-Punkt. WASD deaktiviert FBW temporär (Manual Stick), beim Loslassen übernimmt Mouse-Aim weich wieder.
+
+**HUD-Reticles:** Maus-Zielkreuz · Velocity Vector (Flugbahn) · Gun Crosshair (Nase)
+
+**Lock-On:** Feind im Suchkegel halten, bis „LOCK" erscheint, dann F drücken.
 
 ## Entwicklung
 

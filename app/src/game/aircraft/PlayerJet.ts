@@ -43,6 +43,9 @@ export class PlayerJet extends Aircraft {
     return this.catalogMuzzles.map((v) => v.clone());
   }
 
+  /** 0..1 FBW-Blend nach Manual-Override (Smooth Recapture) */
+  fbwBlend = 1;
+
   reset() {
     const s = this.loadout.stats;
     this.hp = s.hp;
@@ -59,6 +62,8 @@ export class PlayerJet extends Aircraft {
     this.object.rotation.set(0, 0, 0);
     this.object.quaternion.identity();
     this.flight.speed = CONFIG.flight.cruiseSpeed * s.speedMult;
+    this.flight.snapVelocityToNose();
+    this.fbwBlend = 1;
   }
 
   get maxHp() {
@@ -77,10 +82,33 @@ export class PlayerJet extends Aircraft {
     return this.loadout.stats.lockAngleDeg;
   }
 
-  update(dt: number, input: Input, terrain: Terrain, onCrash: () => void) {
+  update(
+    dt: number,
+    input: Input,
+    terrain: Terrain,
+    onCrash: () => void,
+    opts?: {
+      aimDir?: THREE.Vector3 | null;
+      mouseAim?: boolean;
+      freeLook?: boolean;
+    }
+  ) {
     if (!this.alive) return;
+
+    // Smooth Recapture: Manual Override drosselt FBW, Loslassen fährt weich hoch
+    if (input.manualOverride || opts?.freeLook) {
+      this.fbwBlend = 0;
+    } else {
+      this.fbwBlend = Math.min(1, this.fbwBlend + dt * CONFIG.flight.fbwRecaptureRate);
+    }
+
     this.flight.throttle = input.throttle;
-    this.flight.update(dt, input, input.afterburner);
+    this.flight.update(dt, input, input.afterburner, {
+      aimDir: opts?.aimDir ?? null,
+      mouseAim: !!opts?.mouseAim && this.fbwBlend > 0.02,
+      fbwBlend: this.fbwBlend,
+      airbrake: input.airbrake,
+    });
     this.updateEngineFx(dt, input.throttle, input.afterburner);
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 

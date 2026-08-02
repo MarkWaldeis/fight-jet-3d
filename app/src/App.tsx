@@ -10,6 +10,11 @@ const initialHud: HudData = {
   afterburner: false, stalled: false, freeLook: false, autoTrack: false, gForce: 1,
   hp: 100, maxHp: 100, score: 0, missiles: 6, enemiesAlive: 4,
   lockProgress: 0, lockedTargetName: null, lockScreen: null, warning: null, radar: [],
+  mouseReticle: { x: 50, y: 50, visible: false },
+  velocityVector: { x: 50, y: 50, visible: false },
+  gunCrosshair: { x: 50, y: 50, visible: false },
+  manualOverride: false,
+  airbrake: false,
   worldMarkers: [],
   damage: {
     hullPct: 100,
