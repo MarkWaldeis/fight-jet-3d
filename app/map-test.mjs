@@ -30,7 +30,7 @@ await page.goto('http://127.0.0.1:4188/', { waitUntil: 'networkidle0', timeout: 
 await new Promise((r) => setTimeout(r, 2500));
 
 const results = [];
-for (const id of ['islands', 'glacier', 'london']) {
+for (const id of ['islands', 'glacier']) {
   const t0 = Date.now();
   const info = await page.evaluate(async (mapId) => {
     const g = window.__game;

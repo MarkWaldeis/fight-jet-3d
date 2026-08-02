@@ -1,5 +1,5 @@
 // Katalog fliegbarer Karten: prozedural + große GLB-Maps.
-export type MapId = 'islands' | 'glacier' | 'london';
+export type MapId = 'islands' | 'glacier';
 
 export type MapKind = 'procedural' | 'glb';
 
@@ -74,26 +74,6 @@ export const MAP_CATALOG: MapDef[] = [
     spawnClearance: 600,
     heightMode: 'raycast',
     tags: ['Groß', 'Berge', 'Terrain'],
-  },
-  {
-    id: 'london',
-    name: 'City of London',
-    subtitle: 'Urban · Landmarks',
-    description:
-      'Dichte Stadt mit Hochhäusern und Fluss. Horizontal auf ~16 km gestreckt, Gebäudehöhen realistisch.',
-    kind: 'glb',
-    modelUrl: './maps/london.glb',
-    // Roh ~5.7 km → ~16 km XZ (groß genug für Dogfights über der City)
-    targetSpanM: 16000,
-    worldSizeM: 20000,
-    heightScale: 1,
-    nonUniformScale: true,
-    showSea: true,
-    fogFar: 14000,
-    spawnClearance: 500,
-    // Dichte City-Geometrie: flacher Boden (Gebäude nur visuell) — schnell & spielbar
-    heightMode: 'ground-plane',
-    tags: ['Stadt', 'Urban', 'Groß'],
   },
 ];
 
