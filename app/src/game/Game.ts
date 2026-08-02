@@ -162,12 +162,13 @@ export class Game {
     if (!p) {
       const def = getJetDef(id);
       if (!def.modelUrl) return Promise.resolve(null);
-      p = loadJetGlb(def.modelUrl)
+      p = loadJetGlb(def.modelUrl, def.modelOrient)
         .then(({ group, size }) => {
           this.visualCache.set(id, group);
           console.info(
             `[FightJet] Jet ${id} geladen (${def.modelUrl}) size≈` +
-              `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m`
+              `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m` +
+              (def.modelOrient ? ` orient=${JSON.stringify(def.modelOrient)}` : '')
           );
           return group;
         })

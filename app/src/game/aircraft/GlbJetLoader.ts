@@ -4,6 +4,16 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 /** Ziel-Länge des Jets in Welt-Metern (passt zum Flight-Model / Chase-Cam). */
 const TARGET_LENGTH = 15.5;
 
+/** Per-Jet Korrektur nach Auto-Ausrichtung (Nase = local −Z). */
+export type ModelOrient = {
+  /** Zusätzlicher Yaw in Grad (positiv = links um Welt-Y / local Y) */
+  yawDeg?: number;
+  pitchDeg?: number;
+  rollDeg?: number;
+  /** Standard-180°-Flip (+Z→−Z) überspringen — Asset schaut schon Richtung −Z */
+  skipDefaultYawFlip?: boolean;
+};
+
 export interface LoadedJetVisual {
   group: THREE.Group;
   /** Bounding box nach Normalisierung (lokal) */
@@ -16,7 +26,10 @@ export interface LoadedJetVisual {
  *
  * url: z. B. './models/player-jet.glb' (Vite public/)
  */
-export async function loadJetGlb(url: string): Promise<LoadedJetVisual> {
+export async function loadJetGlb(
+  url: string,
+  orient?: ModelOrient
+): Promise<LoadedJetVisual> {
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync(url);
   const root = gltf.scene;
@@ -80,10 +93,7 @@ export async function loadJetGlb(url: string): Promise<LoadedJetVisual> {
   root.position.sub(center.clone().divideScalar(scale));
 
   // 4) Orientierung: FlightModel fliegt local -Z.
-  // Viele Assets schauen nach +Z oder +Y. Heuristik:
-  // - Längste horizontale Achse als Rumpf
-  // - Nase soll -Z werden
-  alignNoseToNegZ(wrap, root);
+  alignNoseToNegZ(wrap, root, orient);
 
   // Final messen
   box = new THREE.Box3().setFromObject(wrap);
@@ -100,14 +110,13 @@ export async function loadJetGlb(url: string): Promise<LoadedJetVisual> {
 
 /**
  * Richtet das Modell so aus, dass die Rumpflängsachse auf Z liegt
- * und die Nase (vermutlich spitzeres Ende / vorher +Z) auf -Z zeigt.
+ * und die Nase auf -Z zeigt. Per-Jet-Korrekturen über `orient`.
  */
-function alignNoseToNegZ(wrap: THREE.Group, root: THREE.Object3D) {
+function alignNoseToNegZ(wrap: THREE.Group, root: THREE.Object3D, orient?: ModelOrient) {
   const box = new THREE.Box3().setFromObject(wrap);
   const size = box.getSize(new THREE.Vector3());
 
   // Welche Achse ist die Länge?
-  // Nach dem ersten Zentrieren steckt die Länge oft noch in X oder Z.
   if (size.x > size.z * 1.15 && size.x > size.y) {
     // Länge lag auf X → 90° um Y, sodass X → -Z
     root.rotateY(-Math.PI / 2);
@@ -117,9 +126,18 @@ function alignNoseToNegZ(wrap: THREE.Group, root: THREE.Object3D) {
   }
 
   // Viele GLBs schauen nach +Z; unser Forward ist -Z → 180° um Y
-  // (kann per CONFIG umgedreht werden, falls das Modell schon -Z ist)
-  // Default: +Z → -Z
-  root.rotateY(Math.PI);
+  // Assets die schon −Z haben: skipDefaultYawFlip
+  if (!orient?.skipDefaultYawFlip) {
+    root.rotateY(Math.PI);
+  }
+
+  // Per-Jet Feinkorrektur (z. B. Su-57 flog rückwärts)
+  const yaw = THREE.MathUtils.degToRad(orient?.yawDeg ?? 0);
+  const pitch = THREE.MathUtils.degToRad(orient?.pitchDeg ?? 0);
+  const roll = THREE.MathUtils.degToRad(orient?.rollDeg ?? 0);
+  if (Math.abs(yaw) > 1e-6) root.rotateY(yaw);
+  if (Math.abs(pitch) > 1e-6) root.rotateX(pitch);
+  if (Math.abs(roll) > 1e-6) root.rotateZ(roll);
 
   // Neu zentrieren nach Rotation
   wrap.updateMatrixWorld(true);

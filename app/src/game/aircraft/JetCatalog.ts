@@ -1,5 +1,6 @@
 // Katalog fliegbarer Jets: NATO & Russland/Sowjet, realistische relative Stats.
 import * as THREE from 'three';
+import type { ModelOrient } from './GlbJetLoader';
 
 export type JetFaction = 'nato' | 'russia';
 
@@ -32,6 +33,11 @@ export interface JetDef {
   role: string;
   description: string;
   modelUrl: string;
+  /**
+   * GLB-Orientierungskorrektur (Nase = local −Z).
+   * z. B. Su-57: Asset schaut nach Auto-Align falsch herum → yawDeg: 180
+   */
+  modelOrient?: ModelOrient;
   traits: string[];
   stats: {
     hp: number;
@@ -310,6 +316,8 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Russisches 5.-Gen-Jagdflugzeug. Schnell, wendig und mit starker Elektronik — Allround-Überlegenheit.',
     modelUrl: './models/su57.glb',
+    // GLB zeigt nach Standard-Align mit dem Heck nach vorn — 180° Yaw korrigiert Nase/−Z
+    modelOrient: { yawDeg: 180 },
     traits: ['5th Gen', 'Supermaneuver', 'BVR'],
     stats: {
       hp: 120,
