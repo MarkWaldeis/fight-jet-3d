@@ -33,6 +33,10 @@ export class CameraController {
   private shakeTime = 0;
   private shakeAmp = 0;
 
+  /** Geglättete dynamische Roll-Kopplung (0..1) */
+  private rollFollowSmoothed = 0.14;
+  private bankSmoothed = 0;
+
   private _fwd = new THREE.Vector3();
   private _right = new THREE.Vector3();
   private _up = new THREE.Vector3();
@@ -94,6 +98,10 @@ export class CameraController {
       stalled?: boolean;
       airbrake?: boolean;
       camFit?: { distScale?: number; heightScale?: number; lookDownBias?: number };
+      /** Aktuelle Roll-Rate (rad/s) für dynamische Kamera-Bank */
+      rollRate?: number;
+      /** Bank −1..1 */
+      bank?: number;
     }
   ) {
     const C = CONFIG.camera;
@@ -104,6 +112,8 @@ export class CameraController {
     const stalled = extras?.stalled ?? false;
     const airbrake = extras?.airbrake ?? false;
     const camFit = extras?.camFit;
+    const rollRate = extras?.rollRate ?? 0;
+    const bank = extras?.bank ?? 0;
 
     // Free-Look Hold
     this.updateFreeLookState(freeHeld, camera);
@@ -142,7 +152,9 @@ export class CameraController {
       this.freeReturnT = Math.min(1, this.freeReturnT + dt / this.freeReturnDur);
       const t = smoothstep(this.freeReturnT);
       // Chase-Ziel berechnen und slerp von freeReturnFrom
-      this.updateChaseCore(dt, jet, speed, camera, trackTargetWorld, gForce, airbrake, afterburner, true, camFit);
+      this.updateChaseCore(
+        dt, jet, speed, camera, trackTargetWorld, gForce, airbrake, afterburner, true, camFit, rollRate, bank
+      );
       camera.position.lerpVectors(this.freeReturnFrom, this.currentPos, t);
       this._quat.copy(camera.quaternion);
       camera.quaternion.slerpQuaternions(this.freeReturnFromQuat, this._quat, t);
@@ -172,7 +184,9 @@ export class CameraController {
       return;
     }
 
-    this.updateChaseCore(dt, jet, speed, camera, trackTargetWorld, gForce, airbrake, afterburner, false, camFit);
+    this.updateChaseCore(
+      dt, jet, speed, camera, trackTargetWorld, gForce, airbrake, afterburner, false, camFit, rollRate, bank
+    );
     this.applyShake(camera);
   }
 
@@ -186,11 +200,26 @@ export class CameraController {
     airbrake: boolean,
     afterburner: boolean,
     computeOnly: boolean,
-    camFit?: { distScale?: number; heightScale?: number; lookDownBias?: number }
+    camFit?: { distScale?: number; heightScale?: number; lookDownBias?: number },
+    rollRate = 0,
+    bank = 0
   ) {
     const C = CONFIG.camera;
-    const rollFollow = C.chaseRollFollow ?? 0.17;
-    this.buildChaseBasis(jet, rollFollow);
+    const baseFollow = C.chaseRollFollow ?? 0.14;
+    const maxFollow = C.chaseRollFollowMax ?? 0.42;
+    const resp = C.rollCamResponse ?? 6.5;
+
+    // Dynamische Roll-Kopplung: bei A/D und Bank mehr Mitdrehen, im Geradeausflug weniger
+    const rateNorm = THREE.MathUtils.clamp(Math.abs(rollRate) / (CONFIG.flight.rollRate * 1.1), 0, 1);
+    const bankNorm = THREE.MathUtils.clamp(Math.abs(bank), 0, 1);
+    const wantFollow =
+      baseFollow +
+      (maxFollow - baseFollow) * THREE.MathUtils.clamp(rateNorm * 0.75 + bankNorm * 0.45, 0, 1);
+    const rfK = 1 - Math.exp(-resp * dt);
+    this.rollFollowSmoothed += (wantFollow - this.rollFollowSmoothed) * rfK;
+    this.bankSmoothed += (bank - this.bankSmoothed) * rfK;
+
+    this.buildChaseBasis(jet, this.rollFollowSmoothed);
 
     const speedNorm = THREE.MathUtils.clamp(
       (speed - CONFIG.flight.cruiseSpeed) /
@@ -211,34 +240,45 @@ export class CameraController {
     // Nah-Chase: nicht unter ~5 m, damit man den Jet noch sieht
     dist = Math.max(5, dist);
 
+    // Bei starkem Rollen etwas weiter raus, damit der Jet im Frame bleibt
+    dist += rateNorm * 0.55;
+
     const height = C.chaseOffset.y * hScale;
     const lookDist = C.chaseLookAhead ?? 180;
     const lookDown = (C.lookDownAngle ?? 0.12) + lookBias;
 
+    // Seitlicher Versatz mit der Bank (Kamera „hängt“ leicht in der Rolle mit)
+    const latAmt = (C.rollLateralOffset ?? 1.35) * this.bankSmoothed;
+
     this._desired
       .copy(jet.position)
       .addScaledVector(this._fwd, -dist)
-      .addScaledVector(this._up, height);
+      .addScaledVector(this._up, height)
+      .addScaledVector(this._right, latAmt);
 
-    const k = 1 - Math.exp(-C.lerpPos * dt);
+    // Position etwas knackiger, Bank/Up träger → realistischer Lag beim Rollen
+    const kPos = 1 - Math.exp(-C.lerpPos * dt);
+    const kRot = 1 - Math.exp(-(C.lerpRot ?? 6.5) * dt);
     if (!this.ready) {
       this.currentPos.copy(this._desired);
       this.currentFwd.copy(this._fwd);
       this.currentUp.copy(this._up);
       this.ready = true;
     } else {
-      this.currentPos.lerp(this._desired, k);
-      this.currentFwd.lerp(this._fwd, k).normalize();
-      this.currentUp.lerp(this._up, k).normalize();
+      this.currentPos.lerp(this._desired, kPos);
+      this.currentFwd.lerp(this._fwd, kRot).normalize();
+      this.currentUp.lerp(this._up, kRot).normalize();
       this._right.crossVectors(this.currentUp, this.currentFwd).normalize();
       this.currentUp.crossVectors(this.currentFwd, this._right).normalize();
     }
 
     // Blick: parallel zur Nase + leichter Look-down
+    // Bei Bank leicht in die Rollrichtung schauen (mit der Nase mitschwenken)
     this._look
       .copy(this.currentPos)
       .addScaledVector(this.currentFwd, lookDist)
-      .addScaledVector(this.currentUp, -Math.sin(lookDown) * lookDist * 0.35);
+      .addScaledVector(this.currentUp, -Math.sin(lookDown) * lookDist * 0.35)
+      .addScaledVector(this._right, this.bankSmoothed * lookDist * 0.04);
 
     const wantTrack = trackTargetWorld ? 0.72 : 0;
     this.trackBlend += (wantTrack - this.trackBlend) * Math.min(1, dt * 3.5);

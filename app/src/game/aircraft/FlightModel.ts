@@ -41,6 +41,14 @@ export class FlightModel {
   /** Tatsächliche Flugrichtung (unit, Welt) */
   readonly velocityDir = new THREE.Vector3(0, 0, -1);
 
+  /**
+   * Aktuelle Roll-Winkelgeschwindigkeit (rad/s, + = rechts einrollen).
+   * Für Kamera-Mitnahme und Feel.
+   */
+  rollRateActual = 0;
+  /** Bank ≈ −right.y (−1..1), + ≈ Rechtslage */
+  bankSigned = 0;
+
   private qDelta = new THREE.Quaternion();
   private axis = new THREE.Vector3();
   private prevVel = new THREE.Vector3();
@@ -56,6 +64,8 @@ export class FlightModel {
   private cmdPitch = 0;
   private cmdRoll = 0;
   private cmdYaw = 0;
+  /** Integrierte Roll-Rate (Trägheit) */
+  private rollOmega = 0;
 
   constructor(object: THREE.Object3D) {
     this.object = object;
@@ -125,22 +135,42 @@ export class FlightModel {
     }
 
     // --- Agility (Speed + Stall) ---
+    // Bei höherer Speed: Querruder greifen besser (Staudruck)
     const agility = THREE.MathUtils.clamp(
       (this.speed - 30) / (F.cruiseSpeed * sm - 30),
       0.12,
       1.2
     ) * tm;
+    const rollAuthority = THREE.MathUtils.clamp(
+      0.35 + (this.speed / (F.cruiseSpeed * sm)) * 0.75,
+      0.3,
+      1.15
+    ) * tm;
 
     let pitchRate = this.cmdPitch * F.pitchRate * agility;
-    let rollRate = this.cmdRoll * F.rollRate * agility;
     let yawRate = this.cmdYaw * F.yawRate * agility;
 
-    // Bank messen
+    // Bank messen (+ = Rechtslage)
     const bank = THREE.MathUtils.clamp(-this._right.y, -1, 1);
+    this.bankSigned = bank;
 
-    // Auto-Level nur im Manual ohne starken Roll-Input und ohne FBW
-    if (!useFbw && Math.abs(this.cmdRoll) < 0.08) {
-      rollRate += -bank * (F.autoLevelRate ?? 1.2) * agility * 0.7;
+    // --- Realistisches Rollen: Winkelbeschleunigung + Trägheit ---
+    // Zielrate aus Stick; Omega läuft weich nach (Anlauf/Auslauf)
+    const targetRollOmega = this.cmdRoll * F.rollRate * rollAuthority;
+    const rollAccel = F.rollAccel ?? 9.5;
+    const rollDamp = F.rollDamping ?? 4.2;
+
+    if (Math.abs(this.cmdRoll) > 0.06) {
+      // Mit Eingabe: beschleunigen Richtung Zielrate
+      const err = targetRollOmega - this.rollOmega;
+      this.rollOmega += err * Math.min(1, rollAccel * dt);
+    } else {
+      // Ohne A/D: weiches Auslaufen der Roll-Rate
+      this.rollOmega *= Math.exp(-rollDamp * dt);
+      // Sanftes Auto-Level nur wenn kaum noch Roll-Schwung und kein FBW
+      if (!useFbw && Math.abs(this.rollOmega) < 0.35) {
+        this.rollOmega += -bank * (F.autoLevelRate ?? 1.2) * agility * 0.55 * dt;
+      }
     }
 
     // Stall: Nase fällt, Ruder weich
@@ -149,23 +179,27 @@ export class FlightModel {
       const stallFactor = 1 - this.speed / F.minSpeed;
       pitchRate -= F.stallPitchDrop * stallFactor;
       pitchRate *= 0.45;
-      rollRate *= 0.4;
+      this.rollOmega *= 0.45;
       yawRate *= 0.35;
     }
 
+    // Clamp max roll rate
+    const maxOmega = F.rollRate * 1.25 * rollAuthority;
+    this.rollOmega = THREE.MathUtils.clamp(this.rollOmega, -maxOmega, maxOmega);
+    this.rollRateActual = this.rollOmega;
+
     // --- Rotation (lokale Achsen) ---
-    // A/D = reines Rollen um die Längsachse (kein seitliches Wegdrehen / Heading-Zwang)
+    // A/D = reines Rollen um die Längsachse (Trägheit über rollOmega)
     this.rotateLocal(new THREE.Vector3(1, 0, 0), pitchRate * dt);
     this.rotateLocal(new THREE.Vector3(0, 1, 0), yawRate * dt);
-    this.rotateLocal(new THREE.Vector3(0, 0, 1), -rollRate * dt);
+    this.rotateLocal(new THREE.Vector3(0, 0, 1), -this.rollOmega * dt);
 
-    // Angular damping wenn fast keine Eingabe
+    // Leichte Bank-Stabilisierung nur im Stillstand der Eingaben
     const stickMag = Math.abs(this.cmdPitch) + Math.abs(this.cmdRoll) + Math.abs(this.cmdYaw);
-    if (stickMag < 0.05 && !this.stalled) {
-      // leichte Bank-Stabilisierung
+    if (stickMag < 0.05 && Math.abs(this.rollOmega) < 0.15 && !this.stalled && !useFbw) {
       this._right.set(1, 0, 0).applyQuaternion(this.object.quaternion);
       const b2 = THREE.MathUtils.clamp(-this._right.y, -1, 1);
-      this.rotateLocal(new THREE.Vector3(0, 0, 1), b2 * F.angularDamping * 0.15 * dt);
+      this.rotateLocal(new THREE.Vector3(0, 0, 1), b2 * F.angularDamping * 0.12 * dt);
     }
 
     // Forward nach Rotation aktualisieren
@@ -307,6 +341,9 @@ export class FlightModel {
     this.cmdPitch = 0;
     this.cmdRoll = 0;
     this.cmdYaw = 0;
+    this.rollOmega = 0;
+    this.rollRateActual = 0;
+    this.bankSigned = 0;
     this.prevVel.copy(this.velocityDir).multiplyScalar(this.speed);
   }
 }

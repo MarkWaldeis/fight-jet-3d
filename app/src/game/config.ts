@@ -26,8 +26,12 @@ export const CONFIG = {
 
     // --- Ruder-Raten (rad/s bei voller Autorität) ---
     pitchRate: 1.55,
-    rollRate: 2.4,
+    rollRate: 2.15,        // etwas gemächlicher, mit Trägheit wirkt knackig
     yawRate: 0.5,
+    /** Roll-Winkelbeschleunigung (rad/s²) — Anlauf wie echte Querruder */
+    rollAccel: 9.5,
+    /** Roll-Dämpfung ohne Eingabe (1/s) — weiches Auslaufen */
+    rollDamping: 4.2,
 
     // --- Mouse-Aim Fly-By-Wire ---
     /** Wie aggressiv Roll-to-Turn den Lift-Vektor ausrichtet */
@@ -101,11 +105,18 @@ export const CONFIG = {
     chaseLookZ: 0,
     /** Look-down: Blick von schräg oben auf den Jet + Ziel vor der Nase */
     lookDownAngle: 0.18,
-    /** Roll-Kopplung 15–20 % — Horizont bleibt stabil */
-    chaseRollFollow: 0.17,
+    /** Basis-Roll-Kopplung (ruhig) — Horizont bleibt weitgehend stabil */
+    chaseRollFollow: 0.14,
+    /** Max. Roll-Kopplung bei aktivem A/D-Rollen */
+    chaseRollFollowMax: 0.42,
+    /** Wie schnell die Kamera-Bank der Jet-Bank folgt (1/s) */
+    rollCamResponse: 6.5,
+    /** Seitlicher Versatz der Kamera bei Bank (m bei 90°) — fühlt sich „mit“ dem Jet */
+    rollLateralOffset: 1.35,
     /** Position spring-damper (höher = enger) */
     lerpPos: 9.5,
-    lerpRot: 8.0,
+    /** Rotation / Bank der Chase-Cam — etwas träger als Position */
+    lerpRot: 6.5,
     /** Free-Look Rückschwenk-Dauer (s) */
     freeLookReturnTime: 0.3,
     /** Speed Pull-Back: nur leicht weiter bei WEP */

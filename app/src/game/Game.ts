@@ -555,6 +555,8 @@ export class Game {
         stalled: player.flight.stalled && player.alive,
         airbrake: this.input.airbrake,
         camFit: player.camFit,
+        rollRate: player.flight.rollRateActual,
+        bank: player.flight.bankSigned,
       }
     );
     this.sound.updateEngine(
