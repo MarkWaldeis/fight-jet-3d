@@ -30,6 +30,7 @@ const initialHud: HudData = {
   },
   waveIndex: 0, waveCount: 3, waveLabel: '', samsLeft: 0, waveBanner: null,
   selectedJetId: 'f16', jetName: 'F-16 Fighting Falcon',
+  killPopup: null,
 };
 
 export default function App() {

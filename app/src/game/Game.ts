@@ -73,6 +73,14 @@ export interface HudData {
   waveBanner: string | null; // großer Einblendetext (neue Welle)
   selectedJetId: JetId;
   jetName: string;
+  /** Kill-Confirm-Popup (Gegner abgeschossen) */
+  killPopup: {
+    id: number;
+    title: string;
+    targetName: string;
+    points: number;
+    kind: 'air' | 'ground';
+  } | null;
 }
 
 export class Game {
@@ -101,6 +109,9 @@ export class Game {
   private waveBanner = '';
   private waveBannerTimer = 0;
   private enemyCounter = 0;
+  private killPopup: HudData['killPopup'] = null;
+  private killPopupTimer = 0;
+  private killPopupSeq = 0;
   private selectedJetId: JetId = 'f16';
   /** Cache geladener Visuals pro Jet-Id */
   private visualCache = new Map<JetId, THREE.Object3D>();
@@ -361,6 +372,10 @@ export class Game {
     this.effects.update(dt);
     this.cannons.update(dt);
     if (this.waveBannerTimer > 0) this.waveBannerTimer -= dt;
+    if (this.killPopupTimer > 0) {
+      this.killPopupTimer -= dt;
+      if (this.killPopupTimer <= 0) this.killPopup = null;
+    }
 
     if (this.state === 'menu' || this.state === 'gameover' || this.state === 'victory') {
       // langsame Orbit-Kamera
@@ -514,6 +529,7 @@ export class Game {
           } else if (isSam) {
             if (killed) {
               this.player.score += CONFIG.score.samKill;
+              this.showKillPopup((victim as SamSite).name ?? 'SAM SITE', CONFIG.score.samKill, 'ground');
               if (this.player.lockTarget === victim) this.clearLock();
             }
           } else if (killed) {
@@ -699,6 +715,7 @@ export class Game {
         this.effects.explosion((victim as SamSite).position.clone().add(new THREE.Vector3(0, 4, 0)), true);
         this.sound.explosion(true);
         this.player.score += CONFIG.score.samKill;
+        this.showKillPopup((victim as SamSite).name ?? 'SAM SITE', CONFIG.score.samKill, 'ground');
         if (this.player.lockTarget === victim) this.clearLock();
       } else {
         this.onEnemyKilled(victim as unknown as EnemyJet);
@@ -710,7 +727,26 @@ export class Game {
     this.effects.explosion(e.position, true);
     this.sound.explosion(true);
     this.player.score += CONFIG.score.kill;
+    this.showKillPopup(e.name, CONFIG.score.kill, 'air');
     if (this.player.lockTarget === (e as unknown as Damageable)) this.clearLock();
+  }
+
+  /** Kill-Confirm-Popup für HUD (Glass Splash) */
+  private showKillPopup(targetName: string, points: number, kind: 'air' | 'ground') {
+    this.killPopupSeq += 1;
+    const titles =
+      kind === 'air'
+        ? ['SPLASH ONE', 'KILL CONFIRMED', 'BANDIT DOWN', 'TARGET DESTROYED']
+        : ['SAM DESTROYED', 'GROUND KILL', 'SITE CLEARED'];
+    this.killPopup = {
+      id: this.killPopupSeq,
+      title: titles[this.killPopupSeq % titles.length],
+      targetName,
+      points,
+      kind,
+    };
+    this.killPopupTimer = 2.8;
+    this.emitHud();
   }
 
   private onPlayerKilled() {
@@ -856,6 +892,7 @@ export class Game {
       waveBanner: this.waveBannerTimer > 0 ? this.waveBanner : null,
       selectedJetId: this.selectedJetId,
       jetName: this.player.loadout.name,
+      killPopup: this.killPopup,
     };
     for (const cb of this.hudListeners) cb(data);
   }

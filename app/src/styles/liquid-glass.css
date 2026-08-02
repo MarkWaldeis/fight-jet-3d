@@ -382,3 +382,181 @@
 .glass-pulse {
   animation: glass-pulse 1.4s ease-in-out infinite;
 }
+
+/* ─── Kill Confirm Popup ─────────────────────────────────────────────────── */
+
+@keyframes kill-pop-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.55) rotateX(18deg);
+    filter: blur(8px);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08) rotateX(0deg);
+    filter: blur(0);
+  }
+  32% {
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+  48% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -58%) scale(0.92);
+    filter: blur(4px);
+  }
+}
+
+@keyframes kill-flash-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.85);
+  }
+}
+
+@keyframes kill-score-tick {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes kill-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.kill-popup {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  pointer-events: none;
+  animation: kill-pop-in 2.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  text-align: center;
+  min-width: min(420px, 88vw);
+}
+
+.kill-popup-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 28px 16px;
+  border-radius: 22px;
+  background: rgba(12, 16, 28, 0.72);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(0, 242, 255, 0.45);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    0 0 40px rgba(0, 242, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.kill-popup-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(0, 242, 255, 0.12) 40%,
+    rgba(10, 132, 255, 0.18) 50%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+  animation: kill-shimmer 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.kill-popup-card.is-ground {
+  border-color: rgba(255, 159, 10, 0.5);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    0 0 40px rgba(255, 159, 10, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.kill-popup-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 140%;
+  aspect-ratio: 1;
+  margin-left: -70%;
+  margin-top: -70%;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 242, 255, 0.55);
+  animation: kill-flash-ring 0.85s ease-out forwards;
+  pointer-events: none;
+}
+
+.kill-popup-title {
+  position: relative;
+  font-size: clamp(1.35rem, 3.5vw, 1.85rem);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 0 24px rgba(0, 242, 255, 0.65);
+}
+
+.kill-popup-target {
+  position: relative;
+  margin-top: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.04em;
+}
+
+.kill-popup-points {
+  position: relative;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #00f2ff;
+  text-shadow: 0 0 16px rgba(0, 242, 255, 0.55);
+  animation: kill-score-tick 2.75s ease forwards;
+}
+
+.kill-popup-badge {
+  position: relative;
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #041018;
+  background: linear-gradient(135deg, #0a84ff, #00f2ff);
+  box-shadow: 0 4px 16px rgba(0, 242, 255, 0.35);
+}

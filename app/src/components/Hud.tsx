@@ -359,6 +359,21 @@ export function Hud({ data }: { data: HudData }) {
           </div>
         </div>
       )}
+
+      {/* Kill Confirm — Apple Glass Splash Popup */}
+      {data.killPopup && data.state === 'playing' && (
+        <div key={data.killPopup.id} className="kill-popup" aria-live="polite">
+          <div className="kill-popup-ring" />
+          <div className={`kill-popup-card ${data.killPopup.kind === 'ground' ? 'is-ground' : ''}`}>
+            <div className="kill-popup-title">{data.killPopup.title}</div>
+            <div className="kill-popup-target">{data.killPopup.targetName}</div>
+            <div className="kill-popup-points">+{data.killPopup.points}</div>
+            <div className="kill-popup-badge">
+              {data.killPopup.kind === 'air' ? 'Air Kill' : 'Ground Kill'}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
