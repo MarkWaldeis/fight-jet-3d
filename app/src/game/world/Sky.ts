@@ -10,7 +10,7 @@ export class Sky {
 
   constructor() {
     // Himmelskuppel mit Gradient
-    const skyGeo = new THREE.SphereGeometry(30000, 24, 16);
+    const skyGeo = new THREE.SphereGeometry(50000, 24, 16);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -57,15 +57,29 @@ export class Sky {
     fill.position.set(-3000, 2000, -4000);
     this.group.add(fill);
 
-    // Wolken: weiche Sprite-Cluster auf 800–1400 m
-    const cloudTex = Sky.makeCloudTexture();
-    const cloudMat = new THREE.MeshBasicMaterial({
-      map: cloudTex, transparent: true, opacity: 0.85, depthWrite: false, fog: true,
-    });
-    const half = CONFIG.world.size / 2 - 500;
+    // Wolken: weiche Sprite-Cluster (siehe rebuildClouds)
+    this.rebuildClouds(CONFIG.world.size);
+  }
+
+  private cloudMat: THREE.MeshBasicMaterial | null = null;
+
+  /** Wolken an neue Weltgröße anpassen (Map-Wechsel) */
+  rebuildClouds(worldSize: number) {
+    for (const c of this.clouds) {
+      this.group.remove(c);
+      c.geometry.dispose();
+    }
+    this.clouds = [];
+    if (!this.cloudMat) {
+      const cloudTex = Sky.makeCloudTexture();
+      this.cloudMat = new THREE.MeshBasicMaterial({
+        map: cloudTex, transparent: true, opacity: 0.85, depthWrite: false, fog: true,
+      });
+    }
+    const half = worldSize / 2 - 500;
     for (let i = 0; i < 46; i++) {
       const w = 300 + Math.random() * 700;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.42), cloudMat);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.42), this.cloudMat);
       m.rotation.x = -Math.PI / 2;
       m.position.set(
         (Math.random() * 2 - 1) * half,
@@ -76,7 +90,10 @@ export class Sky {
       this.clouds.push(m);
       this.group.add(m);
     }
+    this.worldSize = worldSize;
   }
+
+  private worldSize: number = CONFIG.world.size;
 
   private static makeCloudTexture(): THREE.Texture {
     const c = document.createElement('canvas');
@@ -105,8 +122,8 @@ export class Sky {
 
     for (const c of this.clouds) {
       c.position.x += dt * 6;
-      if (c.position.x - playerPos.x > CONFIG.world.size / 2) {
-        c.position.x -= CONFIG.world.size;
+      if (c.position.x - playerPos.x > this.worldSize / 2) {
+        c.position.x -= this.worldSize;
       }
     }
   }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Aircraft } from './Aircraft';
 import { CONFIG } from '../config';
-import type { Terrain } from '../world/Terrain';
+import type { HeightField } from '../world/GlbMapTerrain';
 import { getJetDef, jetFxVectors, type JetDef, type JetId } from './JetCatalog';
 
 type AIState = 'patrol' | 'pursue' | 'attack' | 'evade';
@@ -81,7 +81,7 @@ export class EnemyJet extends Aircraft {
     return this.burstTimer > 0;
   }
 
-  update(dt: number, player: Aircraft, terrain: Terrain) {
+  update(dt: number, player: Aircraft, terrain: HeightField) {
     if (!this.alive) return;
     const E = CONFIG.enemy;
     this.thinkTimer -= dt;
@@ -166,7 +166,7 @@ export class EnemyJet extends Aircraft {
   // Dreht den Jet sanft Richtung aimPoint — Pitch/Roll aus lokalem Fehlervektor.
   // Vorzeichen wie im FlightModel: +Pitch = Nase hoch, +Roll = rechts einrollen,
   // +Yaw = Nase nach links.
-  private steerTowards(aimPoint: THREE.Vector3, _dt: number, terrain: Terrain) {
+  private steerTowards(aimPoint: THREE.Vector3, _dt: number, terrain: HeightField) {
     const local = this.object.worldToLocal(aimPoint.clone());
     // Pitch: Ziel über mir (local.y > 0) → Nase hoch (positiv)
     this.input.pitch = THREE.MathUtils.clamp(local.y / 120, -1, 1);

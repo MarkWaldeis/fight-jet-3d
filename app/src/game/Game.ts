@@ -14,6 +14,8 @@ import { SamSite, type Damageable } from './combat/GroundTarget';
 import { SoundManager } from './audio/SoundManager';
 import { loadJetGlb } from './aircraft/GlbJetLoader';
 import { getJetDef, jetFxVectors, JET_CATALOG, type JetId } from './aircraft/JetCatalog';
+import { getMapDef, type MapId } from './world/MapCatalog';
+import { GlbMapTerrain, loadGlbMap, type HeightField } from './world/GlbMapTerrain';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameover' | 'victory';
 
@@ -73,6 +75,8 @@ export interface HudData {
   waveBanner: string | null; // großer Einblendetext (neue Welle)
   selectedJetId: JetId;
   jetName: string;
+  selectedMapId: MapId;
+  mapName: string;
   /** Kill-Confirm-Popup (Gegner abgeschossen) */
   killPopup: {
     id: number;
@@ -87,9 +91,15 @@ export class Game {
   private engine: Engine;
   private loop: GameLoop;
   private input = new Input();
-  private terrain: Terrain;
+  /** Prozedurales Standard-Terrain (immer im Graph, ggf. unsichtbar) */
+  private proceduralTerrain: Terrain;
   private sea: Sea;
   private sky: Sky;
+  /** Aktive Höhenquelle (prozedural oder GLB-Map) */
+  private heightField: HeightField;
+  private glbMap: GlbMapTerrain | null = null;
+  private mapCache = new Map<MapId, GlbMapTerrain>();
+  private selectedMapId: MapId = 'islands';
   private player = new PlayerJet();
   private enemies: EnemyJet[] = [];
   private sams: SamSite[] = [];
@@ -128,14 +138,21 @@ export class Game {
     this.input.setCanvas(canvas);
     canvas.addEventListener('contextmenu', this.onContextMenu);
 
-    this.terrain = new Terrain();
+    this.proceduralTerrain = new Terrain();
+    this.heightField = this.proceduralTerrain;
     this.sea = new Sea();
     this.sky = new Sky();
-    this.engine.scene.add(this.terrain.mesh, this.sea.mesh, this.sky.group, this.effects.group);
+    this.engine.scene.add(
+      this.proceduralTerrain.mesh,
+      this.sea.mesh,
+      this.sky.group,
+      this.effects.group
+    );
 
     this.engine.scene.add(this.player.object);
     this.player.applyLoadout(getJetDef(this.selectedJetId));
     this.player.reset();
+    this.placePlayerForMap();
 
     // Startaufstellung für das Menü (ruhige Szene)
     this.spawnWave(0, true);
@@ -153,12 +170,100 @@ export class Game {
     return this.selectedJetId;
   }
 
+  getSelectedMapId() {
+    return this.selectedMapId;
+  }
+
+  /** Karte wählen (Menü). Lädt GLB bei Bedarf, skaliert auf große Spielwelt. */
+  async selectMap(id: MapId) {
+    const def = getMapDef(id);
+    if (id === this.selectedMapId && (id === 'islands' || this.glbMap)) {
+      this.emitHud();
+      return;
+    }
+
+    if (def.kind === 'procedural') {
+      this.activateProceduralMap();
+      this.selectedMapId = id;
+      this.placePlayerForMap();
+      this.clearActors();
+      this.spawnWave(0, true);
+      this.cam.snapBehind(this.player.object);
+      this.emitHud();
+      return;
+    }
+
+    // GLB-Map
+    try {
+      let map = this.mapCache.get(id);
+      if (!map) {
+        console.info(`[FightJet] Lade Map ${id}…`);
+        const loaded = await loadGlbMap(def);
+        console.info(
+          `[FightJet] Map ${id}: rawSpan=${loaded.rawSpan.toFixed(0)}m → scaled=${loaded.scaledSpan.toFixed(0)}m world=${loaded.size}m y=${loaded.minY.toFixed(0)}..${loaded.maxY.toFixed(0)}`
+        );
+        map = new GlbMapTerrain(loaded);
+        this.mapCache.set(id, map);
+      }
+      this.activateGlbMap(map, def.showSea, def.fogFar, def.worldSizeM);
+      this.selectedMapId = id;
+      this.placePlayerForMap();
+      this.clearActors();
+      this.spawnWave(0, true);
+      this.cam.snapBehind(this.player.object);
+      this.emitHud();
+    } catch (err) {
+      console.error(`[FightJet] Map ${id} fehlgeschlagen:`, err);
+      // Fallback Islands
+      this.activateProceduralMap();
+      this.selectedMapId = 'islands';
+      this.placePlayerForMap();
+      this.emitHud();
+      throw err;
+    }
+  }
+
+  private activateProceduralMap() {
+    if (this.glbMap) {
+      this.engine.scene.remove(this.glbMap.group);
+      this.glbMap = null;
+    }
+    this.proceduralTerrain.mesh.visible = true;
+    this.sea.setVisible(true);
+    this.heightField = this.proceduralTerrain;
+    this.sky.rebuildClouds(CONFIG.world.size);
+    this.engine.setFog(CONFIG.world.fogNear, CONFIG.world.fogFar);
+  }
+
+  private activateGlbMap(map: GlbMapTerrain, showSea: boolean, fogFar: number, worldSize: number) {
+    if (this.glbMap && this.glbMap !== map) {
+      this.engine.scene.remove(this.glbMap.group);
+    }
+    this.proceduralTerrain.mesh.visible = false;
+    this.glbMap = map;
+    if (!map.group.parent) this.engine.scene.add(map.group);
+    this.heightField = map;
+    this.sea.setVisible(showSea);
+    this.sky.rebuildClouds(worldSize);
+    this.engine.setFog(CONFIG.world.fogNear, fogFar);
+  }
+
+  private placePlayerForMap() {
+    const def = getMapDef(this.selectedMapId);
+    const ground = this.heightField.getHeight(0, 3000);
+    this.player.object.position.set(0, ground + def.spawnClearance, 3000);
+    this.player.object.quaternion.identity();
+    this.player.flight.snapVelocityToNose();
+    this.player.flight.speed = CONFIG.flight.cruiseSpeed * this.player.flight.speedMult;
+  }
+
   /** Hangar: Jet wählen (lädt GLB, wendet Stats an). */
   async selectJet(id: JetId) {
     this.selectedJetId = id;
     const def = getJetDef(id);
     this.player.applyLoadout(def);
     this.player.reset();
+    this.placePlayerForMap();
     await this.ensureJetVisual(id);
     this.cam.snapBehind(this.player.object);
     this.emitHud();
@@ -213,6 +318,7 @@ export class Game {
     this.sound.init();
     this.player.applyLoadout(getJetDef(this.selectedJetId));
     this.player.reset();
+    this.placePlayerForMap();
     this.clearActors();
     this.waveIndex = 0;
     this.waveDelay = 0;
@@ -229,6 +335,7 @@ export class Game {
     this.clearActors();
     this.spawnWave(0, true);
     this.player.reset();
+    this.placePlayerForMap();
     this.cam.snapBehind(this.player.object);
     this.setPlayCursor(false);
     this.emitHud();
@@ -313,14 +420,21 @@ export class Game {
       for (let tries = 0; tries < 40; tries++) {
         const x = (Math.random() * 2 - 1) * 7000;
         const z = (Math.random() * 2 - 1) * 7000;
-        const y = this.terrain.getHeight(x, z);
-        if (y > 10 && y < 500 && this.player.position.distanceTo(new THREE.Vector3(x, y, z)) > 1500) {
+        const y = this.heightField.getHeight(x, z);
+        const half = this.heightField.size * 0.35;
+        if (
+          y > 10 &&
+          y < 2500 &&
+          Math.abs(x) < half &&
+          Math.abs(z) < half &&
+          this.player.position.distanceTo(new THREE.Vector3(x, y, z)) > 1500
+        ) {
           pos.set(x, y, z);
           break;
         }
       }
       // Terrain-Höhe final setzen (Fallback-Pos ebenfalls)
-      pos.y = this.terrain.getHeight(pos.x, pos.z);
+      pos.y = this.heightField.getHeight(pos.x, pos.z);
       const sam = new SamSite(i, pos);
       this.sams.push(sam);
       this.engine.scene.add(sam.object);
@@ -416,7 +530,7 @@ export class Game {
     player.update(
       dt,
       this.input,
-      this.terrain,
+      this.heightField,
       () => {
         this.effects.explosion(player.position, true);
         this.sound.explosion(true);
@@ -475,7 +589,7 @@ export class Game {
     // --- Gegner ---
     for (const e of this.enemies) {
       if (e.alive) {
-        e.update(dt, player, this.terrain);
+        e.update(dt, player, this.heightField);
         if (e.wantsToFire() && player.alive) {
           const timer = (this.enemyFireTimers.get(e) ?? 0) - dt;
           if (timer <= 0) {
@@ -892,6 +1006,8 @@ export class Game {
       waveBanner: this.waveBannerTimer > 0 ? this.waveBanner : null,
       selectedJetId: this.selectedJetId,
       jetName: this.player.loadout.name,
+      selectedMapId: this.selectedMapId,
+      mapName: getMapDef(this.selectedMapId).name,
       killPopup: this.killPopup,
     };
     for (const cb of this.hudListeners) cb(data);

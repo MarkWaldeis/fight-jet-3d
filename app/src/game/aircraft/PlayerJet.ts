@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Aircraft } from './Aircraft';
 import { CONFIG } from '../config';
 import type { Input } from '../core/Input';
-import type { Terrain } from '../world/Terrain';
+import type { HeightField } from '../world/GlbMapTerrain';
 import type { Damageable } from '../combat/GroundTarget';
 import { getJetDef, jetFxVectors, type JetDef, type JetId } from './JetCatalog';
 
@@ -85,7 +85,7 @@ export class PlayerJet extends Aircraft {
   update(
     dt: number,
     input: Input,
-    terrain: Terrain,
+    terrain: HeightField,
     onCrash: () => void,
     opts?: {
       aimDir?: THREE.Vector3 | null;
@@ -112,7 +112,7 @@ export class PlayerJet extends Aircraft {
     this.updateEngineFx(dt, input.throttle, input.afterburner);
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 
-    const half = CONFIG.world.size / 2 - 300;
+    const half = terrain.size / 2 - 300;
     const p = this.position;
     if (Math.abs(p.x) > half || Math.abs(p.z) > half) {
       p.x = THREE.MathUtils.clamp(p.x, -half, half);

@@ -34,10 +34,12 @@ export class Terrain {
   readonly mesh: THREE.Mesh;
   private heights: Float32Array;
   private seg: number;
-  private size: number;
+  /** Spielbare Kantenlänge (m) — kann bei Map-Wechsel angepasst werden */
+  size: number;
 
-  constructor() {
-    const { size, segments, maxHeight } = CONFIG.world;
+  constructor(worldSize?: number) {
+    const size = worldSize ?? CONFIG.world.size;
+    const { segments, maxHeight } = CONFIG.world;
     this.size = size;
     this.seg = segments;
     const geo = new THREE.PlaneGeometry(size, size, segments, segments);
@@ -120,8 +122,9 @@ export class Terrain {
 export class Sea {
   readonly mesh: THREE.Mesh;
   private mat: THREE.MeshPhongMaterial;
-  constructor() {
-    const geo = new THREE.PlaneGeometry(CONFIG.world.size * 2.4, CONFIG.world.size * 2.4, 48, 48);
+  constructor(worldSize?: number) {
+    const s = (worldSize ?? CONFIG.world.size) * 2.4;
+    const geo = new THREE.PlaneGeometry(s, s, 48, 48);
     geo.rotateX(-Math.PI / 2);
     this.mat = new THREE.MeshPhongMaterial({
       color: 0x1d4e6b,
@@ -133,7 +136,11 @@ export class Sea {
     this.mesh = new THREE.Mesh(geo, this.mat);
     this.mesh.position.y = CONFIG.world.seaLevel;
   }
+  setVisible(v: boolean) {
+    this.mesh.visible = v;
+  }
   update(t: number) {
+    if (!this.mesh.visible) return;
     const pos = (this.mesh.geometry as THREE.PlaneGeometry).attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);

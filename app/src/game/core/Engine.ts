@@ -27,11 +27,15 @@ export class Engine {
       CONFIG.camera.baseFov,
       1, // wird in resize gesetzt
       0.5,
-      60000
+      80000
     );
 
     window.addEventListener('resize', this.resize);
     this.resize();
+  }
+
+  setFog(near: number, far: number, color = 0x9db8d6) {
+    this.scene.fog = new THREE.Fog(color, near, far);
   }
 
   private resize = () => {

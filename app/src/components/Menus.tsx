@@ -15,8 +15,9 @@ import {
   type GameSettings,
   type GraphicsQuality,
 } from '../lib/gameSettings';
+import { MAP_CATALOG, getMapDef, type MapId } from '../game/world/MapCatalog';
 
-type Screen = 'main' | 'hangar' | 'missions' | 'settings';
+type Screen = 'main' | 'hangar' | 'maps' | 'missions' | 'settings';
 type SettingsTab = 'graphics' | 'sound' | 'controls';
 
 const CONTROLS: { key: string; label: string }[] = [
@@ -52,7 +53,9 @@ export function Menus({
   state,
   score,
   selectedJetId,
+  selectedMapId,
   onSelectJet,
+  onSelectMap,
   onStart,
   onResume,
   onMenu,
@@ -61,7 +64,9 @@ export function Menus({
   state: GameState;
   score: number;
   selectedJetId: JetId;
+  selectedMapId: MapId;
   onSelectJet: (id: JetId) => void;
+  onSelectMap: (id: MapId) => void | Promise<void>;
   onStart: (jetId: JetId) => void;
   onResume: () => void;
   onMenu: () => void;
@@ -72,10 +77,25 @@ export function Menus({
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('graphics');
   const [settings, setSettings] = useState<GameSettings>(() => loadSettings());
   const [exitConfirm, setExitConfirm] = useState(false);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const selected = JET_CATALOG.find((j) => j.id === selectedJetId) ?? JET_CATALOG[0];
+  const selectedMap = getMapDef(selectedMapId);
   const list = jetsByFaction(faction);
   const bars = jetStatBars(selected.stats);
+
+  const pickMap = async (id: MapId) => {
+    setMapError(null);
+    setMapLoading(true);
+    try {
+      await onSelectMap(id);
+    } catch (e) {
+      setMapError(e instanceof Error ? e.message : 'Map konnte nicht geladen werden');
+    } finally {
+      setMapLoading(false);
+    }
+  };
 
   useEffect(() => {
     saveSettings(settings);
@@ -123,6 +143,13 @@ export function Menus({
         onClick={openHangar}
       >
         Garage
+      </button>
+      <button
+        type="button"
+        className={`glass-nav-item ${screen === 'maps' ? 'is-active' : ''}`}
+        onClick={() => setScreen('maps')}
+      >
+        Maps
       </button>
       <button
         type="button"
@@ -376,16 +403,22 @@ export function Menus({
                 3-Wellen-Mission.
               </p>
 
-              <div className="mb-5 rounded-2xl border border-white/12 bg-white/[0.05] p-4">
-                <div className="text-[11px] tracking-[0.2em] text-cyan-300/80 uppercase">
-                  {FACTION_LABELS[selected.faction]} · Bereit
+              <div className="mb-5 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/12 bg-white/[0.05] p-4">
+                  <div className="text-[11px] tracking-[0.2em] text-cyan-300/80 uppercase">
+                    {FACTION_LABELS[selected.faction]} · Jet
+                  </div>
+                  <div className="mt-1 text-lg font-bold text-white">{selected.name}</div>
+                  <div className="text-sm text-white/50">
+                    {selected.callsign} · {selected.role}
+                  </div>
                 </div>
-                <div className="mt-1 text-lg font-bold text-white">{selected.name}</div>
-                <div className="text-sm text-white/50">
-                  {selected.callsign} · {selected.role}
-                </div>
-                <div className="mt-2 text-xs text-cyan-200/90">
-                  {selected.special.label}: {selected.special.detail}
+                <div className="rounded-2xl border border-white/12 bg-white/[0.05] p-4">
+                  <div className="text-[11px] tracking-[0.2em] text-cyan-300/80 uppercase">Karte</div>
+                  <div className="mt-1 text-lg font-bold text-white">{selectedMap.name}</div>
+                  <div className="text-sm text-white/50">
+                    {(selectedMap.worldSizeM / 1000).toFixed(0)} × {(selectedMap.worldSizeM / 1000).toFixed(0)} km
+                  </div>
                 </div>
               </div>
 
@@ -397,9 +430,14 @@ export function Menus({
                 >
                   Abheben mit {selected.callsign}
                 </button>
-                <button type="button" className="glass-button w-full py-3" onClick={openHangar}>
-                  Garage — Jet wählen
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" className="glass-button w-full py-3" onClick={openHangar}>
+                    Garage
+                  </button>
+                  <button type="button" className="glass-button w-full py-3" onClick={() => setScreen('maps')}>
+                    Maps
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" className="glass-button glass-button-ghost" onClick={() => setScreen('missions')}>
                     Einsätze
@@ -529,6 +567,94 @@ export function Menus({
               onClick={() => onStart(selectedJetId)}
             >
               Jet auswählen & Abheben
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MAPS */}
+      {screen === 'maps' && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pt-16">
+          <div className="glass-panel pointer-events-auto w-full max-w-3xl p-6 sm:p-8">
+            <div className="mb-1 flex items-center justify-between">
+              <div className="glass-eyebrow">Operations Area</div>
+              <button
+                type="button"
+                className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
+                onClick={() => setScreen('main')}
+              >
+                ← Zurück
+              </button>
+            </div>
+            <h2 className="glass-title mb-1 text-3xl">Map wählen</h2>
+            <p className="glass-subtitle mb-4 text-sm">
+              Große Einsatzgebiete — prozedural oder 3D-Assets (nur Maps mit großer Fläche).
+            </p>
+
+            {mapLoading && (
+              <div className="mb-4 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+                Karte wird geladen und skaliert…
+              </div>
+            )}
+            {mapError && (
+              <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {mapError}
+              </div>
+            )}
+
+            <div className="mb-5 grid gap-3 sm:grid-cols-3">
+              {MAP_CATALOG.map((m) => {
+                const active = m.id === selectedMapId;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    disabled={mapLoading}
+                    onClick={() => void pickMap(m.id)}
+                    className={`glass-card text-left ${active ? 'is-selected' : ''}`}
+                  >
+                    <div className="text-[10px] tracking-[0.18em] text-cyan-300/80 uppercase">
+                      {m.subtitle}
+                    </div>
+                    <div className="mt-1 font-bold leading-tight text-white">{m.name}</div>
+                    <div className="mt-1 glass-mono text-xs text-white/45">
+                      {(m.worldSizeM / 1000).toFixed(0)} km Welt
+                      {m.kind === 'glb' ? ` · ~${(m.targetSpanM / 1000).toFixed(0)} km Asset` : ''}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {m.tags.map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-cyan-100/90"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] leading-snug text-white/50">{m.description}</p>
+                    {active && (
+                      <div className="mt-2 text-[10px] font-bold tracking-[0.2em] text-cyan-300 uppercase">
+                        Aktiv
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4">
+              <div className="text-xs tracking-[0.16em] text-white/45 uppercase">Ausgewählt</div>
+              <div className="mt-1 text-lg font-bold text-white">{selectedMap.name}</div>
+              <p className="mt-1 text-sm text-white/60">{selectedMap.description}</p>
+            </div>
+
+            <button
+              type="button"
+              className="glass-button glass-button-primary mt-4 w-full py-3.5"
+              disabled={mapLoading}
+              onClick={() => onStart(selectedJetId)}
+            >
+              Mit dieser Map abheben
             </button>
           </div>
         </div>

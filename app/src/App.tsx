@@ -3,6 +3,7 @@ import { Game, type HudData } from './game/Game';
 import { Hud } from './components/Hud';
 import { Menus } from './components/Menus';
 import type { JetId } from './game/aircraft/JetCatalog';
+import type { MapId } from './game/world/MapCatalog';
 import { loadSettings } from './lib/gameSettings';
 
 const initialHud: HudData = {
@@ -30,6 +31,7 @@ const initialHud: HudData = {
   },
   waveIndex: 0, waveCount: 3, waveLabel: '', samsLeft: 0, waveBanner: null,
   selectedJetId: 'f16', jetName: 'F-16 Fighting Falcon',
+  selectedMapId: 'islands', mapName: 'Pacific Islands',
   killPopup: null,
 };
 
@@ -66,7 +68,9 @@ export default function App() {
         state={hud.state}
         score={hud.score}
         selectedJetId={hud.selectedJetId}
+        selectedMapId={hud.selectedMapId}
         onSelectJet={(id: JetId) => { void gameRef.current?.selectJet(id); }}
+        onSelectMap={(id: MapId) => gameRef.current?.selectMap(id) ?? Promise.resolve()}
         onStart={(id: JetId) => { void gameRef.current?.startGame(id); }}
         onResume={() => gameRef.current?.togglePause()}
         onMenu={() => gameRef.current?.returnToMenu()}
