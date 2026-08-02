@@ -24,6 +24,9 @@ export abstract class Aircraft {
   abstract readonly isPlayer: boolean;
   readonly name: string;
   readonly engineFx: EngineFx;
+  /** Sichtbare Raketen am Jet; Stationen entsprechen getHardpoints(). */
+  readonly missileRack = new THREE.Group();
+  private mountedMissiles: THREE.Object3D[] = [];
   private deathTimer = 0;
   private visual: THREE.Object3D;
   /** Zuletzt berechnete FX-Anker (Mündungen für die Kanone). */
@@ -58,6 +61,8 @@ export abstract class Aircraft {
     // EngineFx als Kind von object → folgt Position + Quaternion des Jets
     this.engineFx = new EngineFx([new THREE.Vector3(0, -0.05, 7.3)]);
     this.object.add(this.engineFx.group);
+    this.missileRack.name = 'missileRack';
+    this.object.add(this.missileRack);
 
     this.flight = new FlightModel(this.object);
     this.contrails = new Contrails(this.object);
@@ -75,6 +80,7 @@ export abstract class Aircraft {
       nozzleScale: number;
       wingHalfSpan: number;
       muzzles?: THREE.Vector3[];
+      hardpoints?: THREE.Vector3[];
     }
   ) {
     if (this.visual.parent === this.object) {
@@ -95,10 +101,16 @@ export abstract class Aircraft {
       twinMuzzles: twinM,
     });
 
-    // Scale aus Katalog mischen (falls gesetzt)
-    if (catalogHint?.nozzleScale) {
-      auto.nozzleScale = (auto.nozzleScale + catalogHint.nozzleScale) * 0.5;
+    // Modell-AABBs erkennen Spannweite und Rumpf, aber keine Triebwerksduesen
+    // oder Pylone zuverlaessig. Die am echten GLB kalibrierten Katalogpunkte
+    // sind deshalb fuer diese beiden sichtbaren Systeme autoritativ.
+    if (catalogHint?.nozzles.length) {
+      auto.nozzles = catalogHint.nozzles.map((v) => v.clone());
     }
+    if (catalogHint?.hardpoints?.length) {
+      auto.hardpoints = catalogHint.hardpoints.map((v) => v.clone());
+    }
+    if (catalogHint?.nozzleScale) auto.nozzleScale = catalogHint.nozzleScale;
     if (catalogHint?.wingHalfSpan) {
       auto.wingHalfSpan = catalogHint.wingHalfSpan;
     }
@@ -141,6 +153,38 @@ export abstract class Aircraft {
       new THREE.Vector3(-span * 0.55, -0.55, 0.8),
       new THREE.Vector3(span * 0.55, -0.55, 0.8),
     ];
+  }
+
+  /**
+   * Baut den sichtbaren Loadout neu auf. Die Modelle sitzen mit ihrer Nase
+   * entlang local -Z und sind damit exakt deckungsgleich mit dem Launch-Pose.
+   */
+  configureMountedMissiles(factory: () => THREE.Object3D | null, count: number) {
+    this.missileRack.clear();
+    this.mountedMissiles = [];
+    const hardpoints = this.getHardpoints();
+    const stationCount = Math.min(count, hardpoints.length);
+    for (let index = 0; index < stationCount; index++) {
+      const visual = factory();
+      if (!visual) continue;
+      visual.name = `mountedMissile-${index}`;
+      visual.position.copy(hardpoints[index]);
+      this.missileRack.add(visual);
+      this.mountedMissiles[index] = visual;
+    }
+  }
+
+  /** Blendet genau die Station aus, von der die fliegende Rakete startet. */
+  releaseMountedMissile(station: number) {
+    const visual = this.mountedMissiles[station];
+    if (visual) visual.visible = false;
+  }
+
+  /** Stellt den sichtbaren Loadout beim Neustart wieder her. */
+  resetMountedMissiles(count: number) {
+    this.mountedMissiles.forEach((visual, index) => {
+      if (visual) visual.visible = index < count;
+    });
   }
 
   /**

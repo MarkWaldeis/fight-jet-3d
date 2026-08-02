@@ -22,6 +22,8 @@ export interface JetFxSpec {
   nozzles: [number, number, number][];
   nozzleScale: number;
   muzzles: [number, number, number][];
+  /** Sichtbare Waffenstationen, exakt im normalisierten GLB-Raum kalibriert. */
+  hardpoints: [number, number, number][];
   wingHalfSpan: number;
 }
 
@@ -66,11 +68,13 @@ const singleNozzle = (
   y = -0.4,
   z = 7.0,
   scale = 1,
-  wing = 6.2
+  wing = 6.2,
+  hardpoints: [number, number, number][] = []
 ): JetFxSpec => ({
   nozzles: [[0, y, z]],
   nozzleScale: scale,
   muzzles: [[-0.5, -0.2, -6.8]],
+  hardpoints,
   wingHalfSpan: wing,
 });
 
@@ -79,7 +83,8 @@ const twinNozzle = (
   y = -0.5,
   z = 7.0,
   scale = 0.9,
-  wing = 7.0
+  wing = 7.0,
+  hardpoints: [number, number, number][] = []
 ): JetFxSpec => ({
   nozzles: [
     [-x, y, z],
@@ -90,6 +95,7 @@ const twinNozzle = (
     [-0.55, -0.15, -6.5],
     [0.55, -0.15, -6.5],
   ],
+  hardpoints,
   wingHalfSpan: wing,
 });
 
@@ -123,7 +129,11 @@ export const JET_CATALOG: JetDef[] = [
       label: 'M61 Vulcan',
       detail: 'Hohe Feuerrate, präzise Dogfight-Kanone',
     },
-    fx: singleNozzle(-0.45, 6.5, 1.0, 6.5),
+    fx: singleNozzle(4.99, 7.42, 0.95, 6.5, [
+      [-5.45, 4.48, -1.15], [5.45, 4.48, -1.15],
+      [-3.85, 4.34, -0.45], [3.85, 4.34, -0.45],
+      [-2.45, 4.18, 0.25], [2.45, 4.18, 0.25],
+    ]),
   },
   {
     id: 'f35',
@@ -153,7 +163,12 @@ export const JET_CATALOG: JetDef[] = [
       label: 'AMRAAM Suite',
       detail: 'Schneller Lock, große Reichweite',
     },
-    fx: singleNozzle(-0.55, 7.1, 1.1, 6.3),
+    fx: singleNozzle(3.90, 7.00, 1.0, 6.3, [
+      [-5.45, 3.30, -1.55], [5.25, 3.30, -1.55],
+      [-4.10, 3.18, -0.85], [3.90, 3.18, -0.85],
+      [-2.95, 3.08, -0.10], [2.75, 3.08, -0.10],
+      [-1.85, 2.98, 0.55], [1.65, 2.98, 0.55],
+    ]),
   },
   {
     id: 'f14',
@@ -183,7 +198,11 @@ export const JET_CATALOG: JetDef[] = [
       label: 'AIM-54 Phoenix',
       detail: 'Lange BVR-Reichweite, starke Raketen',
     },
-    fx: twinNozzle(1.1, -0.55, 7.2, 0.95, 8.5),
+    fx: twinNozzle(1.05, -0.48, 6.72, 0.9, 8.5, [
+      [-6.55, -0.72, -1.75], [6.55, -0.72, -1.75],
+      [-4.55, -0.98, -0.85], [4.55, -0.98, -0.85],
+      [-2.85, -1.12, 0.05], [2.85, -1.12, 0.05],
+    ]),
   },
   {
     id: 'l39',
@@ -213,7 +232,10 @@ export const JET_CATALOG: JetDef[] = [
       label: 'Light Frame',
       detail: 'Sehr wendig, niedrige Stall-Geschwindigkeit',
     },
-    fx: singleNozzle(-0.35, 6.6, 0.85, 5.4),
+    fx: singleNozzle(-0.32, 7.70, 0.78, 5.4, [
+      [-5.15, -1.24, -0.90], [5.15, -1.24, -0.90],
+      [-3.35, -1.48, -0.08], [3.35, -1.48, -0.08],
+    ]),
   },
   {
     id: 'elite',
@@ -243,7 +265,10 @@ export const JET_CATALOG: JetDef[] = [
       label: 'Rail-Burst Kanone',
       detail: 'Wuchtige Schüsse, enge Streuung',
     },
-    fx: twinNozzle(0.85, -0.7, 6.9, 0.85, 6.2),
+    fx: twinNozzle(0.72, 3.92, 7.35, 0.78, 6.2, [
+      [-4.85, 3.16, -0.75], [4.85, 3.16, -0.75],
+      [0, 2.88, 0.45],
+    ]),
   },
 
   // ─── RUSSLAND / SOWJET ──────────────────────────────────────────────────
@@ -275,7 +300,10 @@ export const JET_CATALOG: JetDef[] = [
       label: 'Titanwanne',
       detail: 'Sehr hohe Struktur-HP, stark gegen Bodenfeuer',
     },
-    fx: twinNozzle(0.75, -0.6, 6.8, 0.9, 6.8),
+    fx: twinNozzle(0.65, -0.62, 6.38, 0.78, 6.8, [
+      [-5.70, -1.28, -0.62], [5.70, -1.28, -0.62],
+      [-3.55, -1.50, 0.18], [3.55, -1.50, 0.18],
+    ]),
   },
   {
     id: 'su34',
@@ -305,7 +333,12 @@ export const JET_CATALOG: JetDef[] = [
       label: 'Strike Loadout',
       detail: 'Viele Raketen, robuste Zelle',
     },
-    fx: twinNozzle(1.0, -0.55, 7.1, 1.0, 7.8),
+    fx: twinNozzle(1.0, -0.38, 4.78, 0.88, 7.8, [
+      [-4.25, -0.92, -1.70], [4.25, -0.92, -1.70],
+      [-3.30, -1.00, -0.92], [3.30, -1.00, -0.92],
+      [-2.45, -1.08, -0.12], [2.45, -1.08, -0.12],
+      [-1.72, -1.14, 0.68], [1.72, -1.14, 0.68],
+    ]),
   },
   {
     id: 'su57',
@@ -337,7 +370,19 @@ export const JET_CATALOG: JetDef[] = [
       label: 'Supermaneuverability',
       detail: 'Hohe Wendigkeit bei hoher Speed',
     },
-    fx: twinNozzle(0.95, -0.5, 7.0, 0.95, 7.2),
+    // Dieses GLB besitzt einen asymmetrischen Modell-Pivot; die Duesen liegen
+    // deshalb bewusst nicht symmetrisch um x=0.
+    fx: {
+      nozzles: [[0.18, 0.05, 6.30], [2.12, 0.05, 6.30]],
+      nozzleScale: 0.84,
+      muzzles: [[0.65, -0.15, -7.4]],
+      hardpoints: [
+        [-3.45, -0.72, -2.20], [5.65, -0.72, -2.20],
+        [-2.48, -0.84, -1.35], [4.68, -0.84, -1.35],
+        [-1.52, -0.94, -0.45], [3.72, -0.94, -0.45],
+      ],
+      wingHalfSpan: 7.2,
+    },
   },
 ];
 
@@ -360,6 +405,7 @@ export function jetFxVectors(def: JetDef) {
     nozzles: def.fx.nozzles.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
     nozzleScale: def.fx.nozzleScale,
     muzzles: def.fx.muzzles.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+    hardpoints: def.fx.hardpoints.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
     wingHalfSpan: def.fx.wingHalfSpan,
   };
 }

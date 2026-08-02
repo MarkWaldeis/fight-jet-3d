@@ -26,53 +26,77 @@ await new Promise((r) => setTimeout(r, 5000));
 
 const report = await page.evaluate(async () => {
   const g = window.__game;
-  if (!g) return { ok: false, error: 'no game' };
+  if (!g) return [{ ok: false, error: 'no game' }];
+  const ids = ['f16', 'f35', 'f14', 'l39', 'elite', 'su25', 'su34', 'su57'];
+  const results = [];
 
-  await g.startGame('f16');
-  await new Promise((r) => setTimeout(r, 2000));
+  for (const id of ids) {
+    await g.startGame(id);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    g.state = 'paused';
 
-  const enemy = g.enemies?.find((e) => e.alive);
-  if (!enemy) return { ok: false, error: 'no enemy' };
+    const enemy = g.enemies?.find((item) => item.alive);
+    const hardpoints = g.player.getHardpoints();
+    const mounted = [...g.player.missileRack.children];
+    if (!enemy || !hardpoints.length) {
+      results.push({ id, ok: false, error: !enemy ? 'no enemy' : 'no hardpoints' });
+      continue;
+    }
 
-  g.player.lockTarget = enemy;
-  g.player.lockProgress = 1;
-  g.player.missilesLeft = 4;
+    g.player.lockTarget = enemy;
+    g.player.lockProgress = 1;
+    const station = g.player.missileStation;
+    const hpWorld = hardpoints[station]
+      .clone()
+      .applyQuaternion(g.player.object.quaternion)
+      .add(g.player.position);
+    const mountedAtStation = mounted.find((item) => item.name === `mountedMissile-${station}`);
+    const mountedBefore = Boolean(mountedAtStation?.visible);
 
-  const hardpoints = g.player.getHardpoints();
-  if (!hardpoints?.length) return { ok: false, error: 'no hardpoints' };
+    const before = g.missiles.length;
+    g.launchPlayerMissile();
+    const missile = g.missiles[g.missiles.length - 1];
+    if (!missile || g.missiles.length <= before) {
+      results.push({ id, ok: false, error: 'launch did not spawn' });
+      continue;
+    }
 
-  const hpWorld = hardpoints[0]
-    .clone()
-    .applyQuaternion(g.player.object.quaternion)
-    .add(g.player.position);
+    const distToHp = missile.object.position.distanceTo(hpWorld);
+    const mountedReleased = mountedAtStation?.visible === false;
+    const hasMotor = Boolean(missile.object.getObjectByName('missileMotorCore'));
+    const hasModel = missile.object.children.some((item) => item.name.startsWith('missile_'));
+    const start = missile.object.position.clone();
+    for (let index = 0; index < 12; index++) missile.update(0.025);
+    const motorVisible = missile.object.getObjectByName('missileMotorCore')?.visible === true;
+    for (let index = 0; index < 28; index++) missile.update(0.025);
+    const moved = missile.object.position.distanceTo(start);
 
-  const before = g.missiles.length;
-  // private only at compile time
-  g.launchPlayerMissile();
-  if (g.missiles.length <= before) {
-    return { ok: false, error: 'launch did not spawn', before, after: g.missiles.length };
+    results.push({
+      id,
+      ok:
+        mounted.length === hardpoints.length &&
+        mountedBefore &&
+        mountedReleased &&
+        distToHp < 0.05 &&
+        moved > 40 &&
+        hasMotor &&
+        motorVisible &&
+        hasModel,
+      distToHp: +distToHp.toFixed(3),
+      moved: +moved.toFixed(1),
+      stations: hardpoints.length,
+      mounted: mounted.length,
+      mountedReleased,
+      hasMotor,
+      motorVisible,
+      hasModel,
+    });
   }
-
-  const m = g.missiles[g.missiles.length - 1];
-  const distToHp = m.object.position.distanceTo(hpWorld);
-  const childCount = m.object.children.length;
-  const start = m.object.position.clone();
-  for (let i = 0; i < 40; i++) m.update(0.05);
-  const moved = m.object.position.distanceTo(start);
-
-  // Visual should be more than just flame (2+) if GLB loaded, or 2 for capsule+flame
-  return {
-    ok: distToHp < 30 && moved > 40 && childCount >= 2,
-    distToHp: +distToHp.toFixed(2),
-    moved: +moved.toFixed(1),
-    childCount,
-    hardpoints: hardpoints.length,
-    jetId: g.player.jetId,
-  };
+  return results;
 });
 
 console.log(JSON.stringify(report, null, 2));
 console.log('errors', errs.slice(0, 6));
 await browser.close();
 preview.kill();
-process.exit(report?.ok ? 0 : 1);
+process.exit(report.every((item) => item.ok) && !errs.length ? 0 : 1);

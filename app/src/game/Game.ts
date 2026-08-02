@@ -313,6 +313,12 @@ export class Game {
     // Frische Kopie für den Spieler (Cache behält Template) + FX-Anker des Jets
     const instance = template.clone(true);
     this.player.applyExternalVisual(instance, jetFxVectors(getJetDef(id)));
+    const missileVisualId = missileIdForJet(id);
+    await preloadMissileVisual(missileVisualId);
+    this.player.configureMountedMissiles(
+      () => cloneMissileVisual(missileVisualId),
+      getJetDef(id).stats.missiles
+    );
     this.cam.snapBehind(this.player.object);
   }
 
@@ -858,6 +864,7 @@ export class Game {
     const hardpoints = player.getHardpoints();
     const idx = player.missileStation % Math.max(1, hardpoints.length);
     player.missileStation++;
+    player.releaseMountedMissile(idx);
     const local = hardpoints[idx] ?? new THREE.Vector3(0, -0.5, 1);
     const worldPos = local
       .clone()

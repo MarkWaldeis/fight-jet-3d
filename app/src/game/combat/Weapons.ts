@@ -261,6 +261,11 @@ export class Missile {
   private _to = new THREE.Vector3();
   private _axis = new THREE.Vector3();
   private _lead = new THREE.Vector3();
+  private _tailLocal = new THREE.Vector3();
+  private _tailWorld = new THREE.Vector3();
+  private motorCore: THREE.Mesh;
+  private motorOuter: THREE.Mesh;
+  private motorDisc: THREE.Mesh;
 
   constructor(
     target: Damageable,
@@ -284,7 +289,13 @@ export class Missile {
     }
     this.life = CONFIG.missile.life;
 
+    let tailZ = 1.12;
+    let exhaustRadius = 0.13;
     if (opts.visual) {
+      const visualBox = new THREE.Box3().setFromObject(opts.visual);
+      const visualSize = visualBox.getSize(new THREE.Vector3());
+      tailZ = visualBox.max.z;
+      exhaustRadius = THREE.MathUtils.clamp(Math.max(visualSize.x, visualSize.y) * 0.12, 0.09, 0.2);
       this.object.add(opts.visual);
     } else {
       // Fallback-Capsule
@@ -295,21 +306,43 @@ export class Missile {
     }
 
     // Nachbrenner-Flamme am Heck (+Z relativ zur −Z-Nase)
-    const flame = new THREE.Mesh(
-      new THREE.ConeGeometry(0.14, 1.1, 8),
+    this._tailLocal.set(0, 0, tailZ + 0.04);
+    const motorMaterial = (color: number) =>
       new THREE.MeshBasicMaterial({
-        color: 0xffaa33,
+        color,
         blending: THREE.AdditiveBlending,
         transparent: true,
+        opacity: 0,
         depthWrite: false,
-      })
-    );
-    flame.rotation.x = -Math.PI / 2;
-    flame.position.z = 1.35;
-    flame.name = 'missileFlame';
-    this.object.add(flame);
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      });
+    const motorCone = (radius: number) => {
+      const geometry = new THREE.ConeGeometry(radius, 1, 12, 1, true);
+      geometry.rotateX(Math.PI / 2);
+      geometry.translate(0, 0, 0.5);
+      return geometry;
+    };
 
-    this.object.quaternion.setFromUnitVectors(this._fwd, startDir.clone().normalize());
+    this.motorOuter = new THREE.Mesh(motorCone(exhaustRadius * 1.35), motorMaterial(0xff7a22));
+    this.motorOuter.position.z = tailZ;
+    this.motorOuter.name = 'missileMotorOuter';
+    this.object.add(this.motorOuter);
+
+    this.motorCore = new THREE.Mesh(motorCone(exhaustRadius * 0.72), motorMaterial(0xfff0bd));
+    this.motorCore.position.z = tailZ;
+    this.motorCore.name = 'missileMotorCore';
+    this.object.add(this.motorCore);
+
+    this.motorDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(exhaustRadius * 0.9, 16),
+      motorMaterial(0xffdf9c)
+    );
+    this.motorDisc.position.z = tailZ + 0.015;
+    this.motorDisc.name = 'missileMotorDisc';
+    this.object.add(this.motorDisc);
+
+    this.object.quaternion.setFromUnitVectors(this._fwd, this.vel.clone().normalize());
     if (target?.alive) {
       this.prevTargetPos.copy(target.object.position);
       this.hasPrevTarget = true;
@@ -318,6 +351,24 @@ export class Missile {
 
   targetIs(t: Damageable): boolean {
     return this.target === t;
+  }
+
+  private updateMotorFx(boostTime: number) {
+    const ignition = THREE.MathUtils.smoothstep(this.age, 0.1, 0.22);
+    const burnout = 1 - THREE.MathUtils.smoothstep(this.age, boostTime + 0.15, boostTime + 0.6);
+    const power = ignition * burnout;
+    const flicker = 0.9 + Math.sin(this.age * 47) * 0.065 + Math.sin(this.age * 71) * 0.035;
+
+    this.motorCore.visible = power > 0.015;
+    this.motorOuter.visible = power > 0.015;
+    this.motorDisc.visible = power > 0.015;
+    this.motorCore.scale.set(1, 1, (1.15 + flicker * 0.45) * power);
+    this.motorOuter.scale.set(1, 1, (2 + flicker * 0.75) * power);
+    this.motorDisc.scale.setScalar(0.8 + power * 0.25);
+    (this.motorCore.material as THREE.MeshBasicMaterial).opacity = power * 0.78;
+    (this.motorOuter.material as THREE.MeshBasicMaterial).opacity = power * 0.34;
+    (this.motorDisc.material as THREE.MeshBasicMaterial).opacity = power * 0.7;
+    return power;
   }
 
   update(dt: number): { hit: Damageable | null; expired: boolean } {
@@ -331,7 +382,8 @@ export class Missile {
 
     // Boost-Phase: stark beschleunigen, dann Cruise
     const boost = M.boostTime ?? 1.6;
-    const accel = this.age < boost ? 520 : 180;
+    const motorPower = this.updateMotorFx(boost);
+    const accel = this.age < 0.12 ? 0 : this.age < boost ? 520 : 180;
     const maxSpd = this.age < boost ? M.speed * 0.92 : M.speed;
     this.vel.setLength(Math.min(maxSpd, this.vel.length() + accel * dt));
 
@@ -395,8 +447,9 @@ export class Missile {
     }
 
     // Smoke seltener bei hoher FPS
-    if (Math.random() < Math.min(1, dt * 45)) {
-      this.effects.missileSmoke(this.object.position);
+    if (motorPower > 0.08 && Math.random() < Math.min(1, dt * 45)) {
+      this._tailWorld.copy(this._tailLocal).applyQuaternion(this.object.quaternion).add(this.object.position);
+      this.effects.missileSmoke(this._tailWorld);
     }
     return { hit: null, expired: false };
   }

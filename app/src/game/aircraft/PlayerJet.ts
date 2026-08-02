@@ -54,6 +54,8 @@ export class PlayerJet extends Aircraft {
     this.alive = true;
     this.crashed = false;
     this.missilesLeft = s.missiles;
+    this.missileStation = 0;
+    this.resetMountedMissiles(s.missiles);
     this.flaresLeft = s.flareCount;
     this.score = 0;
     this.lockTarget = null;
