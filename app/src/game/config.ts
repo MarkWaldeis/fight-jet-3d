@@ -1,5 +1,12 @@
 // Zentrale Balance- und Konstanten-Datei für Fight Jet 3D.
 // War Thunder–inspiriertes Mouse-Aim / Arcade-Realistic Hybrid.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+//  BASELINE FROZEN (User: „passt perfekt“ — 2026-08-02)
+//  flight + camera unten sind freigegebene Feel-Werte.
+//  Snapshot: ./config.baseline.json  +  ../../BASELINE_CONTROLS_CAMERA.md
+//  Nicht ohne explizite Freigabe anfassen (bes. rollYawCoupling=0, chaseOffset).
+// ═══════════════════════════════════════════════════════════════════════════
 
 export const CONFIG = {
   world: {
@@ -10,6 +17,7 @@ export const CONFIG = {
     fogNear: 2000,
     fogFar: 16000,
   },
+  // ─── FROZEN flight feel (siehe config.baseline.json) ───────────────────
   flight: {
     // --- Geschwindigkeiten (m/s) ---
     minSpeed: 55,          // Stall-Schwelle (~200 km/h)
@@ -96,6 +104,7 @@ export const CONFIG = {
     proximityRadius: 26,
     lockLoseAngleDeg: 75,
   },
+  // ─── FROZEN camera feel (siehe config.baseline.json) ───────────────────
   camera: {
     // Nah von hinten-oben auf den Jet schauen (dicht am Rumpf)
     // y = Höhe über Jet (m), z = Distanz hinter der Nase (m)
