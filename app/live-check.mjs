@@ -18,7 +18,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
 await page.goto('https://markwaldeis.github.io/fight-jet-3d/', { waitUntil: 'networkidle0', timeout: 60000 });
 await new Promise(r => setTimeout(r, 5000));
-const menu = await page.evaluate(() => document.body.innerText.includes('FIGHT JET 3D'));
+const menu = await page.evaluate(() => document.body.innerText.toLowerCase().includes('fight jet 3d'));
 await page.keyboard.press('Enter');
 await new Promise(r => setTimeout(r, 2500));
 const hud = await page.evaluate(() => document.body.innerText.includes('KNOTS'));
