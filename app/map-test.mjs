@@ -1,4 +1,4 @@
-// Testet Map-Laden (London + Glacier) über die laufende Game-Instanz.
+// Testet Kartenwechsel, Größe und Kollisions-Höhen über die laufende Game-Instanz.
 import puppeteer from 'puppeteer';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';

@@ -602,7 +602,7 @@ export function Menus({
               </div>
             )}
 
-            <div className="mb-5 grid gap-3 sm:grid-cols-3">
+            <div className="mb-5 grid gap-3 sm:grid-cols-2">
               {MAP_CATALOG.map((m) => {
                 const active = m.id === selectedMapId;
                 return (

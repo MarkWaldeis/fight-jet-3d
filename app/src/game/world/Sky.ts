@@ -73,19 +73,22 @@ export class Sky {
     if (!this.cloudMat) {
       const cloudTex = Sky.makeCloudTexture();
       this.cloudMat = new THREE.MeshBasicMaterial({
-        map: cloudTex, transparent: true, opacity: 0.85, depthWrite: false, fog: true,
+        map: cloudTex, transparent: true, opacity: 0.38, depthWrite: false, fog: true,
       });
     }
     const half = worldSize / 2 - 500;
-    for (let i = 0; i < 46; i++) {
-      const w = 300 + Math.random() * 700;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.42), this.cloudMat);
+    for (let i = 0; i < 30; i++) {
+      const a = Sky.seeded(i, 3), b = Sky.seeded(i, 7);
+      const c = Sky.seeded(i, 11), d = Sky.seeded(i, 17);
+      const w = 1000 + a * 1800;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.72), this.cloudMat);
       m.rotation.x = -Math.PI / 2;
       m.position.set(
-        (Math.random() * 2 - 1) * half,
-        800 + Math.random() * 650,
-        (Math.random() * 2 - 1) * half
+        (b * 2 - 1) * half,
+        2750 + c * 1250,
+        (d * 2 - 1) * half
       );
+      m.userData.drift = 3.5 + Sky.seeded(i, 23) * 5;
       m.renderOrder = 1;
       this.clouds.push(m);
       this.group.add(m);
@@ -99,9 +102,10 @@ export class Sky {
     const c = document.createElement('canvas');
     c.width = c.height = 128;
     const ctx = c.getContext('2d')!;
-    for (let i = 0; i < 26; i++) {
-      const x = 20 + Math.random() * 88, y = 40 + Math.random() * 48;
-      const r = 12 + Math.random() * 22;
+    for (let i = 0; i < 34; i++) {
+      const x = 12 + Sky.seeded(i, 31) * 104;
+      const y = 34 + Sky.seeded(i, 37) * 60;
+      const r = 17 + Sky.seeded(i, 41) * 28;
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, 'rgba(255,255,255,0.55)');
       g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -113,6 +117,11 @@ export class Sky {
     return tex;
   }
 
+  private static seeded(index: number, salt: number): number {
+    const value = Math.sin(index * 127.1 + salt * 311.7) * 43758.5453;
+    return value - Math.floor(value);
+  }
+
   update(dt: number, playerPos: THREE.Vector3) {
     // Kuppel folgt dem Spieler, Wolken driften
     this.group.position.set(playerPos.x, 0, playerPos.z);
@@ -121,8 +130,8 @@ export class Sky {
     this.sunLight.target.position.set(0, 0, 0);
 
     for (const c of this.clouds) {
-      c.position.x += dt * 6;
-      if (c.position.x - playerPos.x > this.worldSize / 2) {
+      c.position.x += dt * (c.userData.drift as number);
+      if (c.position.x > this.worldSize / 2) {
         c.position.x -= this.worldSize;
       }
     }

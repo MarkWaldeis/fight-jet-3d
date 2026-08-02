@@ -3,7 +3,7 @@ import { CONFIG } from './config';
 import { Engine } from './core/Engine';
 import { GameLoop } from './core/GameLoop';
 import { Input } from './core/Input';
-import { Terrain, Sea } from './world/Terrain';
+import { Terrain, Sea } from './world/StormbreakTerrain';
 import { Sky } from './world/Sky';
 import { PlayerJet } from './aircraft/PlayerJet';
 import { EnemyJet } from './aircraft/EnemyJet';
@@ -143,10 +143,12 @@ export class Game {
     this.input.setCanvas(canvas);
     canvas.addEventListener('contextmenu', this.onContextMenu);
 
-    this.proceduralTerrain = new Terrain();
+    const proceduralMap = getMapDef('islands');
+    this.proceduralTerrain = new Terrain(proceduralMap.worldSizeM);
     this.heightField = this.proceduralTerrain;
-    this.sea = new Sea();
+    this.sea = new Sea(this.proceduralTerrain);
     this.sky = new Sky();
+    this.sky.rebuildClouds(proceduralMap.worldSizeM);
     this.engine.scene.add(
       this.proceduralTerrain.mesh,
       this.sea.mesh,
@@ -240,8 +242,9 @@ export class Game {
     this.proceduralTerrain.mesh.visible = true;
     this.sea.setVisible(true);
     this.heightField = this.proceduralTerrain;
-    this.sky.rebuildClouds(CONFIG.world.size);
-    this.engine.setFog(CONFIG.world.fogNear, CONFIG.world.fogFar);
+    const def = getMapDef('islands');
+    this.sky.rebuildClouds(def.worldSizeM);
+    this.engine.setFog(1400, def.fogFar, 0x91acb7);
   }
 
   private activateGlbMap(map: GlbMapTerrain, showSea: boolean, fogFar: number, worldSize: number) {
@@ -427,7 +430,7 @@ export class Game {
 
     // SAM-Stellungen auf das Terrain setzen (mind. 1,5 km vom Spieler weg)
     for (let i = 0; i < wave.sams; i++) {
-      let pos = new THREE.Vector3(
+      const pos = new THREE.Vector3(
         this.player.position.x + 2000 + i * 400,
         50,
         this.player.position.z - 2500 - i * 300
@@ -497,7 +500,8 @@ export class Game {
 
     // Welt läuft immer weiter
     this.sky.update(dt, this.player.position);
-    this.sea.update(this.time);
+    this.proceduralTerrain.update(this.time);
+    this.sea.update(this.time, this.player.position);
     this.effects.update(dt);
     this.cannons.update(dt);
     if (this.waveBannerTimer > 0) this.waveBannerTimer -= dt;

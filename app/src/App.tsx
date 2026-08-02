@@ -31,7 +31,7 @@ const initialHud: HudData = {
   },
   waveIndex: 0, waveCount: 3, waveLabel: '', samsLeft: 0, waveBanner: null,
   selectedJetId: 'f16', jetName: 'F-16 Fighting Falcon',
-  selectedMapId: 'islands', mapName: 'Pacific Islands',
+  selectedMapId: 'islands', mapName: 'Stormbreak Archipelago',
   killPopup: null,
 };
 

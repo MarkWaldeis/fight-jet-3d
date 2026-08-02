@@ -6,6 +6,14 @@ Nachbrenner, Cockpit-Interior und Avionik-HUD.
 
 **Live spielen:** https://markwaldeis.github.io/fight-jet-3d/
 
+## Stormbreak Archipelago
+
+- **42 × 42 km Open World** mit fünf Vulkaninseln, Caldera, Fjord-Canyon und mehreren Flugrouten
+- Gerstner-Ozean mit Fresnel-Reflexion, Tiefenfärbung, Uferschaum und Gischt bei extremem Tiefflug
+- Slope-basiertes Terrain-Shading mit Basalt, Dschungel, Strand, Gipfelgestein und distanzabhängigen Micro-Normals
+- Naval Air Station mit 2,75-km-Landebahn, Hangar-LOD, Kontrollturm, Radar, Tanklager und Infrastruktur
+- Instanzierte Siedlungen, Vegetation, Felsen und Strommasten für stabile Draw-Call-Kosten
+
 ## V2-Features
 
 - **Detail-F-16 im USAF-Look**: Roundels, Tailcode „SW", Blasenhaube mit Rahmen,

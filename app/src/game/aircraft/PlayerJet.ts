@@ -123,7 +123,7 @@ export class PlayerJet extends Aircraft {
       p.z = THREE.MathUtils.clamp(p.z, -half, half);
     }
 
-    const ground = terrain.getHeight(p.x, p.z);
+    const ground = Math.max(CONFIG.world.seaLevel, terrain.getHeight(p.x, p.z));
     if (p.y <= ground + 4) {
       p.y = ground + 4;
       this.alive = false;

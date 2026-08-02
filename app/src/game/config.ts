@@ -10,12 +10,12 @@
 
 export const CONFIG = {
   world: {
-    size: 20000,           // Terrain-Kantenlänge in m (20 x 20 km)
-    segments: 256,         // Heightmap-Auflösung
-    maxHeight: 900,        // max. Berggipfel in m
+    size: 42000,           // Stormbreak-Kantenlänge in m (42 x 42 km)
+    segments: 448,         // Heightfield-Auflösung
+    maxHeight: 2750,       // Vulkan-/Berggipfel in m
     seaLevel: 0,
-    fogNear: 2000,
-    fogFar: 16000,
+    fogNear: 1400,
+    fogFar: 34000,
   },
   // ─── FROZEN flight feel (siehe config.baseline.json) ───────────────────
   flight: {

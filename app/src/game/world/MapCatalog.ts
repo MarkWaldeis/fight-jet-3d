@@ -42,19 +42,19 @@ export const MIN_MAP_SPAN_M = 4000;
 export const MAP_CATALOG: MapDef[] = [
   {
     id: 'islands',
-    name: 'Pacific Islands',
-    subtitle: 'Prozedural · Standard',
+    name: 'Stormbreak Archipelago',
+    subtitle: 'Vulkaninseln · Naval Air Station',
     description:
-      'Weite Inselkette mit Bergen, Meer und Küste. 20 × 20 km — die bewährte Einsatzkarte.',
+      '42 × 42 km Pazifik-Welt mit Vulkan-Caldera, Fjord-Canyons, dynamischem Ozean, Dörfern und Marineflugplatz.',
     kind: 'procedural',
-    targetSpanM: 20000,
-    worldSizeM: 20000,
+    targetSpanM: 42000,
+    worldSizeM: 42000,
     heightScale: 1,
     nonUniformScale: false,
     showSea: true,
-    fogFar: 16000,
-    spawnClearance: 900,
-    tags: ['Standard', 'Meer', 'Berge'],
+    fogFar: 34000,
+    spawnClearance: 950,
+    tags: ['Neu', '42 km', 'Ozean', 'Militärbasis'],
   },
   {
     id: 'glacier',

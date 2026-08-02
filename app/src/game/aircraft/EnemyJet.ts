@@ -146,7 +146,7 @@ export class EnemyJet extends Aircraft {
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 
     // Terrain-Vermeidung (Notfall-Pull-Up, positives Pitch = Nase hoch)
-    const ground = terrain.getHeight(this.position.x, this.position.z);
+    const ground = Math.max(CONFIG.world.seaLevel, terrain.getHeight(this.position.x, this.position.z));
     if (this.position.y < ground + 120) {
       this.input.pitch = 1;
     }
@@ -181,7 +181,7 @@ export class EnemyJet extends Aircraft {
     this.input.yaw = THREE.MathUtils.clamp(-local.x / 600, -1, 1);
 
     // Mindesthöhe halten
-    const ground = terrain.getHeight(this.position.x, this.position.z);
+    const ground = Math.max(CONFIG.world.seaLevel, terrain.getHeight(this.position.x, this.position.z));
     if (this.position.y < ground + 200 && local.y < 2) {
       this.input.pitch = Math.max(this.input.pitch, 0.5);
     }
