@@ -129,6 +129,20 @@ export abstract class Aircraft {
     return [new THREE.Vector3(-0.5, 0, -7.5)];
   }
 
+  /** Raketen-Hardpoints im Aircraft-Lokalraum (Wingtip / Underwing). */
+  getHardpoints(): THREE.Vector3[] {
+    if (this.anchors?.hardpoints?.length) {
+      return this.anchors.hardpoints.map((v) => v.clone());
+    }
+    const span = this.visualSpan * 0.5 || 5;
+    return [
+      new THREE.Vector3(-span * 0.9, -0.3, 0.5),
+      new THREE.Vector3(span * 0.9, -0.3, 0.5),
+      new THREE.Vector3(-span * 0.55, -0.55, 0.8),
+      new THREE.Vector3(span * 0.55, -0.55, 0.8),
+    ];
+  }
+
   /**
    * Weltpunkt, auf den das Gun-Crosshair zielt:
    * Mittelpunkt der Mündungen + Forward * range (echter Boresight pro Jet).

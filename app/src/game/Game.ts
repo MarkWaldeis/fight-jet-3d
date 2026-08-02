@@ -9,6 +9,11 @@ import { PlayerJet } from './aircraft/PlayerJet';
 import { EnemyJet } from './aircraft/EnemyJet';
 import { CameraController } from './aircraft/CameraController';
 import { CannonSystem, Missile } from './combat/Weapons';
+import {
+  preloadMissileVisual,
+  cloneMissileVisual,
+  missileIdForJet,
+} from './combat/MissileVisuals';
 import { Effects } from './combat/Effects';
 import { SamSite, type Damageable } from './combat/GroundTarget';
 import { SoundManager } from './audio/SoundManager';
@@ -164,6 +169,10 @@ export class Game {
     // Default-Jet im Hangar vorladen + alle Katalog-Jets für die Gegner
     void this.ensureJetVisual(this.selectedJetId);
     for (const j of JET_CATALOG) void this.loadJetTemplate(j.id);
+    // 3D-Raketen-Visuals (AIM-9, AIM-120, R-77)
+    void preloadMissileVisual('aim9');
+    void preloadMissileVisual('aim120');
+    void preloadMissileVisual('r77');
   }
 
   getSelectedJetId() {
@@ -571,17 +580,7 @@ export class Game {
       }
       if (this.input.wasPressed('KeyM') || this.input.wasPressed('KeyF')) {
         if (player.missilesLeft > 0 && player.lockTarget && player.lockProgress >= 1) {
-          player.missilesLeft--;
-          const m = new Missile(
-            player.lockTarget,
-            player.position.clone().addScaledVector(player.forward, 8),
-            player.forward,
-            player,
-            this.effects
-          );
-          this.missiles.push(m);
-          this.engine.scene.add(m.object);
-          this.sound.missileLaunch();
+          this.launchPlayerMissile();
         }
       }
     }
@@ -618,7 +617,8 @@ export class Game {
           site.position.clone().add(new THREE.Vector3(0, 8, 0)),
           new THREE.Vector3(0, 1, 0),
           site,
-          this.effects
+          this.effects,
+          { carrierSpeed: 40 }
         );
         this.missiles.push(m);
         this.engine.scene.add(m.object);
@@ -843,6 +843,49 @@ export class Game {
     this.player.score += CONFIG.score.kill;
     this.showKillPopup(e.name, CONFIG.score.kill, 'air');
     if (this.player.lockTarget === (e as unknown as Damageable)) this.clearLock();
+  }
+
+  /**
+   * Rakete vom nächsten Hardpoint des Jets abfeuern (nicht aus dem Rumpf-Zentrum).
+   * 3D-Visual + Drop/Boost-Flugbahn zum gelockten Ziel.
+   */
+  private launchPlayerMissile() {
+    const player = this.player;
+    const target = player.lockTarget;
+    if (!target?.alive || player.missilesLeft <= 0) return;
+
+    player.missilesLeft--;
+    const hardpoints = player.getHardpoints();
+    const idx = player.missileStation % Math.max(1, hardpoints.length);
+    player.missileStation++;
+    const local = hardpoints[idx] ?? new THREE.Vector3(0, -0.5, 1);
+    const worldPos = local
+      .clone()
+      .applyQuaternion(player.object.quaternion)
+      .add(player.position);
+
+    // Eject: leicht nach außen und unten (realistischer Drop vom Pylon)
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(player.object.quaternion);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(player.object.quaternion);
+    const side = Math.sign(local.x) || (idx % 2 === 0 ? -1 : 1);
+    const eject = new THREE.Vector3()
+      .addScaledVector(right, side * (CONFIG.missile.ejectSpeed ?? 12))
+      .addScaledVector(up, -(CONFIG.missile.ejectSpeed ?? 12) * 0.65);
+
+    // Start-Richtung: leicht nach vorne-unten (nicht exakt Nase)
+    const startDir = player.forward.clone().addScaledVector(up, -0.08).normalize();
+
+    const visId = missileIdForJet(player.jetId);
+    const visual = cloneMissileVisual(visId);
+
+    const m = new Missile(target, worldPos, startDir, player, this.effects, {
+      visual,
+      carrierSpeed: player.flight.speed,
+      ejectWorld: eject,
+    });
+    this.missiles.push(m);
+    this.engine.scene.add(m.object);
+    this.sound.missileLaunch();
   }
 
   /** Kill-Confirm-Popup für HUD (Glass Splash) */

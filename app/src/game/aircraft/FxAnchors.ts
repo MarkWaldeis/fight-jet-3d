@@ -4,6 +4,8 @@ import * as THREE from 'three';
 export interface FxAnchors {
   nozzles: THREE.Vector3[];
   muzzles: THREE.Vector3[];
+  /** Raketen-Hardpoints (Wingtip / Underwing) */
+  hardpoints: THREE.Vector3[];
   wingHalfSpan: number;
   nozzleScale: number;
 }
@@ -69,9 +71,22 @@ export function computeFxAnchors(
     ? [new THREE.Vector3(-mx, muzzleY, noseZ), new THREE.Vector3(mx, muzzleY, noseZ)]
     : [new THREE.Vector3(-mx * 0.6, muzzleY, noseZ)];
 
+  // Hardpoints: Wingtip-Rails + Underwing (vor dem Schwerpunkt, leicht unter Flügel)
+  const wingY = midY - height * 0.08;
+  const wingZ = minZ + length * 0.42; // etwas vor der Mitte
+  const tipX = width * 0.46;
+  const underX = width * 0.28;
+  const hardpoints = [
+    new THREE.Vector3(-tipX, wingY, wingZ),
+    new THREE.Vector3(tipX, wingY, wingZ),
+    new THREE.Vector3(-underX, wingY - height * 0.06, wingZ + length * 0.05),
+    new THREE.Vector3(underX, wingY - height * 0.06, wingZ + length * 0.05),
+  ];
+
   return {
     nozzles,
     muzzles,
+    hardpoints,
     wingHalfSpan: width * 0.48,
     nozzleScale: THREE.MathUtils.clamp(width / 11, 0.55, 1.25),
   };

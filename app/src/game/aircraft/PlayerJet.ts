@@ -13,6 +13,8 @@ export class PlayerJet extends Aircraft {
   loadout: JetDef = getJetDef('f16');
   missilesLeft: number = CONFIG.player.missileCount;
   flaresLeft: number = CONFIG.player.flareCount;
+  /** Nächster Hardpoint-Index (rotiert L/R) */
+  missileStation = 0;
   cannonCooldown = 0;
   lockTarget: Damageable | null = null;
   lockProgress = 0;

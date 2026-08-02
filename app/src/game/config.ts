@@ -97,12 +97,18 @@ export const CONFIG = {
     speedScale: 0.72,
   },
   missile: {
-    speed: 700,
-    life: 9,
-    turnRate: 4.5,
+    speed: 780,
+    life: 10,
+    turnRate: 3.8,          // rad/s — knackig, aber nicht unnatürlich
     damage: 70,
-    proximityRadius: 26,
-    lockLoseAngleDeg: 75,
+    proximityRadius: 28,
+    lockLoseAngleDeg: 85,
+    /** Boost-Phase (s) — starke Beschleunigung vom Pylon weg */
+    boostTime: 1.6,
+    /** Seitlicher/Unterer Drop vom Hardpoint (m/s) */
+    ejectSpeed: 12,
+    /** Lead-Pursuit: Vorhalt auf Zielgeschwindigkeit */
+    leadGain: 0.55,
   },
   // ─── FROZEN camera feel (siehe config.baseline.json) ───────────────────
   camera: {

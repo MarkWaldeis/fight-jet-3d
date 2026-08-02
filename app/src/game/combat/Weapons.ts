@@ -235,40 +235,85 @@ export class CannonSystem {
   }
 }
 
-// Lenkrakete mit Sucherkopf: verfolgt Ziel, Rauchspur, Näherungszünder.
+export type MissileLaunchOpts = {
+  /** 3D-Modell der Rakete (optional) */
+  visual?: THREE.Object3D | null;
+  /** Geschwindigkeit des Trägerjets beim Abwurf (m/s) */
+  carrierSpeed?: number;
+  /** Lokaler „Drop“: Welt-Vektor nach unten/außen beim Launch */
+  ejectWorld?: THREE.Vector3;
+};
+
+// Lenkrakete: Start am Hardpoint, Drop, Boost, Pursuit mit Lead, 3D-Visual.
 export class Missile {
   readonly object = new THREE.Group();
   alive = true;
   private vel: THREE.Vector3;
   private life: number;
+  private age = 0;
   private target: Damageable | null;
   private effects: Effects;
-  private body: THREE.Mesh;
+  private prevTargetPos = new THREE.Vector3();
+  private targetVel = new THREE.Vector3();
+  private hasPrevTarget = false;
+  private _fwd = new THREE.Vector3(0, 0, -1);
+  private _dir = new THREE.Vector3();
+  private _to = new THREE.Vector3();
+  private _axis = new THREE.Vector3();
+  private _lead = new THREE.Vector3();
 
   constructor(
     target: Damageable,
     start: THREE.Vector3,
     startDir: THREE.Vector3,
     _owner: Damageable,
-    effects: Effects
+    effects: Effects,
+    opts: MissileLaunchOpts = {}
   ) {
     this.target = target;
     this.effects = effects;
     this.object.position.copy(start);
-    this.vel = startDir.clone().multiplyScalar(CONFIG.missile.speed * 0.6);
+
+    const dir = startDir.clone().normalize();
+    const carrier = opts.carrierSpeed ?? CONFIG.flight.cruiseSpeed;
+    // Start mit Jet-Geschwindigkeit + leichter Boost-Anteil
+    this.vel = dir.multiplyScalar(Math.max(80, carrier * 0.95 + 40));
+    // Drop/Eject vom Pylon (seitlich/unten)
+    if (opts.ejectWorld) {
+      this.vel.add(opts.ejectWorld);
+    }
     this.life = CONFIG.missile.life;
 
-    const mat = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.4, roughness: 0.4 });
-    this.body = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 2.2, 4, 8), mat);
-    this.body.rotation.x = Math.PI / 2;
-    this.object.add(this.body);
+    if (opts.visual) {
+      this.object.add(opts.visual);
+    } else {
+      // Fallback-Capsule
+      const mat = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.45, roughness: 0.35 });
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 1.8, 4, 8), mat);
+      body.rotation.x = Math.PI / 2;
+      this.object.add(body);
+    }
+
+    // Nachbrenner-Flamme am Heck (+Z relativ zur −Z-Nase)
     const flame = new THREE.Mesh(
-      new THREE.ConeGeometry(0.16, 1.4, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffaa33, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false })
+      new THREE.ConeGeometry(0.14, 1.1, 8),
+      new THREE.MeshBasicMaterial({
+        color: 0xffaa33,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false,
+      })
     );
-    flame.rotation.x = Math.PI / 2;
-    flame.position.z = 1.9;
+    flame.rotation.x = -Math.PI / 2;
+    flame.position.z = 1.35;
+    flame.name = 'missileFlame';
     this.object.add(flame);
+
+    this.object.quaternion.setFromUnitVectors(this._fwd, startDir.clone().normalize());
+    if (target?.alive) {
+      this.prevTargetPos.copy(target.object.position);
+      this.hasPrevTarget = true;
+    }
   }
 
   targetIs(t: Damageable): boolean {
@@ -278,37 +323,81 @@ export class Missile {
   update(dt: number): { hit: Damageable | null; expired: boolean } {
     const M = CONFIG.missile;
     this.life -= dt;
+    this.age += dt;
     if (this.life <= 0 || !this.alive) {
       this.effects.explosion(this.object.position, false);
       return { hit: null, expired: true };
     }
-    this.vel.setLength(Math.min(M.speed, this.vel.length() + 400 * dt));
+
+    // Boost-Phase: stark beschleunigen, dann Cruise
+    const boost = M.boostTime ?? 1.6;
+    const accel = this.age < boost ? 520 : 180;
+    const maxSpd = this.age < boost ? M.speed * 0.92 : M.speed;
+    this.vel.setLength(Math.min(maxSpd, this.vel.length() + accel * dt));
+
+    // Leichte Schwerkraft in der ersten halben Sekunde (Drop-Kurve)
+    if (this.age < 0.55) {
+      this.vel.y -= 9.81 * 0.55 * dt;
+    }
 
     if (this.target && this.target.alive) {
-      const toTarget = this.target.object.position.clone().sub(this.object.position).normalize();
-      const dir = this.vel.clone().normalize();
-      const angle = dir.angleTo(toTarget);
-      if (angle > THREE.MathUtils.degToRad(M.lockLoseAngleDeg) && this.life < M.life - 1) {
+      // Zielgeschwindigkeit schätzen
+      if (this.hasPrevTarget && dt > 1e-4) {
+        this.targetVel
+          .copy(this.target.object.position)
+          .sub(this.prevTargetPos)
+          .multiplyScalar(1 / dt);
+      }
+      this.prevTargetPos.copy(this.target.object.position);
+      this.hasPrevTarget = true;
+
+      const dist = this.object.position.distanceTo(this.target.object.position);
+      // Lead pursuit: Vorhalt proportional zur Flugzeit-Schätzung
+      const closing = Math.max(80, this.vel.length());
+      const tHit = dist / closing;
+      this._lead
+        .copy(this.target.object.position)
+        .addScaledVector(this.targetVel, tHit * (M.leadGain ?? 0.55));
+
+      this._to.copy(this._lead).sub(this.object.position);
+      if (this._to.lengthSq() > 1e-6) this._to.normalize();
+
+      this._dir.copy(this.vel).normalize();
+      const angle = this._dir.angleTo(this._to);
+
+      // Nach Drop-Phase härter drehen; anfangs etwas träger
+      const turnMul = this.age < 0.35 ? 0.35 : this.age < boost ? 0.85 : 1.15;
+      if (angle > THREE.MathUtils.degToRad(M.lockLoseAngleDeg) && this.age > 1.2) {
         this.target = null;
       } else {
-        const maxTurn = M.turnRate * dt;
+        const maxTurn = M.turnRate * turnMul * dt;
         const turn = Math.min(angle, maxTurn);
-        const axis = new THREE.Vector3().crossVectors(dir, toTarget);
-        if (axis.lengthSq() > 1e-6) {
-          axis.normalize();
-          dir.applyAxisAngle(axis, turn);
-          this.vel.copy(dir.multiplyScalar(this.vel.length()));
+        this._axis.crossVectors(this._dir, this._to);
+        if (this._axis.lengthSq() > 1e-8) {
+          this._axis.normalize();
+          this._dir.applyAxisAngle(this._axis, turn);
+          this.vel.copy(this._dir.multiplyScalar(this.vel.length()));
         }
       }
-      if (this.target && this.object.position.distanceTo(this.target.object.position) < M.proximityRadius) {
+
+      if (this.target && dist < M.proximityRadius) {
         this.effects.explosion(this.object.position, true);
         return { hit: this.target, expired: true };
       }
     }
 
     this.object.position.addScaledVector(this.vel, dt);
-    this.object.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), this.vel.clone().normalize());
-    this.effects.missileSmoke(this.object.position);
+    if (this.vel.lengthSq() > 1e-6) {
+      this.object.quaternion.setFromUnitVectors(
+        this._fwd,
+        this.vel.clone().normalize()
+      );
+    }
+
+    // Smoke seltener bei hoher FPS
+    if (Math.random() < Math.min(1, dt * 45)) {
+      this.effects.missileSmoke(this.object.position);
+    }
     return { hit: null, expired: false };
   }
 }
