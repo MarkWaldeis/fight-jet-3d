@@ -1,285 +1,364 @@
 import type { HudData } from '../game/Game';
 import { CONFIG } from '../game/config';
+import { loadSettings } from '../lib/gameSettings';
 
-// Avionik-HUD im F-16 / War Thunder-Stil: grüne Symbologie + Triple-Reticle.
+const CYAN = '#00F2FF';
+const AMBER = '#FF9F0A';
+const DANGER = '#FF3B30';
+const BLUE = '#0A84FF';
+
+// Tactical HUD — Apple Liquid Glass + War Thunder triple reticle
 export function Hud({ data }: { data: HudData }) {
-  const hudColor = '#4dff6a';
-  const warnColor = '#ff4444';
-  const aimColor = '#7dff9a';
-  const vvColor = '#44ffaa';
-  const gunColor = '#c8ffd8';
+  const showHud = loadSettings().showHud;
   const lockPct = Math.round(data.lockProgress * 100);
   const dmg = data.damage;
   const hullPct = dmg?.hullPct ?? Math.round((data.hp / Math.max(1, data.maxHp)) * 100);
-  const hullColor = hullPct > 60 ? hudColor : hullPct > 30 ? '#ffaa33' : warnColor;
+  const hullTone = hullPct > 60 ? CYAN : hullPct > 30 ? AMBER : DANGER;
 
   if (data.state === 'menu') return null;
+  if (!showHud && data.state === 'playing') {
+    // Reticles bleiben fürs Zielen sichtbar
+  }
 
   const showReticles = data.state === 'playing' || data.state === 'paused';
+  const showChrome = showHud || data.state !== 'playing';
 
   return (
-    <div className="pointer-events-none absolute inset-0 select-none font-mono" style={{ color: hudColor, textShadow: `0 0 6px ${hudColor}66` }}>
-      {/* ═══ Triple-Reticle (War Thunder Mouse-Aim) ═══ */}
+    <div className="hud-tactical pointer-events-none absolute inset-0 select-none">
+      {/* ═══ Triple-Reticle ═══ */}
       {showReticles && !data.freeLook && (
         <>
-          {/* Reticle 3: Gun / Nase (feines Kreuz) */}
           {data.gunCrosshair?.visible && (
             <div
               className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${data.gunCrosshair.x}%`, top: `${data.gunCrosshair.y}%`, opacity: 0.75 }}
+              style={{ left: `${data.gunCrosshair.x}%`, top: `${data.gunCrosshair.y}%`, opacity: 0.7 }}
             >
               <svg width="36" height="36" viewBox="0 0 36 36">
-                <line x1="18" y1="4" x2="18" y2="12" stroke={gunColor} strokeWidth="1.2" />
-                <line x1="18" y1="24" x2="18" y2="32" stroke={gunColor} strokeWidth="1.2" />
-                <line x1="4" y1="18" x2="12" y2="18" stroke={gunColor} strokeWidth="1.2" />
-                <line x1="24" y1="18" x2="32" y2="18" stroke={gunColor} strokeWidth="1.2" />
-                <circle cx="18" cy="18" r="1.5" fill={gunColor} />
+                <line x1="18" y1="4" x2="18" y2="12" stroke={CYAN} strokeWidth="1.2" opacity="0.75" />
+                <line x1="18" y1="24" x2="18" y2="32" stroke={CYAN} strokeWidth="1.2" opacity="0.75" />
+                <line x1="4" y1="18" x2="12" y2="18" stroke={CYAN} strokeWidth="1.2" opacity="0.75" />
+                <line x1="24" y1="18" x2="32" y2="18" stroke={CYAN} strokeWidth="1.2" opacity="0.75" />
+                <circle cx="18" cy="18" r="1.5" fill={CYAN} opacity="0.8" />
               </svg>
             </div>
           )}
 
-          {/* Reticle 2: Velocity Vector (Flugbahn-Kreis) */}
           {data.velocityVector?.visible && (
             <div
               className="absolute -translate-x-1/2 -translate-y-1/2"
               style={{ left: `${data.velocityVector.x}%`, top: `${data.velocityVector.y}%` }}
             >
               <svg width="44" height="44" viewBox="0 0 44 44">
-                <circle cx="22" cy="22" r="10" fill="none" stroke={vvColor} strokeWidth="1.4" opacity="0.95" />
-                <circle cx="22" cy="22" r="2" fill={vvColor} opacity="0.9" />
-                <line x1="22" y1="2" x2="22" y2="10" stroke={vvColor} strokeWidth="1.2" opacity="0.7" />
+                <circle cx="22" cy="22" r="10" fill="none" stroke={BLUE} strokeWidth="1.4" opacity="0.9" />
+                <circle cx="22" cy="22" r="2" fill={BLUE} opacity="0.85" />
+                <line x1="22" y1="2" x2="22" y2="10" stroke={BLUE} strokeWidth="1.2" opacity="0.65" />
               </svg>
             </div>
           )}
 
-          {/* Reticle 1: Maus-Zielkreuz (Direct Aim) */}
           {data.mouseReticle?.visible && (
             <div
               className="absolute -translate-x-1/2 -translate-y-1/2"
               style={{
                 left: `${data.mouseReticle.x}%`,
                 top: `${data.mouseReticle.y}%`,
-                opacity: data.manualOverride ? 0.25 : 0.95,
+                opacity: data.manualOverride ? 0.28 : 0.95,
               }}
             >
               <svg width="72" height="72" viewBox="0 0 72 72">
-                <circle cx="36" cy="36" r="18" fill="none" stroke={aimColor} strokeWidth="1.6" opacity="0.95" />
-                <line x1="36" y1="8" x2="36" y2="22" stroke={aimColor} strokeWidth="1.6" />
-                <line x1="36" y1="50" x2="36" y2="64" stroke={aimColor} strokeWidth="1.6" />
-                <line x1="8" y1="36" x2="22" y2="36" stroke={aimColor} strokeWidth="1.6" />
-                <line x1="50" y1="36" x2="64" y2="36" stroke={aimColor} strokeWidth="1.6" />
-                <circle cx="36" cy="36" r="2.2" fill={aimColor} />
+                <circle cx="36" cy="36" r="18" fill="none" stroke={CYAN} strokeWidth="1.6" opacity="0.95" />
+                <line x1="36" y1="8" x2="36" y2="22" stroke={CYAN} strokeWidth="1.6" />
+                <line x1="36" y1="50" x2="36" y2="64" stroke={CYAN} strokeWidth="1.6" />
+                <line x1="8" y1="36" x2="22" y2="36" stroke={CYAN} strokeWidth="1.6" />
+                <line x1="50" y1="36" x2="64" y2="36" stroke={CYAN} strokeWidth="1.6" />
+                <circle cx="36" cy="36" r="2.2" fill={CYAN} />
               </svg>
             </div>
           )}
         </>
       )}
 
-      {/* Fallback-Boresight wenn keine Reticle-Daten */}
-      {showReticles && !data.mouseReticle && (
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <svg width="120" height="120" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="26" fill="none" stroke={hudColor} strokeWidth="1.5" opacity="0.9" />
-            <line x1="60" y1="20" x2="60" y2="34" stroke={hudColor} strokeWidth="1.5" />
-            <line x1="60" y1="86" x2="60" y2="100" stroke={hudColor} strokeWidth="1.5" />
-            <line x1="20" y1="60" x2="34" y2="60" stroke={hudColor} strokeWidth="1.5" />
-            <line x1="86" y1="60" x2="100" y2="60" stroke={hudColor} strokeWidth="1.5" />
-            <circle cx="60" cy="60" r="2.5" fill={hudColor} />
-          </svg>
-        </div>
-      )}
-
-      {/* Gegner-Leisten (HP + Distanz) */}
-      {data.worldMarkers?.map((m, i) => {
-        if (!m.visible) return null;
-        const pct = Math.max(0, Math.min(100, (m.hp / Math.max(1, m.maxHp)) * 100));
-        const barColor = pct > 50 ? '#ff6666' : pct > 25 ? '#ffaa33' : '#ff2222';
-        const distLabel = m.distM >= 1000 ? `${(m.distM / 1000).toFixed(1)} km` : `${m.distM} m`;
-        return (
-          <div
-            key={`wm-${i}`}
-            className="absolute -translate-x-1/2 -translate-y-full"
-            style={{
-              left: `${m.x}%`,
-              top: `${m.y}%`,
-              opacity: m.locked ? 1 : 0.9,
-            }}
-          >
+      {/* World target markers */}
+      {showChrome &&
+        data.worldMarkers?.map((m, i) => {
+          if (!m.visible) return null;
+          const pct = Math.max(0, Math.min(100, (m.hp / Math.max(1, m.maxHp)) * 100));
+          const barColor = pct > 50 ? DANGER : pct > 25 ? AMBER : '#ff2222';
+          const distLabel = m.distM >= 1000 ? `${(m.distM / 1000).toFixed(1)} km` : `${m.distM} m`;
+          return (
             <div
-              className="mb-0.5 text-center text-[10px] font-bold tracking-wide whitespace-nowrap"
-              style={{ color: m.locked ? warnColor : '#ff8888', textShadow: '0 0 4px #000' }}
+              key={`wm-${i}`}
+              className="absolute -translate-x-1/2 -translate-y-full"
+              style={{ left: `${m.x}%`, top: `${m.y}%`, opacity: m.locked ? 1 : 0.9 }}
             >
-              {m.locked ? '◆ ' : ''}{distLabel}
+              <div
+                className="mb-0.5 text-center text-[10px] font-bold tracking-wide whitespace-nowrap"
+                style={{ color: m.locked ? DANGER : '#ff8a80', textShadow: '0 0 6px #000' }}
+              >
+                {m.locked ? '◆ ' : ''}
+                {distLabel}
+              </div>
+              <div
+                className="h-1.5 w-16 overflow-hidden rounded-full border"
+                style={{
+                  borderColor: m.locked ? 'rgba(255,59,48,0.7)' : 'rgba(255,255,255,0.2)',
+                  background: 'rgba(15,20,32,0.65)',
+                }}
+              >
+                <div className="h-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
+              </div>
+              <div className="mt-0.5 text-center text-[9px] whitespace-nowrap text-white/60">
+                {m.name.replace(/^BANDIT \d+ · /, '')}
+              </div>
             </div>
-            <div
-              className="h-1.5 w-16 overflow-hidden rounded-sm border"
-              style={{ borderColor: m.locked ? warnColor : '#ff666688', background: 'rgba(0,0,0,0.55)' }}
-            >
-              <div className="h-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
-            </div>
-            <div className="mt-0.5 text-center text-[9px] opacity-80 whitespace-nowrap" style={{ color: '#ffaaaa' }}>
-              {m.name.replace(/^BANDIT \d+ · /, '')}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
 
-      {/* Lock-On-Raute */}
-      {data.lockProgress > 0 && (
-        <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{
-          left: data.lockScreen ? `${data.lockScreen.x}%` : '50%',
-          top: data.lockScreen ? `${data.lockScreen.y}%` : '50%',
-          transform: `translate(-50%, -50%) scale(${1.6 - data.lockProgress * 0.6})`,
-        }}>
+      {/* Lock diamond */}
+      {showChrome && data.lockProgress > 0 && (
+        <div
+          className="absolute -translate-x-1/2 -translate-y-1/2"
+          style={{
+            left: data.lockScreen ? `${data.lockScreen.x}%` : '50%',
+            top: data.lockScreen ? `${data.lockScreen.y}%` : '50%',
+            transform: `translate(-50%, -50%) scale(${1.6 - data.lockProgress * 0.6})`,
+          }}
+        >
           <svg width="150" height="150" viewBox="0 0 150 150">
-            <rect x="45" y="45" width="60" height="60" fill="none"
-              stroke={data.lockProgress >= 1 ? warnColor : hudColor} strokeWidth="2"
-              transform="rotate(45 75 75)" />
+            <rect
+              x="45"
+              y="45"
+              width="60"
+              height="60"
+              fill="none"
+              stroke={data.lockProgress >= 1 ? DANGER : CYAN}
+              strokeWidth="2"
+              transform="rotate(45 75 75)"
+            />
           </svg>
-          <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-sm font-bold whitespace-nowrap"
-            style={{ color: data.lockProgress >= 1 ? warnColor : hudColor }}>
+          <div
+            className="absolute -bottom-7 left-1/2 -translate-x-1/2 text-sm font-bold whitespace-nowrap"
+            style={{ color: data.lockProgress >= 1 ? DANGER : CYAN }}
+          >
             {data.lockProgress >= 1 ? `◆ LOCK — ${data.lockedTargetName}` : `LOCKING ${lockPct}%`}
           </div>
         </div>
       )}
 
-      {/* Speed (links) */}
-      <div className="absolute left-[6%] top-1/2 -translate-y-1/2 text-center">
-        <div className="text-xs opacity-70">KNOTS</div>
-        <div className="text-4xl font-bold">{data.speedKnots}</div>
-        <div className="mt-2 text-xs opacity-70">MACH {(data.speedKnots / 661.7).toFixed(2)}</div>
-        <div className="mt-3 text-xs opacity-70">THR</div>
-        <div className="mx-auto h-24 w-2 border border-current opacity-80">
-          <div className="w-full bg-current transition-all" style={{ height: `${data.throttle * 100}%`, marginTop: `${(1 - data.throttle) * 96}px` }} />
-        </div>
-        {data.afterburner && <div className="mt-1 text-xs font-bold" style={{ color: '#ffaa33' }}>WEP</div>}
-        {data.airbrake && <div className="mt-1 text-xs font-bold" style={{ color: '#66ccff' }}>BRK</div>}
-      </div>
-
-      {/* Altitude + Heading (rechts) */}
-      <div className="absolute right-[6%] top-1/2 -translate-y-1/2 text-center">
-        <div className="text-xs opacity-70">ALT FT</div>
-        <div className="text-4xl font-bold">{data.altitudeFt.toLocaleString()}</div>
-        <div className="mt-2 text-xs opacity-70">HDG</div>
-        <div className="text-2xl font-bold">{String(data.headingDeg).padStart(3, '0')}°</div>
-        <div className="mt-3 text-xs opacity-70">G</div>
-        <div className="text-xl font-bold" style={{ color: data.gForce > 6 ? warnColor : hudColor }}>
-          {data.gForce.toFixed(1)}
-        </div>
-      </div>
-
-      {/* Heading-Tape (oben) */}
-      <div className="absolute left-1/2 top-4 -translate-x-1/2 text-center">
-        <div className="text-lg font-bold tracking-[0.4em]">{String(data.headingDeg).padStart(3, '0')}</div>
-        <div className="text-xs opacity-60">— N — E — S — W —</div>
-      </div>
-
-      {/* Missions-Anzeige (oben links) */}
-      <div className="absolute left-6 top-6">
-        <div className="text-xs opacity-70">MISSION · {data.jetName}</div>
-        <div className="text-lg font-bold">WELLE {Math.min(data.waveIndex + 1, data.waveCount)}/{data.waveCount}</div>
-        <div className="text-sm">BANDITS: {data.enemiesAlive}{data.samsLeft > 0 ? ` · SAM: ${data.samsLeft}` : ''}</div>
-      </div>
-
-      {/* Damage-Übersicht (oben rechts) */}
-      <div
-        className="absolute right-6 top-6 w-48 rounded border px-3 py-2"
-        style={{
-          borderColor: hullPct > 50 ? `${hudColor}55` : `${warnColor}88`,
-          background: 'rgba(0,12,6,0.55)',
-        }}
-      >
-        <div className="text-[10px] tracking-widest opacity-70">AIRFRAME DAMAGE</div>
-        <div className="mt-0.5 text-sm font-bold" style={{ color: hullColor }}>
-          {dmg?.status ?? 'NOMINAL'}
-        </div>
-        <div className="mt-1 flex items-center gap-2">
-          <div className="h-2 flex-1 border" style={{ borderColor: hullColor }}>
-            <div className="h-full transition-all" style={{ width: `${hullPct}%`, background: hullColor }} />
-          </div>
-          <div className="w-10 text-right text-xs font-bold" style={{ color: hullColor }}>{hullPct}%</div>
-        </div>
-        <div className="mt-2 space-y-0.5 text-[10px]">
-          {(dmg?.systems ?? []).map((s) => (
-            <div key={s.name} className="flex justify-between gap-2">
-              <span className="opacity-60">{s.name}</span>
-              <span style={{ color: s.ok ? hudColor : warnColor }}>{s.ok ? 'OK' : 'FAIL'}</span>
+      {showChrome && (
+        <>
+          {/* Top center heading pill */}
+          <div className="absolute left-1/2 top-4 -translate-x-1/2">
+            <div className="hud-glass-pill flex items-center gap-4 px-5 py-2">
+              <div className="text-center">
+                <div className="hud-label">HDG</div>
+                <div className="hud-value text-xl tracking-[0.2em]">
+                  {String(data.headingDeg).padStart(3, '0')}°
+                </div>
+              </div>
+              <div className="h-8 w-px bg-white/15" />
+              <div className="text-center">
+                <div className="hud-label">G</div>
+                <div
+                  className="hud-value text-xl"
+                  style={{ color: data.gForce > 6 ? DANGER : undefined }}
+                >
+                  {data.gForce.toFixed(1)}
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="mt-1 text-[10px] opacity-50">HULL {data.hp}/{data.maxHp}</div>
-      </div>
+          </div>
 
-      {/* Wellen-Banner */}
+          {/* Mission glass (top left) */}
+          <div className="absolute left-5 top-5">
+            <div className="hud-glass-pill min-w-[180px]">
+              <div className="hud-label">Mission · {data.jetName}</div>
+              <div className="hud-value mt-0.5 text-lg">
+                Welle {Math.min(data.waveIndex + 1, data.waveCount)}/{data.waveCount}
+              </div>
+              <div className="mt-1 text-xs text-white/55">
+                Bandits {data.enemiesAlive}
+                {data.samsLeft > 0 ? ` · SAM ${data.samsLeft}` : ''}
+              </div>
+            </div>
+          </div>
+
+          {/* Damage glass (top right) */}
+          <div className="absolute right-5 top-5 w-52">
+            <div
+              className="hud-glass-pill"
+              style={{
+                borderColor:
+                  hullPct > 50 ? 'rgba(0,242,255,0.22)' : 'rgba(255,59,48,0.45)',
+              }}
+            >
+              <div className="hud-label">Airframe</div>
+              <div className="mt-0.5 text-sm font-bold" style={{ color: hullTone }}>
+                {dmg?.status ?? 'NOMINAL'}
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="glass-progress-track flex-1">
+                  <div
+                    className={`glass-progress-fill ${hullPct <= 30 ? 'danger' : hullPct <= 60 ? 'warn' : ''}`}
+                    style={{ width: `${hullPct}%` }}
+                  />
+                </div>
+                <div className="hud-value w-10 text-right text-xs" style={{ color: hullTone }}>
+                  {hullPct}%
+                </div>
+              </div>
+              <div className="mt-2 space-y-0.5 text-[10px]">
+                {(dmg?.systems ?? []).map((s) => (
+                  <div key={s.name} className="flex justify-between gap-2">
+                    <span className="text-white/40">{s.name}</span>
+                    <span style={{ color: s.ok ? CYAN : DANGER }}>{s.ok ? 'OK' : 'FAIL'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Speed pill (left mid) */}
+          <div className="absolute left-[4%] top-1/2 -translate-y-1/2">
+            <div className="hud-glass-pill min-w-[108px] text-center">
+              <div className="hud-label">Knots</div>
+              <div className="hud-value text-3xl">{data.speedKnots}</div>
+              <div className="mt-1 text-[11px] text-white/45">
+                MACH {(data.speedKnots / 661.7).toFixed(2)}
+              </div>
+              <div className="mt-3 hud-label">Fuel / THR</div>
+              <div className="mx-auto mt-1 h-20 w-2.5 overflow-hidden rounded-full border border-white/15 bg-white/10">
+                <div
+                  className="w-full rounded-full bg-gradient-to-t from-[#0A84FF] to-[#00F2FF] transition-all"
+                  style={{
+                    height: `${data.throttle * 100}%`,
+                    marginTop: `${(1 - data.throttle) * 100}%`,
+                    boxShadow: '0 0 10px #00F2FF',
+                  }}
+                />
+              </div>
+              {data.afterburner && (
+                <div className="mt-1 text-[10px] font-bold tracking-widest" style={{ color: AMBER }}>
+                  WEP
+                </div>
+              )}
+              {data.airbrake && (
+                <div className="mt-0.5 text-[10px] font-bold tracking-widest" style={{ color: BLUE }}>
+                  BRK
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Altitude pill (right mid) */}
+          <div className="absolute right-[4%] top-1/2 -translate-y-1/2">
+            <div className="hud-glass-pill min-w-[108px] text-center">
+              <div className="hud-label">Alt ft</div>
+              <div className="hud-value text-3xl">{data.altitudeFt.toLocaleString()}</div>
+              <div className="mt-3 hud-label">Missiles</div>
+              <div className="hud-value text-xl">× {data.missiles}</div>
+            </div>
+          </div>
+
+          {/* Radar glass bottom left */}
+          <div className="absolute bottom-5 left-5">
+            <div className="hud-glass-pill !rounded-[22px] p-3">
+              <svg width={CONFIG.hud.radarSize} height={CONFIG.hud.radarSize} viewBox="-100 -100 200 200">
+                <circle cx="0" cy="0" r="96" fill="rgba(8,14,28,0.55)" stroke="rgba(0,242,255,0.35)" strokeWidth="1.4" />
+                <circle cx="0" cy="0" r="60" fill="none" stroke="rgba(0,242,255,0.2)" strokeWidth="0.6" />
+                <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(0,242,255,0.15)" strokeWidth="0.6" />
+                <line x1="-96" y1="0" x2="96" y2="0" stroke="rgba(0,242,255,0.15)" strokeWidth="0.5" />
+                <line x1="0" y1="-96" x2="0" y2="96" stroke="rgba(0,242,255,0.15)" strokeWidth="0.5" />
+                <polygon points="0,-6 4,5 -4,5" fill={CYAN} />
+                {data.radar.map((r, i) => (
+                  <g key={i}>
+                    {r.locked ? (
+                      <rect
+                        x={r.x * 90 - 4}
+                        y={r.y * 90 - 4}
+                        width="8"
+                        height="8"
+                        fill="none"
+                        stroke={DANGER}
+                        strokeWidth="1.5"
+                        transform={`rotate(45 ${r.x * 90} ${r.y * 90})`}
+                      />
+                    ) : r.isEnemy ? (
+                      <circle cx={r.x * 90} cy={r.y * 90} r="3.5" fill={DANGER} />
+                    ) : (
+                      <rect x={r.x * 90 - 3} y={r.y * 90 - 3} width="6" height="6" fill={AMBER} />
+                    )}
+                  </g>
+                ))}
+              </svg>
+              <div className="mt-1 text-center text-[10px] tracking-[0.18em] text-cyan-300/60 uppercase">
+                TWS {CONFIG.hud.radarRange / 1000} km
+              </div>
+            </div>
+          </div>
+
+          {/* Score glass bottom right */}
+          <div className="absolute bottom-5 right-5 text-right">
+            <div className="hud-glass-pill min-w-[140px]">
+              <div className="hud-label">Score</div>
+              <div className="hud-value text-3xl">{data.score}</div>
+              <div className="mt-2 text-xs text-white/50">AIM-9 × {data.missiles}</div>
+              <div className="text-xs text-white/50">Bandits {data.enemiesAlive}</div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Wave banner */}
       {data.waveBanner && (
         <div className="absolute left-1/2 top-[22%] -translate-x-1/2 text-center">
-          <div className="text-3xl font-black tracking-widest animate-pulse" style={{ textShadow: `0 0 16px ${hudColor}` }}>
+          <div
+            className="glass-panel-sm glass-pulse px-6 py-3 text-2xl font-black tracking-[0.2em] text-white sm:text-3xl"
+            style={{ textShadow: `0 0 20px ${CYAN}` }}
+          >
             {data.waveBanner}
           </div>
         </div>
       )}
 
-      {/* Free-Look Hinweis */}
       {data.freeLook && (
-        <div className="absolute left-1/2 top-[18%] -translate-x-1/2 text-center">
-          <div className="text-sm font-bold tracking-[0.35em] opacity-90">FREE LOOK</div>
-          <div className="mt-1 text-xs opacity-60">Maus orbit · C/RMB loslassen · Jet behält Kurs</div>
+        <div className="absolute left-1/2 top-[16%] -translate-x-1/2">
+          <div className="hud-glass-pill text-center">
+            <div className="text-sm font-bold tracking-[0.3em] text-white">FREE LOOK</div>
+            <div className="mt-0.5 text-[11px] text-white/50">C / RMB loslassen · Jet behält Kurs</div>
+          </div>
         </div>
       )}
 
-      {/* Manual Override */}
       {data.manualOverride && !data.freeLook && data.state === 'playing' && (
-        <div className="absolute left-1/2 top-[14%] -translate-x-1/2 text-center">
-          <div className="text-xs font-bold tracking-[0.25em] opacity-80" style={{ color: '#ffcc66' }}>
+        <div className="absolute left-1/2 top-[13%] -translate-x-1/2">
+          <div className="hud-glass-pill !border-amber-400/40 px-4 py-1.5 text-[11px] font-bold tracking-[0.25em]" style={{ color: AMBER }}>
             MANUAL STICK
           </div>
         </div>
       )}
 
-      {/* Auto-Track nach Lock */}
       {data.autoTrack && !data.freeLook && (
-        <div className="absolute left-1/2 top-[16%] -translate-x-1/2 text-center">
-          <div className="text-sm font-bold tracking-[0.3em]" style={{ color: '#ff8866' }}>AUTO TRACK</div>
-          <div className="mt-0.5 text-xs opacity-70">Aim folgt Ziel · {data.lockedTargetName ?? 'LOCK'}</div>
+        <div className="absolute left-1/2 top-[15%] -translate-x-1/2 text-center">
+          <div className="hud-glass-pill !border-orange-400/40">
+            <div className="text-sm font-bold tracking-[0.25em]" style={{ color: '#ff8a65' }}>
+              AUTO TRACK
+            </div>
+            <div className="text-[11px] text-white/50">{data.lockedTargetName ?? 'LOCK'}</div>
+          </div>
         </div>
       )}
 
-      {/* Warnung */}
       {data.warning && (
-        <div className="absolute left-1/2 top-[30%] -translate-x-1/2 animate-pulse text-3xl font-black tracking-widest" style={{ color: warnColor, textShadow: '0 0 12px #ff444488' }}>
-          ⚠ {data.warning}
+        <div className="absolute left-1/2 top-[30%] -translate-x-1/2">
+          <div
+            className="glass-panel-sm glass-pulse px-6 py-3 text-2xl font-black tracking-[0.25em] sm:text-3xl"
+            style={{ color: DANGER, borderColor: 'rgba(255,59,48,0.5)' }}
+          >
+            ⚠ {data.warning}
+          </div>
         </div>
       )}
-
-      {/* Radar (links unten) */}
-      <div className="absolute bottom-6 left-6">
-        <svg width={CONFIG.hud.radarSize} height={CONFIG.hud.radarSize} viewBox="-100 -100 200 200">
-          <circle cx="0" cy="0" r="98" fill="rgba(0,20,8,0.55)" stroke={hudColor} strokeWidth="1.5" />
-          <circle cx="0" cy="0" r="60" fill="none" stroke={hudColor} strokeWidth="0.5" opacity="0.4" />
-          <circle cx="0" cy="0" r="30" fill="none" stroke={hudColor} strokeWidth="0.5" opacity="0.4" />
-          <line x1="-98" y1="0" x2="98" y2="0" stroke={hudColor} strokeWidth="0.5" opacity="0.4" />
-          <line x1="0" y1="-98" x2="0" y2="98" stroke={hudColor} strokeWidth="0.5" opacity="0.4" />
-          <polygon points="0,-6 4,5 -4,5" fill={hudColor} />
-          {data.radar.map((r, i) => (
-            <g key={i}>
-              {r.locked
-                ? <rect x={r.x * 90 - 4} y={r.y * 90 - 4} width="8" height="8" fill="none" stroke={warnColor} strokeWidth="1.5" transform={`rotate(45 ${r.x * 90} ${r.y * 90})`} />
-                : r.isEnemy
-                  ? <circle cx={r.x * 90} cy={r.y * 90} r="3.5" fill={warnColor} />
-                  : <rect x={r.x * 90 - 3} y={r.y * 90 - 3} width="6" height="6" fill="#ffaa33" />}
-            </g>
-          ))}
-        </svg>
-        <div className="mt-1 text-center text-xs opacity-70">TWS {CONFIG.hud.radarRange / 1000}km</div>
-      </div>
-
-      {/* Status (rechts unten) */}
-      <div className="absolute bottom-6 right-6 text-right">
-        <div className="text-xs opacity-70">SCORE</div>
-        <div className="text-3xl font-bold">{data.score}</div>
-        <div className="mt-2 text-sm">AIM-9 × {data.missiles}</div>
-        <div className="text-sm">BANDITS: {data.enemiesAlive}</div>
-      </div>
     </div>
   );
 }

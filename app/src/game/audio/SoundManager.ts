@@ -11,6 +11,7 @@ export class SoundManager {
   private lockOsc: OscillatorNode | null = null;
   private lockGain: GainNode | null = null;
   private muted = false;
+  private masterVolume = 1;
 
   // Muss nach User-Geste aufgerufen werden (Browser-Autoplay-Policy)
   init() {
@@ -72,23 +73,38 @@ export class SoundManager {
 
   setMuted(m: boolean) {
     this.muted = m;
-    if (this.ctx) this.ctx.destination.disconnect();
-    if (this.ctx && !m) {
-      // neu verbinden
-    }
+    if (m && this.engineGain) this.engineGain.gain.value = 0;
+    if (m && this.abGain) this.abGain.gain.value = 0;
+    if (m && this.lockGain) this.lockGain.gain.value = 0;
+  }
+
+  setMasterVolume(v: number) {
+    this.masterVolume = Math.max(0, Math.min(1, v));
+  }
+
+  get isMuted() {
+    return this.muted;
+  }
+
+  get volume() {
+    return this.masterVolume;
+  }
+
+  private vol(n: number) {
+    return n * this.masterVolume;
   }
 
   updateEngine(speedNorm: number, throttle: number, afterburner: boolean, dt: number) {
     if (!this.ctx || !this.engineGain || this.muted) return;
     const g = this.engineGain.gain;
-    const target = 0.05 + throttle * 0.1;
+    const target = this.vol(0.05 + throttle * 0.1);
     g.value += (target - g.value) * Math.min(1, dt * 5);
     const freq = 45 + speedNorm * 120 + throttle * 30;
     this.engineOsc!.frequency.value = freq;
     this.engineOsc2!.frequency.value = freq * 1.03;
     if (this.abGain) {
       const ab = this.abGain.gain;
-      const t = afterburner ? 0.16 : 0;
+      const t = afterburner ? this.vol(0.16) : 0;
       ab.value += (t - ab.value) * Math.min(1, dt * 6);
     }
   }

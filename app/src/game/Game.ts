@@ -863,6 +863,15 @@ export class Game {
     this.engine.render();
   };
 
+  /** Einstellungen: Sound */
+  setSoundMuted(muted: boolean) {
+    this.sound.setMuted(muted);
+  }
+
+  setSoundVolume(volume: number) {
+    this.sound.setMasterVolume(volume);
+  }
+
   dispose() {
     this.loop.stop();
     this.input.dispose();

@@ -1,0 +1,384 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Apple Liquid Glass & Tactical HUD — Design Tokens & Components
+   Skill: apple-glass-game-ui
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Surface & Glass Materials */
+  --glass-bg-dark: rgba(15, 20, 32, 0.6);
+  --glass-bg-card: rgba(255, 255, 255, 0.06);
+  --glass-bg-active: rgba(255, 255, 255, 0.12);
+  --glass-bg-pill: rgba(15, 20, 32, 0.55);
+  --glass-blur: blur(24px) saturate(190%);
+  --glass-blur-sm: blur(16px) saturate(180%);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.18);
+  --glass-border-subtle: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-border-strong: 1px solid rgba(255, 255, 255, 0.35);
+  --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  --glass-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  --glass-ease: cubic-bezier(0.25, 1, 0.5, 1);
+
+  /* Accents & Tactical Colors */
+  --accent-cyan: #00f2ff;
+  --accent-blue: #0a84ff;
+  --accent-danger: #ff3b30;
+  --accent-warning: #ff9f0a;
+  --accent-success: #30d158;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-tertiary: rgba(255, 255, 255, 0.45);
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter',
+    system-ui, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, monospace;
+}
+
+/* Base app font */
+.liquid-ui-root {
+  font-family: var(--font-family);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Glass Surfaces ─────────────────────────────────────────────────────── */
+
+.glass-panel {
+  background: var(--glass-bg-dark);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-panel-sm {
+  background: var(--glass-bg-dark);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow-sm);
+}
+
+.glass-nav {
+  background: rgba(15, 20, 32, 0.55);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: 999px;
+  box-shadow: var(--glass-shadow-sm);
+}
+
+.glass-pill {
+  background: var(--glass-bg-pill);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: var(--glass-border);
+  border-radius: 999px;
+  box-shadow: var(--glass-shadow-sm);
+}
+
+.glass-card {
+  background: var(--glass-bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: 20px;
+  padding: 16px 18px;
+  box-shadow: var(--glass-shadow);
+  color: #fff;
+  transition: transform 0.3s var(--glass-ease), background 0.3s var(--glass-ease),
+    border-color 0.3s var(--glass-ease), box-shadow 0.3s var(--glass-ease);
+}
+
+.glass-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  background: var(--glass-bg-active);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 242, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.glass-card:active {
+  transform: scale(0.96);
+}
+
+.glass-card.is-selected {
+  background: rgba(10, 132, 255, 0.18);
+  border-color: rgba(0, 242, 255, 0.55);
+  box-shadow: 0 20px 50px rgba(0, 242, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+
+.glass-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 12px 26px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  user-select: none;
+}
+
+.glass-button:hover {
+  transform: scale(1.02);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 24px rgba(0, 242, 255, 0.15);
+}
+
+.glass-button:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.glass-button-primary {
+  background: linear-gradient(135deg, #0a84ff 0%, #00c6ff 55%, #00f2ff 100%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #041018;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 12px 32px rgba(10, 132, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.glass-button-primary:hover {
+  transform: scale(1.02);
+  box-shadow: 0 16px 40px rgba(0, 242, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  filter: brightness(1.06);
+}
+
+.glass-button-primary:active {
+  transform: scale(0.96);
+}
+
+.glass-button-ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-secondary);
+}
+
+.glass-button-danger {
+  background: rgba(255, 59, 48, 0.18);
+  border: 1px solid rgba(255, 59, 48, 0.45);
+  color: #ffb4ae;
+}
+
+.glass-nav-item {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.glass-nav-item:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.02);
+}
+
+.glass-nav-item:active {
+  transform: scale(0.96);
+}
+
+.glass-nav-item.is-active {
+  color: #041018;
+  background: linear-gradient(135deg, #0a84ff, #00f2ff);
+  box-shadow: 0 4px 16px rgba(0, 242, 255, 0.3);
+}
+
+/* ─── Progress / Stats ───────────────────────────────────────────────────── */
+
+.glass-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.glass-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0a84ff, #00f2ff);
+  border-radius: 4px;
+  box-shadow: 0 0 12px #00f2ff;
+  transition: width 0.35s var(--glass-ease);
+}
+
+.glass-progress-fill.warn {
+  background: linear-gradient(90deg, #ff9f0a, #ffcc00);
+  box-shadow: 0 0 12px #ff9f0a;
+}
+
+.glass-progress-fill.danger {
+  background: linear-gradient(90deg, #ff3b30, #ff6b63);
+  box-shadow: 0 0 12px #ff3b30;
+}
+
+/* ─── Form controls ──────────────────────────────────────────────────────── */
+
+.glass-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.glass-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0a84ff, #00f2ff);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 10px rgba(0, 242, 255, 0.45);
+  cursor: pointer;
+}
+
+.glass-toggle {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.glass-toggle.is-on {
+  background: linear-gradient(135deg, #0a84ff, #00f2ff);
+}
+
+.glass-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s var(--glass-ease);
+}
+
+.glass-toggle.is-on::after {
+  transform: translateX(20px);
+}
+
+/* ─── Typography helpers ─────────────────────────────────────────────────── */
+
+.glass-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+}
+
+.glass-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.glass-subtitle {
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  line-height: 1.45;
+}
+
+.glass-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── HUD tactical ───────────────────────────────────────────────────────── */
+
+.hud-tactical {
+  color: var(--accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 242, 255, 0.35);
+  font-family: var(--font-family);
+}
+
+.hud-glass-pill {
+  background: rgba(15, 20, 32, 0.52);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(0, 242, 255, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  padding: 10px 16px;
+}
+
+.hud-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(0, 242, 255, 0.65);
+  font-weight: 600;
+}
+
+.hud-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #e8ffff;
+  line-height: 1.1;
+}
+
+/* Scrollbars inside glass panels */
+.glass-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.glass-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+.glass-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Soft vignette over 3D when menu open (not full black) */
+.menu-vignette {
+  background: radial-gradient(ellipse at center, transparent 20%, rgba(4, 8, 18, 0.55) 100%),
+    linear-gradient(180deg, rgba(8, 12, 24, 0.35) 0%, transparent 35%, transparent 65%, rgba(8, 12, 24, 0.5) 100%);
+  pointer-events: none;
+}
+
+@keyframes glass-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.glass-pulse {
+  animation: glass-pulse 1.4s ease-in-out infinite;
+}

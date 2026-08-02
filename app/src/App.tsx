@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game, type HudData } from './game/Game';
 import { Hud } from './components/Hud';
 import { Menus } from './components/Menus';
 import type { JetId } from './game/aircraft/JetCatalog';
+import { loadSettings } from './lib/gameSettings';
 
 const initialHud: HudData = {
   state: 'menu',
@@ -42,11 +43,22 @@ export default function App() {
     gameRef.current = game;
     (window as unknown as { __game: Game }).__game = game;
     game.onHud(setHud);
+
+    // Apply saved sound settings
+    const s = loadSettings();
+    game.setSoundMuted(s.muted);
+    game.setSoundVolume(s.masterVolume);
+
     return () => game.dispose();
   }, []);
 
+  const onSoundChange = useCallback((s: { muted: boolean; volume: number }) => {
+    gameRef.current?.setSoundMuted(s.muted);
+    gameRef.current?.setSoundVolume(s.volume);
+  }, []);
+
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black">
+    <div className="liquid-ui-root relative h-screen w-screen overflow-hidden bg-black">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       <Hud data={hud} />
       <Menus
@@ -57,6 +69,7 @@ export default function App() {
         onStart={(id: JetId) => { void gameRef.current?.startGame(id); }}
         onResume={() => gameRef.current?.togglePause()}
         onMenu={() => gameRef.current?.returnToMenu()}
+        onSoundChange={onSoundChange}
       />
     </div>
   );
