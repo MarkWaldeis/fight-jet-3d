@@ -130,7 +130,7 @@ export function cloneMissileVisual(id: MissileVisualId): THREE.Object3D | null {
 
 export function missileIdForJet(jetId: string): MissileVisualId {
   // Legacy-Maschinen ohne Lenkwaffen nutzen Fallback nur falls doch gerendert
-  if (jetId === 'su57' || jetId === 'su34' || jetId === 'su25' || jetId === 'mig15' || jetId === 'mig3') {
+  if (jetId === 'su57' || jetId === 'su34' || jetId === 'su25') {
     return 'r77';
   }
   if (jetId === 'f35' || jetId === 'f14') return 'aim120';

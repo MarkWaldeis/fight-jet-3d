@@ -1,4 +1,5 @@
-// Katalog fliegbarer Jets: NATO & Russland/Sowjet, inkl. WWII-Propeller & Early Jets.
+// Katalog fliegbarer Jets: NATO & Russland/Sowjet.
+// WWII-Props / MiG-15 sind archiviert unter archived-aircraft/legacy-props/.
 import * as THREE from 'three';
 import type { ModelOrient } from './GlbJetLoader';
 
@@ -12,12 +13,7 @@ export type JetId =
   | 'l39'
   | 'su25'
   | 'su34'
-  | 'su57'
-  | 'p51'
-  | 'p40'
-  | 'spitfire'
-  | 'mig3'
-  | 'mig15';
+  | 'su57';
 
 /** Antrieb / Epoche — steuert Sound, Nachbrenner, Propeller-FX, Windanfälligkeit. */
 export type EngineType = 'jet' | 'piston';
@@ -116,21 +112,6 @@ export const MODERN_JET_PHYSICS: FlightPhysicsProfile = {
   stallDropMult: 1,
   modelLengthM: 15.5,
 };
-
-const PROP_FX = (
-  wing = 5.5,
-  hardpoints: [number, number, number][] = []
-): JetFxSpec => ({
-  // Kein echter Jet-Nozzle — EngineFx bleibt schwach / unsichtbar
-  nozzles: [[0, -0.2, 6.2]],
-  nozzleScale: 0.01,
-  muzzles: [
-    [-0.45, -0.15, -5.8],
-    [0.45, -0.15, -5.8],
-  ],
-  hardpoints,
-  wingHalfSpan: wing,
-});
 
 const singleNozzle = (
   y = -0.4,
@@ -361,140 +342,6 @@ export const JET_CATALOG: JetDef[] = [
     ]),
   },
 
-  // ─── NATO · WWII Propeller ──────────────────────────────────────────────
-  {
-    id: 'p51',
-    faction: 'nato',
-    name: 'P-51D Mustang',
-    callsign: 'MUSTANG 1',
-    role: 'WWII · Langstreckenjäger',
-    description:
-      'Legendärer Propellerjäger. Max. ~700 km/h, kein Nachbrenner, starkes Propeller-Drehmoment. Nur Bordwaffen — kein AIM-9.',
-    modelUrl: './models/p51-mustang.glb',
-    traits: ['Propeller', 'MG/Kanone', 'Torque'],
-    era: 'propeller',
-    engineType: 'piston',
-    physics: {
-      dragMult: 1.55,
-      inducedDragMult: 1.65,
-      thrustMult: 0.55,
-      hasAfterburner: false,
-      torqueRoll: 0.42,
-      pFactorYaw: 0.18,
-      windSusceptibility: 1.55,
-      stallSpeedMult: 1.15,
-      stallDropMult: 1.35,
-      modelLengthM: 9.8,
-    },
-    stats: {
-      hp: 72,
-      speedMult: 0.55, // ~700 km/h vs Jet-Basis
-      turnMult: 0.92,
-      cannonDamage: 3.4,
-      cannonRPM: 750,
-      cannonSpread: 0.028,
-      missiles: 0,
-      lockRange: 0,
-      lockTime: 99,
-      lockAngleDeg: 8,
-      flareCount: 0,
-    },
-    special: {
-      id: 'merlin',
-      label: 'Packard Merlin V-1650',
-      detail: 'Kolbenmotor + Propeller-Torque & P-Faktor bei Vollgas',
-    },
-    fx: PROP_FX(5.6, []),
-  },
-  {
-    id: 'p40',
-    faction: 'nato',
-    name: 'P-40 Warhawk',
-    callsign: 'WARHAWK',
-    role: 'WWII · Frontjäger',
-    description:
-      'Robuster, aber langsamerer Propellerjäger (~580 km/h). Schwerfällig, starker Luftwiderstand, ideale Einstiegs-Prop-Maschine.',
-    modelUrl: './models/p40.glb',
-    traits: ['Propeller', 'Robust', 'Langsam'],
-    era: 'propeller',
-    engineType: 'piston',
-    physics: {
-      dragMult: 1.75,
-      inducedDragMult: 1.8,
-      thrustMult: 0.48,
-      hasAfterburner: false,
-      torqueRoll: 0.48,
-      pFactorYaw: 0.22,
-      windSusceptibility: 1.7,
-      stallSpeedMult: 1.2,
-      stallDropMult: 1.4,
-      modelLengthM: 9.7,
-    },
-    stats: {
-      hp: 80,
-      speedMult: 0.46,
-      turnMult: 0.82,
-      cannonDamage: 3.0,
-      cannonRPM: 700,
-      cannonSpread: 0.032,
-      missiles: 0,
-      lockRange: 0,
-      lockTime: 99,
-      lockAngleDeg: 8,
-      flareCount: 0,
-    },
-    special: {
-      id: 'allison',
-      label: 'Allison V-1710',
-      detail: 'Stärkeres Torque-Roll, spürbar träger als Mustang',
-    },
-    fx: PROP_FX(5.4, []),
-  },
-  {
-    id: 'spitfire',
-    faction: 'nato',
-    name: 'Supermarine Spitfire',
-    callsign: 'SPIT 9',
-    role: 'WWII · Dogfighter',
-    description:
-      'Wendigster der Propeller-Klassiker. Geringere Top-Speed als die Mustang, aber engste Kurven — und empfindlich gegen Windböen.',
-    modelUrl: './models/spitfire.glb',
-    traits: ['Propeller', 'Wendig', 'Ellipsenflügel'],
-    era: 'propeller',
-    engineType: 'piston',
-    physics: {
-      dragMult: 1.45,
-      inducedDragMult: 1.5,
-      thrustMult: 0.52,
-      hasAfterburner: false,
-      torqueRoll: 0.38,
-      pFactorYaw: 0.16,
-      windSusceptibility: 1.85,
-      stallSpeedMult: 1.08,
-      stallDropMult: 1.25,
-      modelLengthM: 9.1,
-    },
-    stats: {
-      hp: 65,
-      speedMult: 0.52,
-      turnMult: 1.08,
-      cannonDamage: 3.6,
-      cannonRPM: 800,
-      cannonSpread: 0.026,
-      missiles: 0,
-      lockRange: 0,
-      lockTime: 99,
-      lockAngleDeg: 8,
-      flareCount: 0,
-    },
-    special: {
-      id: 'elliptical',
-      label: 'Elliptical Wing',
-      detail: 'Beste Prop-Wendigkeit, höchstes Flutter-Risiko',
-    },
-    fx: PROP_FX(5.5, []),
-  },
-
   // ─── RUSSLAND / SOWJET ──────────────────────────────────────────────────
   {
     id: 'su25',
@@ -623,96 +470,6 @@ export const JET_CATALOG: JetDef[] = [
       ],
       wingHalfSpan: 7.2,
     },
-  },
-
-  // ─── RUSSLAND · WWII Prop + Early Jet ───────────────────────────────────
-  {
-    id: 'mig3',
-    faction: 'russia',
-    name: 'MiG-3',
-    callsign: 'SOKOL 3',
-    role: 'WWII · Höhenjäger',
-    description:
-      'Sowjetischer Hochgeschwindigkeits-Propellerjäger. In großer Höhe stark, in engen Turns und bei Turbulenz unnachgiebig.',
-    modelUrl: './models/mig3.glb',
-    traits: ['Propeller', 'Höhe', 'MG'],
-    era: 'propeller',
-    engineType: 'piston',
-    physics: {
-      dragMult: 1.6,
-      inducedDragMult: 1.7,
-      thrustMult: 0.5,
-      hasAfterburner: false,
-      torqueRoll: 0.4,
-      pFactorYaw: 0.2,
-      windSusceptibility: 1.6,
-      stallSpeedMult: 1.18,
-      stallDropMult: 1.38,
-      modelLengthM: 8.3,
-    },
-    stats: {
-      hp: 68,
-      speedMult: 0.5,
-      turnMult: 0.86,
-      cannonDamage: 3.2,
-      cannonRPM: 720,
-      cannonSpread: 0.03,
-      missiles: 0,
-      lockRange: 0,
-      lockTime: 99,
-      lockAngleDeg: 8,
-      flareCount: 0,
-    },
-    special: {
-      id: 'am35',
-      label: 'Mikulin AM-35A',
-      detail: 'Kolbenmotor, spürbares P-Faktor-Gieren',
-    },
-    fx: PROP_FX(5.1, []),
-  },
-  {
-    id: 'mig15',
-    faction: 'russia',
-    name: 'MiG-15bis',
-    callsign: 'FAGOT 15',
-    role: 'Early Jet · Korea-Krieg',
-    description:
-      'Früher Cold-War-Strahljäger. Schneller als WWII-Props (~1050 km/h), aber ohne moderne Nachbrenner-Power und mit steilem Kurvenverlust.',
-    modelUrl: './models/mig15.glb',
-    traits: ['Early Jet', '23/37mm', 'Kein AB'],
-    era: 'early_jet',
-    engineType: 'jet',
-    physics: {
-      dragMult: 1.35,
-      inducedDragMult: 1.55,
-      thrustMult: 0.62,
-      hasAfterburner: false,
-      torqueRoll: 0,
-      pFactorYaw: 0,
-      windSusceptibility: 1.15,
-      stallSpeedMult: 1.25,
-      stallDropMult: 1.45,
-      modelLengthM: 10.1,
-    },
-    stats: {
-      hp: 88,
-      speedMult: 0.7, // ~Mach 0.9 early jet
-      turnMult: 0.88,
-      cannonDamage: 5.5,
-      cannonRPM: 450,
-      cannonSpread: 0.022,
-      missiles: 0,
-      lockRange: 0,
-      lockTime: 99,
-      lockAngleDeg: 10,
-      flareCount: 2,
-    },
-    special: {
-      id: 'n37',
-      label: 'N-37 + NR-23',
-      detail: 'Schwere Bordkanonen, langsame Feuerrate, kein Lenkwaffen-Loadout',
-    },
-    fx: singleNozzle(-0.35, 6.5, 0.55, 5.0, []),
   },
 ];
 

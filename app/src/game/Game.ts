@@ -493,8 +493,8 @@ export class Game {
   }
 
   /**
-   * Wellen-Mix: Welle 0 ≈ 80 % Legacy, Welle 1 ≈ 50 %, Welle 2+ ≈ 25 %.
-   * So spawnen Props/MiG-15 spürbar als Banditen.
+   * Wellen-Mix: optional Legacy (Props/Early Jet), sonst moderne Jets.
+   * Legacy-Pool ist aktuell leer (Assets archiviert unter archived-aircraft/).
    */
   private pickBanditJetId(waveIndex: number): JetId {
     const legacy = legacyJetIds();
