@@ -287,9 +287,6 @@ export class Game {
     // Richtungsvektor und Geschwindigkeit passend zur Start‑Orientierung setzen.
     this.player.flight.snapVelocityToNose();
     this.player.flight.speed = CONFIG.flight.cruiseSpeed * this.player.flight.speedMult;
-
-    // Re-parent missile rack to keep weapons anchored during takeoff
-    this.player.object.add(this.player.missileRack);
   }
 
   /** Hangar: Jet wählen (lädt GLB, wendet Stats an). */
