@@ -191,12 +191,20 @@ export class FlightModel {
     }
 
     // --- Propeller-Torque & P-Faktor (Vollgas zieht zur Seite) ---
+    // Wichtig: als begrenzte Raten-Bias, NICHT als Dauer-Beschleunigung —
+    // sonst trimmt sich die Zelle auf eine permanente Schräglage (Bank).
     if (P.torqueRoll !== 0 || P.pFactorYaw !== 0) {
       const thr = this.throttle;
-      // Torque steigt mit Gas, etwas stärker bei niedriger Speed (weniger Gegenkraft)
-      const lowSpeed = THREE.MathUtils.clamp(1.15 - this.speed / (F.cruiseSpeed * sm), 0.35, 1.2);
-      this.rollOmega += P.torqueRoll * thr * thr * lowSpeed * dt * 2.2;
-      yawRate += P.pFactorYaw * thr * thr * lowSpeed;
+      const lowSpeed = THREE.MathUtils.clamp(
+        1.15 - this.speed / (F.cruiseSpeed * sm),
+        0.35,
+        1.2
+      );
+      const tPow = thr * thr * lowSpeed;
+      // Sanfte Roll-Tendenz: mischt in Omega, ohne zu integrieren
+      const torqueBias = P.torqueRoll * tPow * 0.55;
+      this.rollOmega += (torqueBias - this.rollOmega * 0.08) * Math.min(1, dt * 2.5) * 0.35;
+      yawRate += P.pFactorYaw * tPow * 0.65;
     }
 
     // --- Windböen: ältere Flugzeuge stärker betroffen ---
