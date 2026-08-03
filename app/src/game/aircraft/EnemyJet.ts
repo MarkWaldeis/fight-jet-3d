@@ -6,7 +6,7 @@ import { getJetDef, jetFxVectors, type JetDef, type JetId } from './JetCatalog';
 
 type AIState = 'patrol' | 'pursue' | 'attack' | 'evade';
 
-// KI-Gegner: nutzt dieselben Jet-Assets wie der Hangar (F-16/F-35/Elite).
+// KI-Gegner: nutzt dieselben Jet-Assets wie der Hangar (inkl. Legacy-Props).
 // Zustandsautomat (Patrouille → Verfolgung → Angriff → Ausweichen),
 // steuert den Jet über dieselben Achsen wie der Spieler.
 export class EnemyJet extends Aircraft {
@@ -24,6 +24,8 @@ export class EnemyJet extends Aircraft {
   private input = { pitch: 0, roll: 0, yaw: 0 };
   private catalogMuzzles: THREE.Vector3[];
   private readonly maxHp: number;
+  /** Aktueller Wind (von Game gesetzt) */
+  wind = new THREE.Vector3();
 
   constructor(index: number, jetId: JetId = 'f16') {
     const def = getJetDef(jetId);
@@ -37,6 +39,7 @@ export class EnemyJet extends Aircraft {
     // Deutlich langsamer als der Spieler → Auto-Track / Dogfight greifbarer
     this.flight.speedMult = def.stats.speedMult * CONFIG.enemy.speedScale;
     this.flight.turnMult = def.stats.turnMult * 0.72;
+    this.applyFlightPhysics(def.physics, def.engineType);
     this.pickWaypoint();
   }
 
@@ -67,6 +70,7 @@ export class EnemyJet extends Aircraft {
     this.alive = true;
     this.state = 'patrol';
     this.pickWaypoint();
+    this.flutter.reset();
   }
 
   private pickWaypoint() {
@@ -140,9 +144,21 @@ export class EnemyJet extends Aircraft {
 
     this.steerTowards(aimPoint, dt, terrain);
     this.flight.throttle = this.state === 'attack' ? 0.95 : 0.75;
-    this.flight.update(dt, this.input, this.state === 'pursue' && Math.random() > 0.5);
-    const ab = this.state === 'pursue' && this.flight.speed > CONFIG.flight.maxSpeed * this.flight.speedMult - 40;
-    this.updateEngineFx(dt, this.flight.throttle, ab);
+    const wantAb =
+      this.loadout.physics.hasAfterburner &&
+      this.state === 'pursue' &&
+      Math.random() > 0.5;
+    this.flight.update(dt, this.input, wantAb, { wind: this.wind });
+    if (this.engineType === 'jet') {
+      const ab =
+        wantAb && this.flight.speed > CONFIG.flight.maxSpeed * this.flight.speedMult - 40;
+      this.updateEngineFx(dt, this.flight.throttle, ab);
+    } else {
+      this.updateEngineFx(dt, 0, false);
+    }
+    const cruise = CONFIG.flight.cruiseSpeed * this.flight.speedMult;
+    const maxSpd = CONFIG.flight.maxSpeed * this.flight.speedMult;
+    this.updateLegacyFx(dt, this.flight.throttle, this.wind.length(), cruise, maxSpd);
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 
     // Terrain-Vermeidung (Notfall-Pull-Up, positives Pitch = Nase hoch)

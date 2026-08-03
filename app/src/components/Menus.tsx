@@ -462,9 +462,9 @@ export function Menus({
                 ← Zurück
               </button>
             </div>
-            <h2 className="glass-title mb-1 text-3xl text-white">Jet wählen</h2>
+            <h2 className="glass-title mb-1 text-3xl text-white">Flugzeug wählen</h2>
             <p className="glass-subtitle mb-4 text-sm">
-              NATO oder Russland — Stats, Spezial und 3D-Vorschau im Hintergrund.
+              Moderne Jets, Early Jets und WWII-Propeller — jeweils eigene Physik, Waffen und Sound.
             </p>
 
             <div className="mb-4 flex flex-wrap gap-2">
@@ -486,6 +486,14 @@ export function Menus({
             <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {list.map((jet) => {
                 const active = jet.id === selectedJetId;
+                const eraColor =
+                  jet.era === 'propeller'
+                    ? '#fbbf24'
+                    : jet.era === 'early_jet'
+                      ? '#fb923c'
+                      : jet.faction === 'nato'
+                        ? '#7dd3fc'
+                        : '#fca5a5';
                 return (
                   <button
                     key={jet.id}
@@ -495,7 +503,7 @@ export function Menus({
                   >
                     <div
                       className="text-[10px] tracking-[0.18em] uppercase"
-                      style={{ color: jet.faction === 'nato' ? '#7dd3fc' : '#fca5a5' }}
+                      style={{ color: eraColor }}
                     >
                       {jet.role}
                     </div>
@@ -516,6 +524,9 @@ export function Menus({
                       <span>TRN ×{jet.stats.turnMult.toFixed(2)}</span>
                       <span>HP {jet.stats.hp}</span>
                     </div>
+                    {jet.stats.missiles === 0 && (
+                      <div className="mt-1 text-[10px] text-amber-200/80">Nur Bordkanone</div>
+                    )}
                   </button>
                 );
               })}
@@ -543,15 +554,43 @@ export function Menus({
                     HP <span className="glass-mono text-white">{selected.stats.hp}</span>
                   </div>
                   <div>
-                    Raketen <span className="glass-mono text-white">{selected.stats.missiles}</span>
+                    Raketen{' '}
+                    <span className="glass-mono text-white">
+                      {selected.stats.missiles > 0 ? selected.stats.missiles : '—'}
+                    </span>
                   </div>
                   <div>
-                    Kanone <span className="glass-mono text-white">{selected.stats.cannonDamage}</span>
+                    Kanone{' '}
+                    <span className="glass-mono text-white">
+                      {selected.stats.cannonDamage} · {selected.stats.cannonRPM} rpm
+                    </span>
                   </div>
                   <div>
-                    Lock <span className="glass-mono text-white">{selected.stats.lockRange} m</span>
+                    {selected.engineType === 'piston' ? (
+                      <>
+                        Motor <span className="glass-mono text-amber-200">Kolben</span>
+                      </>
+                    ) : (
+                      <>
+                        Lock{' '}
+                        <span className="glass-mono text-white">
+                          {selected.stats.lockRange > 0 ? `${selected.stats.lockRange} m` : '—'}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
+                {!selected.physics.hasAfterburner && (
+                  <p className="mt-2 text-[11px] text-white/40">
+                    Kein Nachbrenner
+                    {selected.engineType === 'piston'
+                      ? ' · Propeller-Torque & P-Faktor bei Vollgas'
+                      : ' · Early-Jet-Schub'}
+                    {selected.physics.windSusceptibility > 1
+                      ? ' · windempfindlich / Wing Flutter'
+                      : ''}
+                  </p>
+                )}
               </div>
               <div>
                 <StatBar label="Geschwindigkeit" value={bars.speed} />

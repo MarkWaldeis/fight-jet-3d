@@ -1,17 +1,24 @@
 // Prozeduraler Sound via WebAudio — keine Audiodateien nötig.
-// Triebwerks-Loop (Pitch = Speed), Afterburner, Kanone, Lock-On, Explosionen, Warner.
+// Jet-Turbine oder Kolbenmotor (Propeller) je nach EngineType.
+import type { EngineType } from '../aircraft/JetCatalog';
+
 export class SoundManager {
   private ctx: AudioContext | null = null;
   private engineOsc: OscillatorNode | null = null;
   private engineOsc2: OscillatorNode | null = null;
   private engineGain: GainNode | null = null;
+  private engineFilter: BiquadFilterNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
   private abNoise: AudioBufferSourceNode | null = null;
   private abGain: GainNode | null = null;
+  private propNoise: AudioBufferSourceNode | null = null;
+  private propNoiseGain: GainNode | null = null;
+  private propNoiseFilter: BiquadFilterNode | null = null;
   private lockOsc: OscillatorNode | null = null;
   private lockGain: GainNode | null = null;
   private muted = false;
   private masterVolume = 1;
+  private engineMode: EngineType = 'jet';
 
   // Muss nach User-Geste aufgerufen werden (Browser-Autoplay-Policy)
   init() {
@@ -30,23 +37,23 @@ export class SoundManager {
     // Triebwerk: zwei Sägezähne, leicht verstimmt
     this.engineGain = this.ctx.createGain();
     this.engineGain.gain.value = 0;
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 500;
+    this.engineFilter = this.ctx.createBiquadFilter();
+    this.engineFilter.type = 'lowpass';
+    this.engineFilter.frequency.value = 500;
     this.engineOsc = this.ctx.createOscillator();
     this.engineOsc.type = 'sawtooth';
     this.engineOsc.frequency.value = 60;
     this.engineOsc2 = this.ctx.createOscillator();
     this.engineOsc2.type = 'sawtooth';
     this.engineOsc2.frequency.value = 63;
-    this.engineOsc.connect(filter);
-    this.engineOsc2.connect(filter);
-    filter.connect(this.engineGain);
+    this.engineOsc.connect(this.engineFilter);
+    this.engineOsc2.connect(this.engineFilter);
+    this.engineFilter.connect(this.engineGain);
     this.engineGain.connect(this.ctx.destination);
     this.engineOsc.start();
     this.engineOsc2.start();
 
-    // Afterburner-Rauschen
+    // Afterburner-Rauschen (Jet)
     this.abGain = this.ctx.createGain();
     this.abGain.gain.value = 0;
     const abFilter = this.ctx.createBiquadFilter();
@@ -60,6 +67,21 @@ export class SoundManager {
     this.abGain.connect(this.ctx.destination);
     this.abNoise.start();
 
+    // Propeller-Rauschen (Bandpass, RPM-gekoppelt)
+    this.propNoiseGain = this.ctx.createGain();
+    this.propNoiseGain.gain.value = 0;
+    this.propNoiseFilter = this.ctx.createBiquadFilter();
+    this.propNoiseFilter.type = 'bandpass';
+    this.propNoiseFilter.frequency.value = 180;
+    this.propNoiseFilter.Q.value = 0.7;
+    this.propNoise = this.ctx.createBufferSource();
+    this.propNoise.buffer = this.noiseBuffer;
+    this.propNoise.loop = true;
+    this.propNoise.connect(this.propNoiseFilter);
+    this.propNoiseFilter.connect(this.propNoiseGain);
+    this.propNoiseGain.connect(this.ctx.destination);
+    this.propNoise.start();
+
     // Lock-Ton
     this.lockGain = this.ctx.createGain();
     this.lockGain.gain.value = 0;
@@ -71,11 +93,35 @@ export class SoundManager {
     this.lockOsc.start();
   }
 
+  setEngineMode(mode: EngineType) {
+    this.engineMode = mode;
+    if (!this.ctx) return;
+    // Sofort Filter/Typen anpassen
+    if (mode === 'piston') {
+      if (this.engineOsc) this.engineOsc.type = 'triangle';
+      if (this.engineOsc2) this.engineOsc2.type = 'sawtooth';
+      if (this.engineFilter) {
+        this.engineFilter.type = 'lowpass';
+        this.engineFilter.frequency.value = 320;
+      }
+      if (this.abGain) this.abGain.gain.value = 0;
+    } else {
+      if (this.engineOsc) this.engineOsc.type = 'sawtooth';
+      if (this.engineOsc2) this.engineOsc2.type = 'sawtooth';
+      if (this.engineFilter) {
+        this.engineFilter.type = 'lowpass';
+        this.engineFilter.frequency.value = 500;
+      }
+      if (this.propNoiseGain) this.propNoiseGain.gain.value = 0;
+    }
+  }
+
   setMuted(m: boolean) {
     this.muted = m;
     if (m && this.engineGain) this.engineGain.gain.value = 0;
     if (m && this.abGain) this.abGain.gain.value = 0;
     if (m && this.lockGain) this.lockGain.gain.value = 0;
+    if (m && this.propNoiseGain) this.propNoiseGain.gain.value = 0;
   }
 
   setMasterVolume(v: number) {
@@ -94,18 +140,64 @@ export class SoundManager {
     return n * this.masterVolume;
   }
 
-  updateEngine(speedNorm: number, throttle: number, afterburner: boolean, dt: number) {
+  /**
+   * @param speedNorm 0..1+
+   * @param throttle 0..1
+   * @param afterburner Jet-WEP
+   * @param rpm Optional Prop-RPM 0..1 (defaults to throttle)
+   */
+  updateEngine(
+    speedNorm: number,
+    throttle: number,
+    afterburner: boolean,
+    dt: number,
+    rpm?: number
+  ) {
     if (!this.ctx || !this.engineGain || this.muted) return;
+
+    if (this.engineMode === 'piston') {
+      this.updatePiston(speedNorm, throttle, dt, rpm ?? throttle);
+      return;
+    }
+
     const g = this.engineGain.gain;
     const target = this.vol(0.05 + throttle * 0.1);
     g.value += (target - g.value) * Math.min(1, dt * 5);
     const freq = 45 + speedNorm * 120 + throttle * 30;
     this.engineOsc!.frequency.value = freq;
     this.engineOsc2!.frequency.value = freq * 1.03;
+    if (this.propNoiseGain) {
+      this.propNoiseGain.gain.value += (0 - this.propNoiseGain.gain.value) * Math.min(1, dt * 6);
+    }
     if (this.abGain) {
       const ab = this.abGain.gain;
       const t = afterburner ? this.vol(0.16) : 0;
       ab.value += (t - ab.value) * Math.min(1, dt * 6);
+    }
+  }
+
+  /** Kolbenmotor: tiefes Brummen + Propeller-Rauschen, Pitch ~ RPM */
+  private updatePiston(speedNorm: number, throttle: number, dt: number, rpm: number) {
+    const r = Math.max(0.05, rpm);
+    // Grundbrummen (Zylinder-Takte) — tiefere Frequenzen
+    const base = 28 + r * 55 + speedNorm * 18;
+    this.engineOsc!.frequency.value = base;
+    this.engineOsc2!.frequency.value = base * 1.08 + 2;
+    if (this.engineFilter) {
+      this.engineFilter.frequency.value = 180 + r * 220 + throttle * 80;
+    }
+    const g = this.engineGain!.gain;
+    const target = this.vol(0.07 + throttle * 0.14 + r * 0.04);
+    g.value += (target - g.value) * Math.min(1, dt * 4);
+
+    // Prop-Blatt-Rauschen
+    if (this.propNoiseGain && this.propNoiseFilter) {
+      this.propNoiseFilter.frequency.value = 90 + r * 280;
+      const pn = this.vol(0.04 + r * 0.12);
+      this.propNoiseGain.gain.value += (pn - this.propNoiseGain.gain.value) * Math.min(1, dt * 5);
+    }
+    if (this.abGain) {
+      this.abGain.gain.value += (0 - this.abGain.gain.value) * Math.min(1, dt * 8);
     }
   }
 
@@ -117,12 +209,15 @@ export class SoundManager {
     const g = this.ctx.createGain();
     const f = this.ctx.createBiquadFilter();
     f.type = 'lowpass';
-    f.frequency.setValueAtTime(2500, t);
-    f.frequency.exponentialRampToValueAtTime(300, t + 0.08);
-    g.gain.setValueAtTime(0.22, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    // Props: dumpferer MG-Sound
+    const low = this.engineMode === 'piston' ? 1400 : 2500;
+    const end = this.engineMode === 'piston' ? 180 : 300;
+    f.frequency.setValueAtTime(low, t);
+    f.frequency.exponentialRampToValueAtTime(end, t + 0.08);
+    g.gain.setValueAtTime(this.engineMode === 'piston' ? 0.28 : 0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + (this.engineMode === 'piston' ? 0.12 : 0.09));
     src.connect(f); f.connect(g); g.connect(this.ctx.destination);
-    src.start(t); src.stop(t + 0.1);
+    src.start(t); src.stop(t + 0.14);
   }
 
   missileLaunch() {

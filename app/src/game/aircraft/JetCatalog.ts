@@ -1,4 +1,4 @@
-// Katalog fliegbarer Jets: NATO & Russland/Sowjet, realistische relative Stats.
+// Katalog fliegbarer Jets: NATO & Russland/Sowjet, inkl. WWII-Propeller & Early Jets.
 import * as THREE from 'three';
 import type { ModelOrient } from './GlbJetLoader';
 
@@ -12,7 +12,16 @@ export type JetId =
   | 'l39'
   | 'su25'
   | 'su34'
-  | 'su57';
+  | 'su57'
+  | 'p51'
+  | 'p40'
+  | 'spitfire'
+  | 'mig3'
+  | 'mig15';
+
+/** Antrieb / Epoche — steuert Sound, Nachbrenner, Propeller-FX, Windanfälligkeit. */
+export type EngineType = 'jet' | 'piston';
+export type AircraftEra = 'modern' | 'early_jet' | 'propeller';
 
 /**
  * Visuelle Ankerpunkte am normalisierten Modell (lokal, Nase = -Z, Heck = +Z).
@@ -25,6 +34,33 @@ export interface JetFxSpec {
   /** Sichtbare Waffenstationen, exakt im normalisierten GLB-Raum kalibriert. */
   hardpoints: [number, number, number][];
   wingHalfSpan: number;
+}
+
+/**
+ * Differenziertes Flugmodell (relativ zu CONFIG.flight).
+ * Propeller & Early Jets: träger, mehr Drag, Stall, Torque, Wind.
+ */
+export interface FlightPhysicsProfile {
+  /** Parasitärer Widerstand (1 = F-16) */
+  dragMult: number;
+  /** Induzierter Widerstand / Energy Bleed in Kurven */
+  inducedDragMult: number;
+  /** Schub / Beschleunigung */
+  thrustMult: number;
+  /** Nachbrenner / WEP erlaubt */
+  hasAfterburner: boolean;
+  /** Propeller-Drehmoment: Roll-Tendenz bei Vollgas (rad/s @ throttle 1) */
+  torqueRoll: number;
+  /** P-Faktor: leichter Yaw-Zug bei Vollgas (rad/s) */
+  pFactorYaw: number;
+  /** 0 = modern stabil, 1–2 = leichte Propellerzelle (Wind + Flutter) */
+  windSusceptibility: number;
+  /** Stall-Schwelle relativ (höher = früher Stall) */
+  stallSpeedMult: number;
+  /** Stärkerer Nase-Drop im Stall */
+  stallDropMult: number;
+  /** Ziel-Rumpflänge beim Laden (m) — Props sind kleiner */
+  modelLengthM?: number;
 }
 
 export interface JetDef {
@@ -41,6 +77,9 @@ export interface JetDef {
    */
   modelOrient?: ModelOrient;
   traits: string[];
+  era: AircraftEra;
+  engineType: EngineType;
+  physics: FlightPhysicsProfile;
   stats: {
     hp: number;
     /** Multiplikator auf max/cruise/AB-Speed (1.0 = Basis F-16) */
@@ -63,6 +102,35 @@ export interface JetDef {
   };
   fx: JetFxSpec;
 }
+
+/** Standard-Physik moderner Jets */
+export const MODERN_JET_PHYSICS: FlightPhysicsProfile = {
+  dragMult: 1,
+  inducedDragMult: 1,
+  thrustMult: 1,
+  hasAfterburner: true,
+  torqueRoll: 0,
+  pFactorYaw: 0,
+  windSusceptibility: 0.25,
+  stallSpeedMult: 1,
+  stallDropMult: 1,
+  modelLengthM: 15.5,
+};
+
+const PROP_FX = (
+  wing = 5.5,
+  hardpoints: [number, number, number][] = []
+): JetFxSpec => ({
+  // Kein echter Jet-Nozzle — EngineFx bleibt schwach / unsichtbar
+  nozzles: [[0, -0.2, 6.2]],
+  nozzleScale: 0.01,
+  muzzles: [
+    [-0.45, -0.15, -5.8],
+    [0.45, -0.15, -5.8],
+  ],
+  hardpoints,
+  wingHalfSpan: wing,
+});
 
 const singleNozzle = (
   y = -0.4,
@@ -111,6 +179,9 @@ export const JET_CATALOG: JetDef[] = [
       'Der agile Multirole-Klassiker. Gute Wendigkeit, M61 Vulcan und Sidewinder. Ideal zum Einsteigen.',
     modelUrl: './models/player-jet.glb',
     traits: ['Wendig', 'Vulcan', '6× AIM-9'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: { ...MODERN_JET_PHYSICS },
     stats: {
       hp: 100,
       speedMult: 1.0, // ~Mach 2 real, Basis
@@ -145,6 +216,9 @@ export const JET_CATALOG: JetDef[] = [
       'Tarnkappen-Jäger der 5. Generation. Starke Sensoren und BVR-Raketen, in engen Kurven etwas träger.',
     modelUrl: './models/f35.glb',
     traits: ['Stealth', 'BVR-Lock', '8× AMRAAM'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: { ...MODERN_JET_PHYSICS, windSusceptibility: 0.2 },
     stats: {
       hp: 130,
       speedMult: 1.02, // ~Mach 1.6
@@ -180,6 +254,9 @@ export const JET_CATALOG: JetDef[] = [
       'Navy-Legende mit Schwenkflügeln und AIM-54 Phoenix. Sehr schnell in gerader Linie, schwer und träge in engen Turns.',
     modelUrl: './models/f14.glb',
     traits: ['Phoenix BVR', 'Twin TF30', 'Carrier'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: { ...MODERN_JET_PHYSICS, modelLengthM: 18.5 },
     stats: {
       hp: 125,
       speedMult: 1.18, // ~Mach 2.3+
@@ -214,6 +291,16 @@ export const JET_CATALOG: JetDef[] = [
       'Leichter Trainer/Angriffsjet. Langsam, aber wendig und übersichtlich — gut für Anfänger und Bodenziele.',
     modelUrl: './models/l39.glb',
     traits: ['Wendig', 'Leicht', 'CAS-Light'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: {
+      ...MODERN_JET_PHYSICS,
+      hasAfterburner: false,
+      thrustMult: 0.85,
+      dragMult: 1.1,
+      windSusceptibility: 0.55,
+      modelLengthM: 12.2,
+    },
     stats: {
       hp: 85,
       speedMult: 0.72, // ~Mach 0.8
@@ -247,6 +334,9 @@ export const JET_CATALOG: JetDef[] = [
       'Experimenteller High-Speed-Interceptor. Extrem schnell, Rail-Burst-Kanone, wenige aber schwere IR-Raketen.',
     modelUrl: './models/elite-jaeger.glb',
     traits: ['Top-Speed', 'Rail-Burst', '3× Heavy IR'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: { ...MODERN_JET_PHYSICS, windSusceptibility: 0.18 },
     stats: {
       hp: 90,
       speedMult: 1.2,
@@ -271,6 +361,140 @@ export const JET_CATALOG: JetDef[] = [
     ]),
   },
 
+  // ─── NATO · WWII Propeller ──────────────────────────────────────────────
+  {
+    id: 'p51',
+    faction: 'nato',
+    name: 'P-51D Mustang',
+    callsign: 'MUSTANG 1',
+    role: 'WWII · Langstreckenjäger',
+    description:
+      'Legendärer Propellerjäger. Max. ~700 km/h, kein Nachbrenner, starkes Propeller-Drehmoment. Nur Bordwaffen — kein AIM-9.',
+    modelUrl: './models/p51-mustang.glb',
+    traits: ['Propeller', 'MG/Kanone', 'Torque'],
+    era: 'propeller',
+    engineType: 'piston',
+    physics: {
+      dragMult: 1.55,
+      inducedDragMult: 1.65,
+      thrustMult: 0.55,
+      hasAfterburner: false,
+      torqueRoll: 0.42,
+      pFactorYaw: 0.18,
+      windSusceptibility: 1.55,
+      stallSpeedMult: 1.15,
+      stallDropMult: 1.35,
+      modelLengthM: 9.8,
+    },
+    stats: {
+      hp: 72,
+      speedMult: 0.55, // ~700 km/h vs Jet-Basis
+      turnMult: 0.92,
+      cannonDamage: 3.4,
+      cannonRPM: 750,
+      cannonSpread: 0.028,
+      missiles: 0,
+      lockRange: 0,
+      lockTime: 99,
+      lockAngleDeg: 8,
+      flareCount: 0,
+    },
+    special: {
+      id: 'merlin',
+      label: 'Packard Merlin V-1650',
+      detail: 'Kolbenmotor + Propeller-Torque & P-Faktor bei Vollgas',
+    },
+    fx: PROP_FX(5.6, []),
+  },
+  {
+    id: 'p40',
+    faction: 'nato',
+    name: 'P-40 Warhawk',
+    callsign: 'WARHAWK',
+    role: 'WWII · Frontjäger',
+    description:
+      'Robuster, aber langsamerer Propellerjäger (~580 km/h). Schwerfällig, starker Luftwiderstand, ideale Einstiegs-Prop-Maschine.',
+    modelUrl: './models/p40.glb',
+    traits: ['Propeller', 'Robust', 'Langsam'],
+    era: 'propeller',
+    engineType: 'piston',
+    physics: {
+      dragMult: 1.75,
+      inducedDragMult: 1.8,
+      thrustMult: 0.48,
+      hasAfterburner: false,
+      torqueRoll: 0.48,
+      pFactorYaw: 0.22,
+      windSusceptibility: 1.7,
+      stallSpeedMult: 1.2,
+      stallDropMult: 1.4,
+      modelLengthM: 9.7,
+    },
+    stats: {
+      hp: 80,
+      speedMult: 0.46,
+      turnMult: 0.82,
+      cannonDamage: 3.0,
+      cannonRPM: 700,
+      cannonSpread: 0.032,
+      missiles: 0,
+      lockRange: 0,
+      lockTime: 99,
+      lockAngleDeg: 8,
+      flareCount: 0,
+    },
+    special: {
+      id: 'allison',
+      label: 'Allison V-1710',
+      detail: 'Stärkeres Torque-Roll, spürbar träger als Mustang',
+    },
+    fx: PROP_FX(5.4, []),
+  },
+  {
+    id: 'spitfire',
+    faction: 'nato',
+    name: 'Supermarine Spitfire',
+    callsign: 'SPIT 9',
+    role: 'WWII · Dogfighter',
+    description:
+      'Wendigster der Propeller-Klassiker. Geringere Top-Speed als die Mustang, aber engste Kurven — und empfindlich gegen Windböen.',
+    modelUrl: './models/spitfire.glb',
+    traits: ['Propeller', 'Wendig', 'Ellipsenflügel'],
+    era: 'propeller',
+    engineType: 'piston',
+    physics: {
+      dragMult: 1.45,
+      inducedDragMult: 1.5,
+      thrustMult: 0.52,
+      hasAfterburner: false,
+      torqueRoll: 0.38,
+      pFactorYaw: 0.16,
+      windSusceptibility: 1.85,
+      stallSpeedMult: 1.08,
+      stallDropMult: 1.25,
+      modelLengthM: 9.1,
+    },
+    stats: {
+      hp: 65,
+      speedMult: 0.52,
+      turnMult: 1.08,
+      cannonDamage: 3.6,
+      cannonRPM: 800,
+      cannonSpread: 0.026,
+      missiles: 0,
+      lockRange: 0,
+      lockTime: 99,
+      lockAngleDeg: 8,
+      flareCount: 0,
+    },
+    special: {
+      id: 'elliptical',
+      label: 'Elliptical Wing',
+      detail: 'Beste Prop-Wendigkeit, höchstes Flutter-Risiko',
+    },
+    fx: PROP_FX(5.5, []),
+  },
+
   // ─── RUSSLAND / SOWJET ──────────────────────────────────────────────────
   {
     id: 'su25',
@@ -282,6 +506,16 @@ export const JET_CATALOG: JetDef[] = [
       'Gepanzerter Erdkampfflugzeug. Langsam, aber extrem robust — ideal gegen SAM und Bodenziele, im Dogfight im Nachteil.',
     modelUrl: './models/su25.glb',
     traits: ['Panzerung', 'CAS', '30mm GSh'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: {
+      ...MODERN_JET_PHYSICS,
+      hasAfterburner: false,
+      thrustMult: 0.75,
+      dragMult: 1.2,
+      windSusceptibility: 0.4,
+      modelLengthM: 15.5,
+    },
     stats: {
       hp: 160,
       speedMult: 0.68, // ~Mach 0.8, langsam
@@ -315,6 +549,9 @@ export const JET_CATALOG: JetDef[] = [
       'Schwerer Jagdbomber mit starker Bewaffnung. Solide Geschwindigkeit, mittlere Wendigkeit, viele Raketen.',
     modelUrl: './models/su34.glb',
     traits: ['Strike', 'Twin AL-31', '8× R-77'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: { ...MODERN_JET_PHYSICS, modelLengthM: 23 },
     stats: {
       hp: 140,
       speedMult: 0.98, // ~Mach 1.8
@@ -352,6 +589,9 @@ export const JET_CATALOG: JetDef[] = [
     // GLB zeigt nach Standard-Align mit dem Heck nach vorn — 180° Yaw korrigiert Nase/−Z
     modelOrient: { yawDeg: 180 },
     traits: ['5th Gen', 'Supermaneuver', 'BVR'],
+    era: 'modern',
+    engineType: 'jet',
+    physics: { ...MODERN_JET_PHYSICS, windSusceptibility: 0.22, modelLengthM: 20 },
     stats: {
       hp: 120,
       speedMult: 1.16, // ~Mach 2+
@@ -384,6 +624,96 @@ export const JET_CATALOG: JetDef[] = [
       wingHalfSpan: 7.2,
     },
   },
+
+  // ─── RUSSLAND · WWII Prop + Early Jet ───────────────────────────────────
+  {
+    id: 'mig3',
+    faction: 'russia',
+    name: 'MiG-3',
+    callsign: 'SOKOL 3',
+    role: 'WWII · Höhenjäger',
+    description:
+      'Sowjetischer Hochgeschwindigkeits-Propellerjäger. In großer Höhe stark, in engen Turns und bei Turbulenz unnachgiebig.',
+    modelUrl: './models/mig3.glb',
+    traits: ['Propeller', 'Höhe', 'MG'],
+    era: 'propeller',
+    engineType: 'piston',
+    physics: {
+      dragMult: 1.6,
+      inducedDragMult: 1.7,
+      thrustMult: 0.5,
+      hasAfterburner: false,
+      torqueRoll: 0.4,
+      pFactorYaw: 0.2,
+      windSusceptibility: 1.6,
+      stallSpeedMult: 1.18,
+      stallDropMult: 1.38,
+      modelLengthM: 8.3,
+    },
+    stats: {
+      hp: 68,
+      speedMult: 0.5,
+      turnMult: 0.86,
+      cannonDamage: 3.2,
+      cannonRPM: 720,
+      cannonSpread: 0.03,
+      missiles: 0,
+      lockRange: 0,
+      lockTime: 99,
+      lockAngleDeg: 8,
+      flareCount: 0,
+    },
+    special: {
+      id: 'am35',
+      label: 'Mikulin AM-35A',
+      detail: 'Kolbenmotor, spürbares P-Faktor-Gieren',
+    },
+    fx: PROP_FX(5.1, []),
+  },
+  {
+    id: 'mig15',
+    faction: 'russia',
+    name: 'MiG-15bis',
+    callsign: 'FAGOT 15',
+    role: 'Early Jet · Korea-Krieg',
+    description:
+      'Früher Cold-War-Strahljäger. Schneller als WWII-Props (~1050 km/h), aber ohne moderne Nachbrenner-Power und mit steilem Kurvenverlust.',
+    modelUrl: './models/mig15.glb',
+    traits: ['Early Jet', '23/37mm', 'Kein AB'],
+    era: 'early_jet',
+    engineType: 'jet',
+    physics: {
+      dragMult: 1.35,
+      inducedDragMult: 1.55,
+      thrustMult: 0.62,
+      hasAfterburner: false,
+      torqueRoll: 0,
+      pFactorYaw: 0,
+      windSusceptibility: 1.15,
+      stallSpeedMult: 1.25,
+      stallDropMult: 1.45,
+      modelLengthM: 10.1,
+    },
+    stats: {
+      hp: 88,
+      speedMult: 0.7, // ~Mach 0.9 early jet
+      turnMult: 0.88,
+      cannonDamage: 5.5,
+      cannonRPM: 450,
+      cannonSpread: 0.022,
+      missiles: 0,
+      lockRange: 0,
+      lockTime: 99,
+      lockAngleDeg: 10,
+      flareCount: 2,
+    },
+    special: {
+      id: 'n37',
+      label: 'N-37 + NR-23',
+      detail: 'Schwere Bordkanonen, langsame Feuerrate, kein Lenkwaffen-Loadout',
+    },
+    fx: singleNozzle(-0.35, 6.5, 0.55, 5.0, []),
+  },
 ];
 
 export const FACTION_LABELS: Record<JetFaction, string> = {
@@ -397,6 +727,20 @@ export function getJetDef(id: JetId): JetDef {
 
 export function jetsByFaction(faction: JetFaction): JetDef[] {
   return JET_CATALOG.filter((j) => j.faction === faction);
+}
+
+/** Legacy / schwächere Maschinen für frühe Wellen */
+export function legacyJetIds(): JetId[] {
+  return JET_CATALOG.filter((j) => j.era === 'propeller' || j.era === 'early_jet').map((j) => j.id);
+}
+
+export function isLegacyAircraft(id: JetId): boolean {
+  const d = getJetDef(id);
+  return d.era === 'propeller' || d.era === 'early_jet';
+}
+
+export function hasGuidedMissiles(def: JetDef): boolean {
+  return def.stats.missiles > 0 && def.stats.lockRange > 0;
 }
 
 /** FX-Tupel als THREE.Vector3-Arrays (frisch pro Aufruf). */

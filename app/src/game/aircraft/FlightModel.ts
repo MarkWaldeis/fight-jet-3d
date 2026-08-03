@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
+import type { FlightPhysicsProfile } from './JetCatalog';
+import { MODERN_JET_PHYSICS } from './JetCatalog';
 
 export type FlightInput = {
   pitch: number;
@@ -16,6 +18,8 @@ export type FlightControlOpts = {
   fbwBlend?: number;
   /** Airbrake aktiv */
   airbrake?: boolean;
+  /** Aktueller Wind (Welt, m/s) — wirkt stärker auf anfällige Zellen */
+  wind?: THREE.Vector3 | null;
 };
 
 /**
@@ -24,6 +28,7 @@ export type FlightControlOpts = {
  * - Roll-to-Turn FBW zum Mouse-Aim-Punkt
  * - Energy Bleed durch Induced Drag bei High-G
  * - Geschwindigkeitsabhängige Ruderwirkung + Stall
+ * - Per-Aircraft Physik (Props: Torque, mehr Drag, kein AB)
  */
 export class FlightModel {
   readonly object: THREE.Object3D;
@@ -37,6 +42,8 @@ export class FlightModel {
   sideslip = 0;
   speedMult = 1;
   turnMult = 1;
+  /** Per-Jet Physik (Drag, Torque, Stall, Wind) */
+  physics: FlightPhysicsProfile = { ...MODERN_JET_PHYSICS };
 
   /** Tatsächliche Flugrichtung (unit, Welt) */
   readonly velocityDir = new THREE.Vector3(0, 0, -1);
@@ -58,6 +65,7 @@ export class FlightModel {
   private _localAim = new THREE.Vector3();
   private _tmp = new THREE.Vector3();
   private _tmp2 = new THREE.Vector3();
+  private _wind = new THREE.Vector3();
   private _qInv = new THREE.Quaternion();
 
   /** Geglättete Ruder-Befehle (Smooth Recapture) */
@@ -66,9 +74,15 @@ export class FlightModel {
   private cmdYaw = 0;
   /** Integrierte Roll-Rate (Trägheit) */
   private rollOmega = 0;
+  /** Spin rate when fully stalled (trudeln) */
+  private spinOmega = 0;
 
   constructor(object: THREE.Object3D) {
     this.object = object;
+  }
+
+  applyPhysics(profile: FlightPhysicsProfile) {
+    this.physics = { ...profile };
   }
 
   get forward(): THREE.Vector3 {
@@ -89,6 +103,8 @@ export class FlightModel {
     const F = CONFIG.flight;
     const sm = this.speedMult;
     const tm = this.turnMult;
+    const P = this.physics;
+    const canAB = P.hasAfterburner && afterburner;
 
     // --- Basisvektoren ---
     this._fwd.set(0, 0, -1).applyQuaternion(this.object.quaternion).normalize();
@@ -155,9 +171,10 @@ export class FlightModel {
     this.bankSigned = bank;
 
     // --- Realistisches Rollen: Winkelbeschleunigung + Trägheit ---
-    // Zielrate aus Stick; Omega läuft weich nach (Anlauf/Auslauf)
+    // Ältere Zellen: etwas trägerer Roll-Anlauf
+    const rollInertia = 1 + (P.dragMult - 1) * 0.35;
     const targetRollOmega = this.cmdRoll * F.rollRate * rollAuthority;
-    const rollAccel = F.rollAccel ?? 9.5;
+    const rollAccel = (F.rollAccel ?? 9.5) / rollInertia;
     const rollDamp = F.rollDamping ?? 4.2;
 
     if (Math.abs(this.cmdRoll) > 0.06) {
@@ -173,19 +190,48 @@ export class FlightModel {
       }
     }
 
-    // Stall: Nase fällt, Ruder weich
-    this.stalled = this.speed < F.minSpeed;
+    // --- Propeller-Torque & P-Faktor (Vollgas zieht zur Seite) ---
+    if (P.torqueRoll !== 0 || P.pFactorYaw !== 0) {
+      const thr = this.throttle;
+      // Torque steigt mit Gas, etwas stärker bei niedriger Speed (weniger Gegenkraft)
+      const lowSpeed = THREE.MathUtils.clamp(1.15 - this.speed / (F.cruiseSpeed * sm), 0.35, 1.2);
+      this.rollOmega += P.torqueRoll * thr * thr * lowSpeed * dt * 2.2;
+      yawRate += P.pFactorYaw * thr * thr * lowSpeed;
+    }
+
+    // --- Windböen: ältere Flugzeuge stärker betroffen ---
+    if (opts.wind && opts.wind.lengthSq() > 0.01) {
+      this._wind.copy(opts.wind);
+      const sus = P.windSusceptibility;
+      // Seitenwind → Roll/Yaw Störung
+      const side = this._wind.dot(this._right);
+      const upW = this._wind.dot(this._up);
+      this.rollOmega += side * 0.012 * sus * dt * 8;
+      yawRate += side * 0.004 * sus;
+      pitchRate += upW * 0.0035 * sus;
+    }
+
+    // Stall: Nase fällt, Ruder weich, ggf. Trudeln
+    const stallThreshold = F.minSpeed * P.stallSpeedMult * Math.max(0.75, Math.sqrt(sm));
+    this.stalled = this.speed < stallThreshold;
     if (this.stalled) {
-      const stallFactor = 1 - this.speed / F.minSpeed;
-      pitchRate -= F.stallPitchDrop * stallFactor;
+      const stallFactor = 1 - this.speed / Math.max(1, stallThreshold);
+      pitchRate -= F.stallPitchDrop * P.stallDropMult * stallFactor;
       pitchRate *= 0.45;
       this.rollOmega *= 0.45;
       yawRate *= 0.35;
+      // Trudeln: wachsende Spin-Rate
+      const spinTarget = (Math.sign(this.rollOmega) || 1) * stallFactor * 1.8 * P.stallDropMult;
+      this.spinOmega += (spinTarget - this.spinOmega) * Math.min(1, dt * 1.5);
+      this.rollOmega += this.spinOmega * dt * 4;
+      yawRate += this.spinOmega * 0.35;
+    } else {
+      this.spinOmega *= Math.exp(-3 * dt);
     }
 
     // Clamp max roll rate
     const maxOmega = F.rollRate * 1.25 * rollAuthority;
-    this.rollOmega = THREE.MathUtils.clamp(this.rollOmega, -maxOmega, maxOmega);
+    this.rollOmega = THREE.MathUtils.clamp(this.rollOmega, -maxOmega * 1.35, maxOmega * 1.35);
     this.rollRateActual = this.rollOmega;
 
     // --- Rotation (lokale Achsen) ---
@@ -206,9 +252,9 @@ export class FlightModel {
     this._fwd.set(0, 0, -1).applyQuaternion(this.object.quaternion).normalize();
 
     // --- Velocity Vector folgt Nase mit Verzögerung (AoA) ---
-    // Bei niedriger Speed / hartem Pull größerer AoA
+    // Props / Early Jets: trägeres Velocity-Align (höherer AoA)
     const pull = Math.abs(this.cmdPitch);
-    const alignBase = F.velocityAlignRate * (0.55 + agility * 0.55);
+    const alignBase = F.velocityAlignRate * (0.55 + agility * 0.55) / (0.75 + P.inducedDragMult * 0.25);
     // High-G / Pull → Velocity hinkt hinterher (Nase schert ein)
     const align = alignBase / (1 + pull * 1.4 + (this.stalled ? 1.5 : 0));
     const aK = 1 - Math.exp(-align * dt);
@@ -230,31 +276,61 @@ export class FlightModel {
     );
 
     // --- Energie / Drag ---
-    const targetMax = (afterburner ? F.afterburnerSpeed : F.maxSpeed) * sm;
-    let accel = (afterburner ? F.afterburnerAccel : F.thrustAccel) * this.throttle * sm;
+    const targetMax = (canAB ? F.afterburnerSpeed : F.maxSpeed) * sm;
+    let accel =
+      (canAB ? F.afterburnerAccel : F.thrustAccel) * this.throttle * sm * P.thrustMult;
+    // WEP ohne echten AB: leichte Notleistung (~8 %) bei Props/Early Jets wenn Tab
+    if (!P.hasAfterburner && afterburner) {
+      accel *= 1.08;
+    }
     if (opts.airbrake) accel -= 55;
 
     // Parasite drag
-    let drag = F.dragBase * this.speed * (this.speed / (F.maxSpeed * sm));
+    let drag =
+      F.dragBase * P.dragMult * this.speed * (this.speed / Math.max(40, F.maxSpeed * sm));
 
-    // Induced drag ~ G² und AoA (Energy Bleed in Kurven)
-    const loadApprox = 1 + Math.abs(this.cmdPitch) * 5.5 * (this.speed / F.cruiseSpeed);
-    drag += F.inducedDrag * Math.max(0, loadApprox - 1) * this.speed * 0.35;
-    drag += F.aoaDrag * Math.abs(this.aoa) * this.speed;
+    // Induced drag ~ G² und AoA (Energy Bleed in Kurven) — steiler bei alten Zellen
+    const loadApprox = 1 + Math.abs(this.cmdPitch) * 5.5 * (this.speed / Math.max(40, F.cruiseSpeed * sm));
+    drag +=
+      F.inducedDrag *
+      P.inducedDragMult *
+      Math.max(0, loadApprox - 1) *
+      this.speed *
+      0.35;
+    drag += F.aoaDrag * P.inducedDragMult * Math.abs(this.aoa) * this.speed;
 
     // Steigen bremst, Sinken beschleunigt (entlang Velocity)
     const climbEffect = -this.velocityDir.y * 22;
     this.speed += (accel - drag + climbEffect) * dt;
-    const minSpd = opts.airbrake ? 35 : 30;
-    this.speed = THREE.MathUtils.clamp(this.speed, minSpd, targetMax * (opts.airbrake ? 0.92 : 1));
+
+    // Wind: leichter Geschwindigkeits-Offset (Gegenwind bremst)
+    if (opts.wind && opts.wind.lengthSq() > 0.01) {
+      const head = -opts.wind.dot(this.velocityDir);
+      this.speed += head * 0.08 * P.windSusceptibility * dt;
+      // Seitliche Versetzung
+      this.object.position.addScaledVector(opts.wind, dt * 0.12 * P.windSusceptibility);
+    }
+
+    const minSpd = opts.airbrake ? 28 : Math.max(22, 30 * (0.85 + P.stallSpeedMult * 0.1));
+    this.speed = THREE.MathUtils.clamp(
+      this.speed,
+      minSpd,
+      targetMax * (opts.airbrake ? 0.92 : 1)
+    );
 
     // --- Position entlang Velocity Vector (nicht Nase!) ---
     const vel = this._tmp2.copy(this.velocityDir).multiplyScalar(this.speed);
-    const gravityFactor = THREE.MathUtils.clamp(1.3 - this.speed / F.cruiseSpeed, 0, 1);
-    vel.y -= F.gravityPull * gravityFactor * dt * 8;
+    const gravityFactor = THREE.MathUtils.clamp(
+      1.3 - this.speed / Math.max(40, F.cruiseSpeed * sm),
+      0,
+      1.4
+    );
+    // Stall: stärkerer Höhenverlust
+    const stallSink = this.stalled ? 1 + (1 - this.speed / Math.max(1, stallThreshold)) * 1.8 : 1;
+    vel.y -= F.gravityPull * gravityFactor * stallSink * dt * 8;
     // Gravity zieht Velocity-Dir leicht nach unten bei niedriger Speed
     if (gravityFactor > 0.05) {
-      this.velocityDir.y -= gravityFactor * 0.35 * dt;
+      this.velocityDir.y -= gravityFactor * 0.35 * stallSink * dt;
       this.velocityDir.normalize();
     }
     this.object.position.addScaledVector(vel, dt);
@@ -344,6 +420,7 @@ export class FlightModel {
     this.rollOmega = 0;
     this.rollRateActual = 0;
     this.bankSigned = 0;
+    this.spinOmega = 0;
     this.prevVel.copy(this.velocityDir).multiplyScalar(this.speed);
   }
 }

@@ -102,6 +102,8 @@ export class CameraController {
       rollRate?: number;
       /** Bank −1..1 */
       bank?: number;
+      /** 0..1+ Buffeting vor Stall / Wing Flutter (ältere Zellen stärker) */
+      buffeting?: number;
     }
   ) {
     const C = CONFIG.camera;
@@ -114,6 +116,7 @@ export class CameraController {
     const camFit = extras?.camFit;
     const rollRate = extras?.rollRate ?? 0;
     const bank = extras?.bank ?? 0;
+    const buffeting = extras?.buffeting ?? 0;
 
     // Free-Look Hold
     this.updateFreeLookState(freeHeld, camera);
@@ -137,6 +140,8 @@ export class CameraController {
     if (afterburner) targetShake += C.shakeWep;
     if (firing) targetShake += C.shakeFire;
     if (stalled) targetShake += C.shakeStall;
+    // Pre-stall buffeting / wing flutter
+    if (buffeting > 0.05) targetShake += C.shakeStall * buffeting * 0.85;
     this.shakeAmp += (targetShake - this.shakeAmp) * Math.min(1, dt * 8);
     this.shakeTime += dt;
 

@@ -22,6 +22,8 @@ export class PlayerJet extends Aircraft {
   crashed = false;
   /** Fallback-Mündungen aus dem Katalog, bis GLB-Anker kalibriert sind. */
   private catalogMuzzles: THREE.Vector3[] = jetFxVectors(getJetDef('f16')).muzzles;
+  /** Aktueller Wind (von Game gesetzt) */
+  wind = new THREE.Vector3();
 
   constructor() {
     super('VIPER 01', { bodyColor: 0x9aa4ae, accentColor: 0xc8352e }, CONFIG.player.hp, 'us', true);
@@ -36,6 +38,7 @@ export class PlayerJet extends Aircraft {
     this.flaresLeft = def.stats.flareCount;
     this.flight.speedMult = def.stats.speedMult;
     this.flight.turnMult = def.stats.turnMult;
+    this.applyFlightPhysics(def.physics, def.engineType);
     this.catalogMuzzles = jetFxVectors(def).muzzles;
   }
 
@@ -62,12 +65,14 @@ export class PlayerJet extends Aircraft {
     this.lockProgress = 0;
     this.flight.speedMult = s.speedMult;
     this.flight.turnMult = s.turnMult;
+    this.applyFlightPhysics(this.loadout.physics, this.loadout.engineType);
     this.object.position.set(0, 900, 3000);
     this.object.rotation.set(0, 0, 0);
     this.object.quaternion.identity();
     this.flight.speed = CONFIG.flight.cruiseSpeed * s.speedMult;
     this.flight.snapVelocityToNose();
     this.fbwBlend = 1;
+    this.flutter.reset();
   }
 
   get maxHp() {
@@ -84,6 +89,12 @@ export class PlayerJet extends Aircraft {
   }
   get lockAngleDeg() {
     return this.loadout.stats.lockAngleDeg;
+  }
+  get hasMissiles() {
+    return this.loadout.stats.missiles > 0 && this.loadout.stats.lockRange > 0;
+  }
+  get hasAfterburner() {
+    return this.loadout.physics.hasAfterburner;
   }
 
   update(
@@ -106,14 +117,36 @@ export class PlayerJet extends Aircraft {
       this.fbwBlend = Math.min(1, this.fbwBlend + dt * CONFIG.flight.fbwRecaptureRate);
     }
 
+    // Props / Early Jets ohne echten Nachbrenner: WEP nur leichte Notleistung
+    const ab = input.afterburner && this.loadout.physics.hasAfterburner
+      ? true
+      : input.afterburner && !this.loadout.physics.hasAfterburner
+        ? true // FlightModel drosselt auf 8 % Boost
+        : false;
+
     this.flight.throttle = input.throttle;
-    this.flight.update(dt, input, input.afterburner, {
+    this.flight.update(dt, input, ab, {
       aimDir: opts?.aimDir ?? null,
       mouseAim: !!opts?.mouseAim && this.fbwBlend > 0.02,
       fbwBlend: this.fbwBlend,
       airbrake: input.airbrake,
+      wind: this.wind,
     });
-    this.updateEngineFx(dt, input.throttle, input.afterburner);
+
+    // Engine-FX: Jets mit Flamme; Props ohne
+    if (this.engineType === 'jet') {
+      this.updateEngineFx(
+        dt,
+        input.throttle,
+        input.afterburner && this.loadout.physics.hasAfterburner
+      );
+    } else {
+      this.updateEngineFx(dt, 0, false);
+    }
+
+    const cruise = CONFIG.flight.cruiseSpeed * this.flight.speedMult;
+    const maxSpd = CONFIG.flight.maxSpeed * this.flight.speedMult;
+    this.updateLegacyFx(dt, input.throttle, this.wind.length(), cruise, maxSpd);
     this.contrails.update(dt, this.flight.speed, this.flight.gForce);
 
     const half = terrain.size / 2 - 300;

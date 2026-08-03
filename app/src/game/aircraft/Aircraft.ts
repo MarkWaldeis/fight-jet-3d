@@ -3,6 +3,9 @@ import { FlightModel } from './FlightModel';
 import { buildF16, Contrails } from './JetModel';
 import { EngineFx } from './EngineFx';
 import { computeFxAnchors, type FxAnchors } from './FxAnchors';
+import { PropellerSystem } from './PropellerSystem';
+import { WingFlutter } from './WindAndFlutter';
+import type { EngineType, FlightPhysicsProfile } from './JetCatalog';
 
 /** Chase-Cam-Anpassung je nach Modellgröße (wingspan / height). */
 export type CamFit = {
@@ -36,6 +39,15 @@ export abstract class Aircraft {
   /** Rumpflänge / Spannweite (m), für HUD & Cam */
   visualLength = 15.5;
   visualSpan = 10;
+  /** Propeller-Animation (nur piston) */
+  readonly propeller = new PropellerSystem();
+  /** Visuelles Wing-Flutter / Buffeting */
+  readonly flutter = new WingFlutter();
+  engineType: EngineType = 'jet';
+  /** 0..1 Kamera-Buffeting aus Flutter/Stall */
+  get buffeting() {
+    return this.flutter.buffeting;
+  }
 
   constructor(
     name: string,
@@ -69,6 +81,11 @@ export abstract class Aircraft {
     this.object.add(this.contrails.group);
   }
 
+  applyFlightPhysics(profile: FlightPhysicsProfile, engineType: EngineType = 'jet') {
+    this.engineType = engineType;
+    this.flight.applyPhysics(profile);
+  }
+
   /**
    * Ersetzt das Visual und kalibriert Düsen/Mündungen am echten Modell-AABB.
    * @param catalogHint Katalog-Hinweis (Twin-Düsen etc.)
@@ -81,6 +98,7 @@ export abstract class Aircraft {
       wingHalfSpan: number;
       muzzles?: THREE.Vector3[];
       hardpoints?: THREE.Vector3[];
+      hideEngineFx?: boolean;
     }
   ) {
     if (this.visual.parent === this.object) {
@@ -90,8 +108,17 @@ export abstract class Aircraft {
       this.object.remove(this.contrails.group);
     }
 
+    this.propeller.dispose();
+    this.flutter.reset();
+
     this.visual = visual;
     this.object.add(visual);
+
+    // Propeller + Flutter am neuen Visual
+    if (this.engineType === 'piston') {
+      this.propeller.attach(visual);
+    }
+    this.flutter.attach(visual);
 
     // Anker aus Geometrie messen (klebt am Heck/Bug des geladenen GLB)
     const twinN = (catalogHint?.nozzles.length ?? 1) >= 2;
@@ -119,7 +146,15 @@ export abstract class Aircraft {
     this.object.add(this.engineFx.group);
     this.engineFx.group.position.set(0, 0, 0);
     this.engineFx.group.quaternion.identity();
-    this.engineFx.configure(auto.nozzles, auto.nozzleScale);
+
+    // Propeller: keine Jet-Düse anzeigen
+    if (catalogHint?.hideEngineFx || this.engineType === 'piston') {
+      this.engineFx.configure([], 0.01);
+      this.engineFx.group.visible = false;
+    } else {
+      this.engineFx.group.visible = true;
+      this.engineFx.configure(auto.nozzles, auto.nozzleScale);
+    }
 
     this.contrails = new Contrails(this.object, auto.wingHalfSpan);
     this.object.add(this.contrails.group);
@@ -131,6 +166,33 @@ export abstract class Aircraft {
     const aftZ = auto.nozzles.reduce((m, v) => Math.max(m, v.z), 0);
     this.visualLength = Math.max(8, aftZ - noseZ + 1.5);
     this.camFit = computeCamFit(this.visualSpan, this.visualLength);
+  }
+
+  /**
+   * Propeller-Spin + Wing-Flutter pro Frame.
+   * windStrength: |wind| in m/s für Flutter-Intensität.
+   */
+  updateLegacyFx(
+    dt: number,
+    throttle: number,
+    windStrength = 0,
+    cruiseSpeed = 140,
+    maxSpeed = 260
+  ) {
+    const speedNorm = this.flight.speed / Math.max(40, cruiseSpeed);
+    if (this.engineType === 'piston') {
+      this.propeller.update(dt, throttle, speedNorm);
+    }
+    this.flutter.update(dt, {
+      speed: this.flight.speed,
+      cruiseSpeed,
+      maxSpeed,
+      gForce: this.flight.gForce,
+      aoa: this.flight.aoa,
+      stalled: this.flight.stalled,
+      windStrength,
+      susceptibility: this.flight.physics.windSusceptibility,
+    });
   }
 
   /** Kanonen-Mündungen im Aircraft-Lokalraum (nach Visual-Kalibrierung). */

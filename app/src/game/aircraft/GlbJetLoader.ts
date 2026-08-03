@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 /** Ziel-Länge des Jets in Welt-Metern (passt zum Flight-Model / Chase-Cam). */
-const TARGET_LENGTH = 15.5;
+const DEFAULT_TARGET_LENGTH = 15.5;
 
 /** Per-Jet Korrektur nach Auto-Ausrichtung (Nase = local −Z). */
 export type ModelOrient = {
@@ -13,6 +13,12 @@ export type ModelOrient = {
   /** Standard-180°-Flip (+Z→−Z) überspringen — Asset schaut schon Richtung −Z */
   skipDefaultYawFlip?: boolean;
 };
+
+export interface LoadJetOptions {
+  orient?: ModelOrient;
+  /** Ziel-Rumpflänge in Metern (Props ~9–11 m, Jets ~15 m) */
+  targetLength?: number;
+}
 
 export interface LoadedJetVisual {
   group: THREE.Group;
@@ -28,8 +34,16 @@ export interface LoadedJetVisual {
  */
 export async function loadJetGlb(
   url: string,
-  orient?: ModelOrient
+  orientOrOpts?: ModelOrient | LoadJetOptions
 ): Promise<LoadedJetVisual> {
+  // Rückwärtskompatibel: zweites Arg war früher nur ModelOrient
+  const opts: LoadJetOptions =
+    orientOrOpts && ('orient' in orientOrOpts || 'targetLength' in orientOrOpts)
+      ? (orientOrOpts as LoadJetOptions)
+      : { orient: orientOrOpts as ModelOrient | undefined };
+  const orient = opts.orient;
+  const targetLength = opts.targetLength ?? DEFAULT_TARGET_LENGTH;
+
   const loader = new GLTFLoader();
   const gltf = await loader.loadAsync(url);
   const root = gltf.scene;
@@ -81,9 +95,9 @@ export async function loadJetGlb(
   box = new THREE.Box3().setFromObject(wrap);
   size = box.getSize(new THREE.Vector3());
 
-  // 3) Längste Achse ≈ Rumpflänge → auf TARGET_LENGTH skalieren
+  // 3) Längste Achse ≈ Rumpflänge → auf targetLength skalieren
   const longest = Math.max(size.x, size.y, size.z);
-  const scale = TARGET_LENGTH / Math.max(longest, 0.001);
+  const scale = targetLength / Math.max(longest, 0.001);
   wrap.scale.setScalar(scale);
 
   box = new THREE.Box3().setFromObject(wrap);

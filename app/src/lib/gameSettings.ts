@@ -41,7 +41,7 @@ export function saveSettings(s: GameSettings) {
   }
 }
 
-/** Stats 0–100 für Glass-Progress-Balken aus Jet-Def */
+/** Stats 0–100 für Glass-Progress-Balken aus Jet-Def (inkl. WWII-Props ~0.45) */
 export function jetStatBars(stats: {
   speedMult: number;
   turnMult: number;
@@ -51,15 +51,22 @@ export function jetStatBars(stats: {
   lockRange: number;
 }) {
   return {
-    speed: Math.round(Math.min(100, ((stats.speedMult - 0.55) / 0.75) * 100)),
-    maneuver: Math.round(Math.min(100, ((stats.turnMult - 0.55) / 0.7) * 100)),
-    armor: Math.round(Math.min(100, (stats.hp / 160) * 100)),
+    speed: Math.round(
+      Math.max(0, Math.min(100, ((stats.speedMult - 0.4) / 0.9) * 100))
+    ),
+    maneuver: Math.round(
+      Math.max(0, Math.min(100, ((stats.turnMult - 0.55) / 0.7) * 100))
+    ),
+    armor: Math.round(Math.max(0, Math.min(100, (stats.hp / 160) * 100))),
     weapons: Math.round(
-      Math.min(
-        100,
-        (stats.missiles / 8) * 35 +
-          (stats.cannonDamage / 8) * 35 +
-          (stats.lockRange / 4200) * 30
+      Math.max(
+        0,
+        Math.min(
+          100,
+          (stats.missiles / 8) * 35 +
+            (stats.cannonDamage / 8) * 35 +
+            (stats.lockRange / 4200) * 30
+        )
       )
     ),
   };

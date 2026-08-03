@@ -18,9 +18,10 @@ import { Effects } from './combat/Effects';
 import { SamSite, type Damageable } from './combat/GroundTarget';
 import { SoundManager } from './audio/SoundManager';
 import { loadJetGlb } from './aircraft/GlbJetLoader';
-import { getJetDef, jetFxVectors, JET_CATALOG, type JetId } from './aircraft/JetCatalog';
+import { getJetDef, jetFxVectors, JET_CATALOG, legacyJetIds, type JetId } from './aircraft/JetCatalog';
 import { getMapDef, type MapId } from './world/MapCatalog';
 import { GlbMapTerrain, loadGlbMap, type HeightField } from './world/GlbMapTerrain';
+import { WindField } from './aircraft/WindAndFlutter';
 
 export type GameState = 'menu' | 'playing' | 'paused' | 'gameover' | 'victory';
 
@@ -132,6 +133,9 @@ export class Game {
   private visualCache = new Map<JetId, THREE.Object3D>();
   /** Laufende Lade-Promises pro Jet-Id (verhindert Doppel-Loads) */
   private visualPromises = new Map<JetId, Promise<THREE.Object3D | null>>();
+  /** Globale Wind-/Böen-Simulation */
+  private windField = new WindField();
+  private _windSample = new THREE.Vector3();
 
   private aimDir = new THREE.Vector3(0, 0, -1);
   private _ndc = new THREE.Vector3();
@@ -274,6 +278,7 @@ export class Game {
     this.selectedJetId = id;
     const def = getJetDef(id);
     this.player.applyLoadout(def);
+    this.sound.setEngineMode(def.engineType);
     this.player.reset();
     this.placePlayerForMap();
     await this.ensureJetVisual(id);
@@ -290,13 +295,17 @@ export class Game {
     if (!p) {
       const def = getJetDef(id);
       if (!def.modelUrl) return Promise.resolve(null);
-      p = loadJetGlb(def.modelUrl, def.modelOrient)
+      p = loadJetGlb(def.modelUrl, {
+        orient: def.modelOrient,
+        targetLength: def.physics.modelLengthM,
+      })
         .then(({ group, size }) => {
           this.visualCache.set(id, group);
           console.info(
             `[FightJet] Jet ${id} geladen (${def.modelUrl}) size≈` +
               `${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)} m` +
-              (def.modelOrient ? ` orient=${JSON.stringify(def.modelOrient)}` : '')
+              (def.modelOrient ? ` orient=${JSON.stringify(def.modelOrient)}` : '') +
+              ` era=${def.era}`
           );
           return group;
         })
@@ -313,15 +322,27 @@ export class Game {
     const template = await this.loadJetTemplate(id);
     if (!template) return;
 
+    const def = getJetDef(id);
+    // Physik/Engine vor Visual, damit Propeller-System greift
+    this.player.applyFlightPhysics(def.physics, def.engineType);
+
     // Frische Kopie für den Spieler (Cache behält Template) + FX-Anker des Jets
     const instance = template.clone(true);
-    this.player.applyExternalVisual(instance, jetFxVectors(getJetDef(id)));
-    const missileVisualId = missileIdForJet(id);
-    await preloadMissileVisual(missileVisualId);
-    this.player.configureMountedMissiles(
-      () => cloneMissileVisual(missileVisualId),
-      getJetDef(id).stats.missiles
-    );
+    const fx = jetFxVectors(def);
+    this.player.applyExternalVisual(instance, {
+      ...fx,
+      hideEngineFx: def.engineType === 'piston',
+    });
+    if (def.stats.missiles > 0) {
+      const missileVisualId = missileIdForJet(id);
+      await preloadMissileVisual(missileVisualId);
+      this.player.configureMountedMissiles(
+        () => cloneMissileVisual(missileVisualId),
+        def.stats.missiles
+      );
+    } else {
+      this.player.configureMountedMissiles(() => null, 0);
+    }
     this.cam.snapBehind(this.player.object);
   }
 
@@ -334,7 +355,9 @@ export class Game {
     else await this.ensureJetVisual(this.selectedJetId);
 
     this.sound.init();
-    this.player.applyLoadout(getJetDef(this.selectedJetId));
+    const def = getJetDef(this.selectedJetId);
+    this.sound.setEngineMode(def.engineType);
+    this.player.applyLoadout(def);
     this.player.reset();
     this.placePlayerForMap();
     this.clearActors();
@@ -418,9 +441,9 @@ export class Game {
     }
     this.sams = this.sams.filter((s) => s.alive);
 
-    // Bandits — zufällige Jets aus dem Katalog (gleiche Assets wie der Hangar)
+    // Bandits — frühe Wellen: mehr Legacy (Props/MiG-15), später Mix mit modernen Jets
     for (let i = 0; i < wave.bandits; i++) {
-      const jetId = JET_CATALOG[Math.floor(Math.random() * JET_CATALOG.length)].id;
+      const jetId = this.pickBanditJetId(index);
       const e = new EnemyJet(this.enemyCounter++, jetId);
       e.spawn(this.player.position);
       this.enemies.push(e);
@@ -464,11 +487,33 @@ export class Game {
     }
   }
 
+  /**
+   * Wellen-Mix: Welle 0 ≈ 80 % Legacy, Welle 1 ≈ 50 %, Welle 2+ ≈ 25 %.
+   * So spawnen Props/MiG-15 spürbar als Banditen.
+   */
+  private pickBanditJetId(waveIndex: number): JetId {
+    const legacy = legacyJetIds();
+    const modern = JET_CATALOG.filter((j) => j.era === 'modern').map((j) => j.id);
+    const legacyBias =
+      waveIndex <= 0 ? 0.82 : waveIndex === 1 ? 0.5 : 0.28;
+    const pool =
+      Math.random() < legacyBias && legacy.length > 0
+        ? legacy
+        : modern.length > 0
+          ? modern
+          : JET_CATALOG.map((j) => j.id);
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
   /** Hängt das GLB-Visual des zugewiesenen Jets an einen Gegner (sobald geladen). */
   private applyEnemyVisual(e: EnemyJet) {
     void this.loadJetTemplate(e.jetId).then((template) => {
       if (template && e.alive) {
-        e.applyExternalVisual(template.clone(true), jetFxVectors(e.loadout));
+        e.applyFlightPhysics(e.loadout.physics, e.loadout.engineType);
+        e.applyExternalVisual(template.clone(true), {
+          ...jetFxVectors(e.loadout),
+          hideEngineFx: e.loadout.engineType === 'piston',
+        });
       }
     });
   }
@@ -531,6 +576,11 @@ export class Game {
   private updatePlaying(dt: number) {
     const player = this.player;
 
+    // Wind / Böen (stärker auf Legacy-Zellen im FlightModel)
+    this.windField.update(dt);
+    this.windField.sample(player.position, this._windSample);
+    player.wind.copy(this._windSample);
+
     // Free-Look: C halten / RMB — Jet behält Kurs, Kamera orbitet
     const free = this.input.freeLookHeld || this.cam.isFreeLook;
     const savedPitch = this.input.pitch;
@@ -589,7 +639,12 @@ export class Game {
         this.sound.cannonShot();
       }
       if (this.input.wasPressed('KeyM') || this.input.wasPressed('KeyF')) {
-        if (player.missilesLeft > 0 && player.lockTarget && player.lockProgress >= 1) {
+        if (
+          player.hasMissiles &&
+          player.missilesLeft > 0 &&
+          player.lockTarget &&
+          player.lockProgress >= 1
+        ) {
           this.launchPlayerMissile();
         }
       }
@@ -598,6 +653,7 @@ export class Game {
     // --- Gegner ---
     for (const e of this.enemies) {
       if (e.alive) {
+        this.windField.sample(e.position, e.wind);
         e.update(dt, player, this.heightField);
         if (e.wantsToFire() && player.alive) {
           const timer = (this.enemyFireTimers.get(e) ?? 0) - dt;
@@ -691,22 +747,29 @@ export class Game {
       {
         freeLookHeld: this.input.freeLookHeld,
         gForce: player.flight.gForce,
-        afterburner: this.input.afterburner && player.alive,
+        afterburner:
+          this.input.afterburner && player.alive && player.hasAfterburner,
         firing: this.input.cannon && player.alive,
         stalled: player.flight.stalled && player.alive,
         airbrake: this.input.airbrake,
         camFit: player.camFit,
         rollRate: player.flight.rollRateActual,
         bank: player.flight.bankSigned,
+        buffeting: player.alive ? player.buffeting : 0,
       }
     );
+    this.sound.setEngineMode(player.engineType);
     this.sound.updateEngine(
       player.flight.speed / CONFIG.flight.afterburnerSpeed,
       this.input.throttle,
-      this.input.afterburner && player.alive,
-      dt
+      this.input.afterburner && player.alive && player.hasAfterburner,
+      dt,
+      player.propeller.active ? player.propeller.state.rpm : this.input.throttle
     );
-    this.sound.setLockTone(player.alive ? player.lockProgress : 0);
+    // Lock-Ton nur wenn Lenkwaffen verfügbar
+    this.sound.setLockTone(
+      player.alive && player.hasMissiles ? player.lockProgress : 0
+    );
     if (player.flight.stalled && player.alive) this.sound.stallWarning(true);
   }
 
@@ -792,6 +855,12 @@ export class Game {
 
   private updateLock(dt: number) {
     const player = this.player;
+    // Propeller / Early Jets ohne Lenkwaffen: kein Lock-On
+    if (!player.hasMissiles) {
+      player.lockTarget = null;
+      player.lockProgress = 0;
+      return;
+    }
     const lockRange = player.lockRange;
     const lockTime = player.lockTime;
     const cone = THREE.MathUtils.degToRad(player.lockAngleDeg);
@@ -1031,7 +1100,7 @@ export class Game {
       altitudeFt: Math.round(p.position.y * 3.281),
       headingDeg: Math.round(p.headingDeg),
       throttle: this.input.throttle,
-      afterburner: this.input.afterburner,
+      afterburner: this.input.afterburner && p.hasAfterburner,
       stalled: p.flight.stalled,
       freeLook: this.cam.isFreeLook,
       autoTrack: this.cam.isTracking && p.lockProgress >= 1,
