@@ -181,7 +181,8 @@ export const JET_CATALOG: JetDef[] = [
       label: 'M61 Vulcan',
       detail: 'Hohe Feuerrate, präzise Dogfight-Kanone',
     },
-    fx: singleNozzle(4.99, 7.42, 0.95, 6.5, [
+    // y auf -0.05 gesetzt (Zentrum nahe Düsenebene, wie in Aircraft‑Konstruktor)
+    fx: singleNozzle(-0.05, 7.42, 0.95, 6.5, [
       [-5.45, 4.48, -1.15], [5.45, 4.48, -1.15],
       [-3.85, 4.34, -0.45], [3.85, 4.34, -0.45],
       [-2.45, 4.18, 0.25], [2.45, 4.18, 0.25],
@@ -218,7 +219,8 @@ export const JET_CATALOG: JetDef[] = [
       label: 'AMRAAM Suite',
       detail: 'Schneller Lock, große Reichweite',
     },
-    fx: singleNozzle(3.90, 7.00, 1.0, 6.3, [
+    // y von 3.90 → -0.1 (zentriert unter Bauch, wie F‑35‑Layout)
+    fx: singleNozzle(-0.1, 7.00, 1.0, 6.3, [
       [-5.45, 3.30, -1.55], [5.25, 3.30, -1.55],
       [-4.10, 3.18, -0.85], [3.90, 3.18, -0.85],
       [-2.95, 3.08, -0.10], [2.75, 3.08, -0.10],
@@ -336,7 +338,8 @@ export const JET_CATALOG: JetDef[] = [
       label: 'Rail-Burst Kanone',
       detail: 'Wuchtige Schüsse, enge Streuung',
     },
-    fx: twinNozzle(0.72, 3.92, 7.35, 0.78, 6.2, [
+    // y‑Original 3.92 → -0.5 (typische Zwillingsdüsen unter Rumpfmitte)
+    fx: twinNozzle(0.72, -0.5, 7.35, 0.78, 6.2, [
       [-4.85, 3.16, -0.75], [4.85, 3.16, -0.75],
       [0, 2.88, 0.45],
     ]),
