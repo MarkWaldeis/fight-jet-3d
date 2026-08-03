@@ -503,13 +503,22 @@ export function hasGuidedMissiles(def: JetDef): boolean {
   return def.stats.missiles > 0 && def.stats.lockRange > 0;
 }
 
-/** FX-Tupel als THREE.Vector3-Arrays (frisch pro Aufruf). */
+/**
+ * FX-Tupel als THREE.Vector3-Arrays (frisch pro Aufruf).
+ * Koordinaten werden mit dem Faktor (modelLengthM / 15.5) skaliert,
+ * sodass sie zur tatsächlich geladenen Modellgröße passen.
+ */
 export function jetFxVectors(def: JetDef) {
+  const modelLen = def.physics.modelLengthM ?? 15.5;
+  const factor = modelLen / 15.5;
+  const scale = (v: [number, number, number]) =>
+    new THREE.Vector3(v[0] * factor, v[1] * factor, v[2] * factor);
+
   return {
-    nozzles: def.fx.nozzles.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+    nozzles: def.fx.nozzles.map(scale),
     nozzleScale: def.fx.nozzleScale,
-    muzzles: def.fx.muzzles.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
-    hardpoints: def.fx.hardpoints.map(([x, y, z]) => new THREE.Vector3(x, y, z)),
-    wingHalfSpan: def.fx.wingHalfSpan,
+    muzzles: def.fx.muzzles.map(scale),
+    hardpoints: def.fx.hardpoints.map(scale),
+    wingHalfSpan: def.fx.wingHalfSpan * factor,
   };
 }

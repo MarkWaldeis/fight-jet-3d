@@ -1,27 +1,27 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-/** Ziel-Länge des Jets in Welt-Metern (passt zum Flight-Model / Chase-Cam). */
+/** Ziel‑Länge des Jets in Welt‑Metern (passt zum Flight‑Model / Chase‑Cam). */
 const DEFAULT_TARGET_LENGTH = 15.5;
 
-/** Per-Jet Korrektur nach Auto-Ausrichtung (Nase = local −Z). */
+/** Per‑Jet Korrektur nach Auto‑Ausrichtung (Nase = local −Z). */
 export type ModelOrient = {
-  /** Zusätzlicher Yaw in Grad (positiv = links um Welt-Y / local Y) */
+  /** Zusätzlicher Yaw in Grad (positiv = links um Welt‑Y / local Y) */
   yawDeg?: number;
   pitchDeg?: number;
   rollDeg?: number;
-  /** Standard-180°-Flip (+Z→−Z) überspringen — Asset schaut schon Richtung −Z */
+  /** Standard‑180°‑Flip (+Z→−Z) überspringen — Asset schaut schon Richtung −Z */
   skipDefaultYawFlip?: boolean;
   /**
-   * Auto-Align: Rumpf = längste Horizontalachse (moderne Jets).
-   * Default false: Spannweite = längste Horizontalachse (WWII-Props).
+   * Auto‑Align: Rumpf = längste Horizontalachse (moderne Jets).
+   * Default false: Spannweite = längste Horizontalachse (WWII‑Props).
    */
   lengthIsLargest?: boolean;
 };
 
 export interface LoadJetOptions {
   orient?: ModelOrient;
-  /** Ziel-Rumpflänge in Metern (Props ~9–11 m, Jets ~15 m) */
+  /** Ziel‑Rumpflänge in Metern (Props ~9–11 m, Jets ~15 m) */
   targetLength?: number;
 }
 
@@ -32,8 +32,8 @@ export interface LoadedJetVisual {
 }
 
 /**
- * Lädt ein externes GLB/GLTF-Jet-Modell, skaliert es auf Spielgröße und
- * richtet die Nase auf local -Z aus (Three.js / FlightModel-Konvention).
+ * Lädt ein externes GLB/GLTF‑Jet‑Modell, skaliert es auf Spielgröße und
+ * richtet die Nase auf local ‑Z aus (Three.js / FlightModel‑Konvention).
  */
 export async function loadJetGlb(
   url: string,
@@ -44,6 +44,9 @@ export async function loadJetGlb(
       ? (orientOrOpts as LoadJetOptions)
       : { orient: orientOrOpts as ModelOrient | undefined };
   const orient = opts.orient;
+
+  // Der Aufrufer (Game.ts) übergibt bereits die individuelle Rumpflänge;
+  // als Fallback dient die Default‑Länge.
   const targetLength = opts.targetLength ?? DEFAULT_TARGET_LENGTH;
 
   const loader = new GLTFLoader();
@@ -76,18 +79,18 @@ export async function loadJetGlb(
     }
   });
 
-  // Sketchfab/FBX: Freirotationen an Mesh-Parents neutralisieren
-  // (z. B. Spitfire Object001 r=-111,-29,-38) — Geometrie selbst ist oft korrekt.
+  // Sketchfab/FBX: Freirotationen an Mesh‑Parents neutralisieren
+  // (z. B. Spitfire Object001 r=-111,-29,-38) — Geometrie selbst ist oft korrekt.
   neutralizeFreeformPose(rawRoot);
 
-  // Hierarchie flach backen — eliminiert Rest-Node-Transforms zuverlässig
+  // Hierarchie flach backen — eliminiert Rest‑Node‑Transforms zuverlässig
   const baked = bakeMeshesToFlatGroup(rawRoot);
 
   const wrap = new THREE.Group();
   wrap.name = 'glbJet';
   const root = new THREE.Group();
   root.name = 'glbJetRoot';
-  // Explizit Identity — keine vererbten GLB-Root-Transforms
+  // Explizit Identity — keine vererbten GLB‑Root‑Transforms
   root.position.set(0, 0, 0);
   root.rotation.set(0, 0, 0);
   root.scale.set(1, 1, 1);
@@ -159,18 +162,18 @@ export async function loadJetGlb(
 }
 
 /**
- * Sketchfab/FBX-Exports speichern oft eine "Präsentationspose" als freie
- * Multi-Achsen-Euler-Rotation am Mesh-Parent (z. B. Spitfire Object001
- * r=-111,-29,-38). Die Mesh-Geometrie selbst ist dann oft korrekt.
+ * Sketchfab/FBX‑Exports speichern oft eine "Präsentationspose" als freie
+ * Multi‑Achsen‑Euler‑Rotation am Mesh‑Parent (z. B. Spitfire Object001
+ * r=−111,−29,−38). Die Mesh‑Geometrie selbst ist dann oft korrekt.
  *
- * Wir setzen nur Multi-Achsen-Freirotationen zurück.
- * Einzelne ~90°/Y-up-Konvertierungen (Sketchfab_model) bleiben erhalten.
+ * Wir setzen nur Multi‑Achsen‑Freirotationen zurück.
+ * Einzelne ~90°/Y‑up‑Konvertierungen (Sketchfab_model) bleiben erhalten.
  */
 function neutralizeFreeformPose(root: THREE.Object3D) {
   root.updateMatrixWorld(true);
   root.traverse((obj) => {
     if (obj === root) return;
-    // Sketchfab-Y-up-Konvertierung nie anfassen
+    // Sketchfab‑Y‑up‑Konvertierung nie anfassen
     if (/sketchfab/i.test(obj.name)) return;
 
     const hasMeshChild = obj.children.some((c) => (c as THREE.Mesh).isMesh);
@@ -185,7 +188,7 @@ function neutralizeFreeformPose(root: THREE.Object3D) {
       return m > 8 && m < 82;
     }).length;
 
-    // Nur echte Display-Poses mit ≥2 freien Achsen (Spitfire Object001 etc.)
+    // Nur echte Display‑Poses mit ≥2 freien Achsen (Spitfire Object001 etc.)
     if (freeCount >= 2) {
       obj.rotation.set(0, 0, 0);
       obj.position.set(0, 0, 0);
@@ -202,7 +205,7 @@ function neutralizeFreeformPose(root: THREE.Object3D) {
 
 /**
  * Backt matrixWorld jedes sichtbaren Meshes in die Geometrie und legt
- * flache Meshes mit Identity-Transform an.
+ * flache Meshes mit Identity‑Transform an.
  */
 function bakeMeshesToFlatGroup(source: THREE.Object3D): THREE.Group {
   source.updateMatrixWorld(true);
@@ -280,7 +283,7 @@ function alignAircraftAxes(wrap: THREE.Group, root: THREE.Object3D, orient?: Mod
     }
   }
 
-  // D) Auto-Level: bei guter Höhe nur Feintuning + AABB-Höhen-Min (Roll)
+  // D) Auto‑Level: bei guter Höhe nur Feintuning + AABB‑Höhen‑Min (Roll)
   wrap.updateMatrixWorld(true);
   box = new THREE.Box3().setFromObject(wrap);
   size = box.getSize(new THREE.Vector3());
@@ -288,7 +291,7 @@ function alignAircraftAxes(wrap: THREE.Group, root: THREE.Object3D, orient?: Mod
   if (hRatio > 0.5) {
     for (let i = 0; i < 4; i++) autoLevelWingsAndPitch(wrap, root, 0.7);
   } else {
-    // AABB-Höhe über Roll minimieren (robuster als Vertex-Sampling)
+    // AABB‑Höhe über Roll minimieren (robuster als Vertex‑Sampling)
     minimizeRollByHeight(wrap, root, THREE.MathUtils.degToRad(25));
     for (let i = 0; i < 2; i++) autoLevelWingsAndPitch(wrap, root, 0.1);
   }
@@ -400,9 +403,9 @@ function detectNoseTowardNegZ(wrap: THREE.Object3D, root: THREE.Object3D): boole
 }
 
 /**
- * Feiner Roll-Suchlauf: wählt den Winkel mit minimaler AABB-Höhe.
+ * Feiner Roll‑Suchlauf: wählt den Winkel mit minimaler AABB‑Höhe.
  * Bei bereits grob korrekter Lage (Flügel ≈ horizontal) eliminiert das
- * Rest-Schräglage ohne riskantes Vertex-Sampling.
+ * Rest‑Schräglage ohne riskantes Vertex‑Sampling.
  */
 function minimizeRollByHeight(wrap: THREE.Group, root: THREE.Object3D, maxRad: number) {
   wrap.updateMatrixWorld(true);
@@ -429,7 +432,7 @@ function minimizeRollByHeight(wrap: THREE.Group, root: THREE.Object3D, maxRad: n
   }
   if (Math.abs(bestR) > 1e-4) root.rotateZ(bestR);
 
-  // 1°-Feinraster ±5°
+  // 1°‑Feinraster ±5°
   wrap.updateMatrixWorld(true);
   box = new THREE.Box3().setFromObject(wrap);
   size = box.getSize(new THREE.Vector3());
