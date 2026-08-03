@@ -264,11 +264,27 @@ export class Game {
     this.engine.setFog(CONFIG.world.fogNear, fogFar);
   }
 
+  /** Platziert den Spieler so, dass er direkt in der Luft startet (Takeoff-Fix). */
   private placePlayerForMap() {
     const def = getMapDef(this.selectedMapId);
-    const ground = this.heightField.getHeight(0, 3000);
-    this.player.object.position.set(0, ground + def.spawnClearance, 3000);
-    this.player.object.quaternion.identity();
+    const groundY = this.heightField.getHeight(0, 3000);
+
+    // Sicherheitsabstand zum Boden – verhindert, dass der Jet beim Starten
+    // auf der Piste klebt oder durch das Terrain fällt.
+    const MIN_CLEARANCE = 350; // Meter über Grund, garantiert Airborne-Start
+    const spawnY = groundY + Math.max(MIN_CLEARANCE, def.spawnClearance ?? 0);
+
+    this.player.object.position.set(0, spawnY, 3000);
+
+    // Leichter Pitch (Nase ca. 8° nach oben), damit der Jet sofort steigt,
+    // auch wenn der Spieler die Steuerung noch nicht bedient.
+    const pitchUp = THREE.MathUtils.degToRad(8);
+    const startQuat = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(pitchUp, 0, 0, 'YXZ')
+    );
+    this.player.object.quaternion.copy(startQuat);
+
+    // Richtungsvektor und Geschwindigkeit passend zur Start‑Orientierung setzen.
     this.player.flight.snapVelocityToNose();
     this.player.flight.speed = CONFIG.flight.cruiseSpeed * this.player.flight.speedMult;
   }
