@@ -166,6 +166,11 @@ export abstract class Aircraft {
     const aftZ = auto.nozzles.reduce((m, v) => Math.max(m, v.z), 0);
     this.visualLength = Math.max(8, aftZ - noseZ + 1.5);
     this.camFit = computeCamFit(this.visualSpan, this.visualLength);
+
+    // Ensure missile rack stays parented to the aircraft object
+    this.object.add(this.missileRack);
+    this.missileRack.position.set(0, 0, 0);
+    this.missileRack.quaternion.identity();
   }
 
   /**
