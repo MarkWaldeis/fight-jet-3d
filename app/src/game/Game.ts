@@ -287,6 +287,9 @@ export class Game {
     // Richtungsvektor und Geschwindigkeit passend zur Start‑Orientierung setzen.
     this.player.flight.snapVelocityToNose();
     this.player.flight.speed = CONFIG.flight.cruiseSpeed * this.player.flight.speedMult;
+
+    // Re-parent missile rack to keep weapons anchored during takeoff
+    this.player.object.add(this.player.missileRack);
   }
 
   /** Hangar: Jet wählen (lädt GLB, wendet Stats an). */
@@ -296,6 +299,7 @@ export class Game {
     this.player.applyLoadout(def);
     this.sound.setEngineMode(def.engineType);
     this.player.reset();
+    this.player.resetMountedMissiles(this.player.missilesLeft);
     this.placePlayerForMap();
     await this.ensureJetVisual(id);
     this.cam.snapBehind(this.player.object);
@@ -380,6 +384,7 @@ export class Game {
     this.sound.setEngineMode(def.engineType);
     this.player.applyLoadout(def);
     this.player.reset();
+    this.player.resetMountedMissiles(this.player.missilesLeft);
     this.placePlayerForMap();
     this.clearActors();
     this.waveIndex = 0;
@@ -397,6 +402,7 @@ export class Game {
     this.clearActors();
     this.spawnWave(0, true);
     this.player.reset();
+    this.player.resetMountedMissiles(this.player.missilesLeft);
     this.placePlayerForMap();
     this.cam.snapBehind(this.player.object);
     this.setPlayCursor(false);
