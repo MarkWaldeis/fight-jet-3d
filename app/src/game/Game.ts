@@ -297,9 +297,9 @@ export class Game {
       if (!def.modelUrl) return Promise.resolve(null);
       p = loadJetGlb(def.modelUrl, {
         orient: {
-          // Moderne Jets: Rumpf oft länger als Spannweite.
-          // Props/Early: Spannweite oft länger → Auto-Align ohne lengthIsLargest.
-          lengthIsLargest: def.era === 'modern',
+          // Moderne + Early Jets: Rumpf oft ≥ Spannweite.
+          // WWII-Props: Spannweite oft länger → Auto-Align ohne lengthIsLargest.
+          lengthIsLargest: def.era === 'modern' || def.era === 'early_jet',
           ...def.modelOrient,
         },
         targetLength: def.physics.modelLengthM,

@@ -194,13 +194,14 @@ export class PropellerSystem {
     root.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
-      // Keine Riesen-Rümpfe als Propeller drehen
+      // Niemals den Rumpf drehen — nur kleine Naben/Blätter am Bug
       const box = new THREE.Box3().setFromObject(mesh);
       const size = box.getSize(new THREE.Vector3());
       const volume = size.x * size.y * size.z;
       const rootVol = rootSize.x * rootSize.y * rootSize.z;
-      if (volume > rootVol * 0.35) return;
-      if (Math.max(size.x, size.y) > rootSize.x * 0.85) return;
+      if (volume > rootVol * 0.12) return;
+      if (Math.max(size.x, size.y, size.z) > rootSize.x * 0.55) return;
+      if (Math.max(size.x, size.y, size.z) > rootSize.z * 0.45) return;
 
       const center = box.getCenter(new THREE.Vector3());
       const noseDist = Math.abs(center.z - noseZ);
@@ -209,7 +210,7 @@ export class PropellerSystem {
         (1 - noseDist / Math.max(rootSize.z, 1)) * 3 +
         Math.min(discLike, 8) * 0.4 -
         Math.abs(center.x) * 0.2;
-      if (score > bestScore && noseDist < rootSize.z * 0.22) {
+      if (score > bestScore && noseDist < rootSize.z * 0.2) {
         bestScore = score;
         best = mesh;
       }
@@ -220,17 +221,34 @@ export class PropellerSystem {
   /**
    * Wenn kein Propeller-Mesh gefunden: unsichtbarer Pivot + sichtbare
    * Blur-Scheibe am Bug (funktioniert auch bei undifferenzierten GLBs).
+   *
+   * Wichtig: Position in ROOT-LOKALEN Koordinaten (nicht Welt) — sonst
+   * landet der Spinner bei Spieler-Welt-Z (z. B. 3000 → lokaler Offset 65+).
    */
   private createSyntheticSpinner(root: THREE.Object3D): THREE.Object3D | null {
-    const box = new THREE.Box3().setFromObject(root);
-    const size = box.getSize(new THREE.Vector3());
+    root.updateMatrixWorld(true);
+    const worldBox = new THREE.Box3().setFromObject(root);
+    if (worldBox.isEmpty()) return null;
+
+    // Welt-AABB → root-lokal
+    const minL = worldBox.min.clone();
+    const maxL = worldBox.max.clone();
+    root.worldToLocal(minL);
+    root.worldToLocal(maxL);
+    const size = new THREE.Vector3(
+      Math.abs(maxL.x - minL.x),
+      Math.abs(maxL.y - minL.y),
+      Math.abs(maxL.z - minL.z)
+    );
     if (size.z < 0.5) return null;
 
     const hub = new THREE.Group();
     hub.name = 'syntheticPropHub';
-    // Bug = min Z nach Normalisierung (Nase −Z)
+    // Bug = min Z nach Normalisierung (Nase −Z), in root-lokal
+    const noseZ = Math.min(minL.z, maxL.z);
+    const midY = (minL.y + maxL.y) * 0.5;
     const radius = THREE.MathUtils.clamp(Math.max(size.x, size.y) * 0.28, 1.2, 3.2);
-    hub.position.set(0, size.y * 0.02, box.min.z + radius * 0.05);
+    hub.position.set(0, midY + size.y * 0.02, noseZ + radius * 0.05);
 
     // 3 einfache „Blätter“ als Low-RPM-Indikator
     const bladeGeo = new THREE.BoxGeometry(radius * 1.7, 0.08, 0.18);
