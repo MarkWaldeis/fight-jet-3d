@@ -4,13 +4,14 @@ import { CONFIG } from '../game/config';
 import {
   JET_CATALOG,
   FACTION_LABELS,
-  jetsByFaction,
+  jetsSortedByPrice,
   type JetFaction,
   type JetId,
 } from '../game/aircraft/JetCatalog';
 import {
   loadSettings,
   saveSettings,
+  isJetOwned,
   jetStatBars,
   type GameSettings,
   type GraphicsQuality,
@@ -49,6 +50,23 @@ function StatBar({ label, value }: { label: string; value: number }) {
   );
 }
 
+function GlassStat({ label, value, locked }: { label: string; value: number; locked?: boolean }) {
+  const v = Math.max(0, Math.min(100, value));
+  const color = locked ? 'rgba(255,255,255,0.15)' : '#00f2ff';
+  return (
+    <div>
+      <div className="flex justify-between text-[10px] mb-0.5">
+        <span className="text-white/35 uppercase tracking-[0.1em]">{label}</span>
+        <span className="font-mono text-white/50">{v}</span>
+      </div>
+      <div className="h-1 rounded-full bg-white/[0.04] overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${v}%`, background: `linear-gradient(90deg, ${color}, ${locked ? 'rgba(255,255,255,0.25)' : '#0a84ff'})`, boxShadow: locked ? 'none' : `0 0 6px ${color}40` }} />
+      </div>
+    </div>
+  );
+}
+
 export function Menus({
   state,
   score,
@@ -60,6 +78,8 @@ export function Menus({
   onResume,
   onMenu,
   onSoundChange,
+  aeroCredits,
+  onPurchaseJet,
 }: {
   state: GameState;
   score: number;
@@ -71,6 +91,8 @@ export function Menus({
   onResume: () => void;
   onMenu: () => void;
   onSoundChange?: (s: { muted: boolean; volume: number }) => void;
+  aeroCredits: number;
+  onPurchaseJet: (jetId: string, price: number) => boolean;
 }) {
   const [screen, setScreen] = useState<Screen>('main');
   const [faction, setFaction] = useState<JetFaction>('nato');
@@ -82,7 +104,7 @@ export function Menus({
 
   const selected = JET_CATALOG.find((j) => j.id === selectedJetId) ?? JET_CATALOG[0];
   const selectedMap = getMapDef(selectedMapId);
-  const list = jetsByFaction(faction);
+  const sortedJets = jetsSortedByPrice();
   const bars = jetStatBars(selected.stats);
 
   const pickMap = async (id: MapId) => {
@@ -130,44 +152,18 @@ export function Menus({
   // ─── Top Navigation ─────────────────────────────────────────────────────
   const TopNav = ({ active }: { active?: Screen }) => (
     <nav className="glass-nav pointer-events-auto absolute left-1/2 top-5 z-20 flex -translate-x-1/2 items-center gap-1 px-2 py-1.5">
-      <button
-        type="button"
-        className={`glass-nav-item ${active === 'main' || (!active && screen === 'main') ? 'is-active' : ''}`}
-        onClick={() => setScreen('main')}
-      >
-        Home
-      </button>
-      <button
-        type="button"
-        className={`glass-nav-item ${screen === 'hangar' ? 'is-active' : ''}`}
-        onClick={openHangar}
-      >
-        Garage
-      </button>
-      <button
-        type="button"
-        className={`glass-nav-item ${screen === 'maps' ? 'is-active' : ''}`}
-        onClick={() => setScreen('maps')}
-      >
-        Maps
-      </button>
-      <button
-        type="button"
-        className={`glass-nav-item ${screen === 'missions' ? 'is-active' : ''}`}
-        onClick={() => setScreen('missions')}
-      >
-        Einsätze
-      </button>
-      <button
-        type="button"
-        className={`glass-nav-item ${screen === 'settings' ? 'is-active' : ''}`}
-        onClick={() => setScreen('settings')}
-      >
-        Einstellungen
-      </button>
-      <button type="button" className="glass-nav-item" onClick={tryExit}>
-        Beenden
-      </button>
+      <button type="button" className={`glass-nav-item ${active === 'main' || (!active && screen === 'main') ? 'is-active' : ''}`} onClick={() => setScreen('main')}>Home</button>
+      <button type="button" className={`glass-nav-item ${screen === 'hangar' ? 'is-active' : ''}`} onClick={openHangar}>Garage</button>
+      <button type="button" className={`glass-nav-item ${screen === 'maps' ? 'is-active' : ''}`} onClick={() => setScreen('maps')}>Maps</button>
+      <button type="button" className={`glass-nav-item ${screen === 'missions' ? 'is-active' : ''}`} onClick={() => setScreen('missions')}>Einsätze</button>
+      <button type="button" className={`glass-nav-item ${screen === 'settings' ? 'is-active' : ''}`} onClick={() => setScreen('settings')}>Einstellungen</button>
+      <button type="button" className="glass-nav-item" onClick={tryExit}>Beenden</button>
+      {/* Aero Credits inline in nav */}
+      <div className="ml-4 flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 backdrop-blur-xl">
+        <img src="./aero_credits.jpg" alt="AC" className="h-5 w-5 rounded-full object-cover shadow-[0_0_8px_rgba(255,215,0,0.4)]" style={{ animation: 'coin-spin 4s linear infinite' }} />
+        <span className="text-xs font-bold tracking-[0.08em] text-amber-200/90">{aeroCredits.toLocaleString()}</span>
+        <span className="text-[10px] text-amber-300/50">AC</span>
+      </div>
     </nav>
   );
 
@@ -399,8 +395,7 @@ export function Menus({
                 </span>
               </h1>
               <p className="glass-subtitle mb-5 text-sm">
-                War-Thunder-Style Mouse-Aim. Wähle deinen Jet in der Garage und fliege die
-                3-Wellen-Mission.
+                War-Thunder-Style Mouse-Aim. Verdiene Aero Credits, schalte neue Jets frei und dominiere die 3-Wellen-Mission.
               </p>
 
               <div className="mb-5 grid gap-2 sm:grid-cols-2">
@@ -478,56 +473,63 @@ export function Menus({
                   onClick={() => setFaction(f)}
                 >
                   {FACTION_LABELS[f]}
-                  <span className="opacity-70">({jetsByFaction(f).length})</span>
+                  <span className="opacity-70">({JET_CATALOG.filter(j => j.faction === f).length})</span>
                 </button>
               ))}
             </div>
 
             <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {list.map((jet) => {
+              {sortedJets.map((jet) => {
                 const active = jet.id === selectedJetId;
-                const eraColor =
-                  jet.era === 'propeller'
-                    ? '#fbbf24'
-                    : jet.era === 'early_jet'
-                      ? '#fb923c'
-                      : jet.faction === 'nato'
-                        ? '#7dd3fc'
-                        : '#fca5a5';
+                const owned = isJetOwned(jet.id);
+                const locked = !owned && jet.price > 0;
+                const canAfford = aeroCredits >= jet.price;
+                const jBars = jetStatBars(jet.stats);
                 return (
-                  <button
+                  <div
                     key={jet.id}
-                    type="button"
-                    onClick={() => onSelectJet(jet.id)}
-                    className={`glass-card text-left ${active ? 'is-selected' : ''}`}
+                    onClick={() => { if (owned) { onSelectJet(jet.id); } }}
+                    className={`glass-card text-left cursor-pointer ${active ? 'is-selected' : ''} ${locked ? 'opacity-60' : ''}`}
                   >
-                    <div
-                      className="text-[10px] tracking-[0.18em] uppercase"
-                      style={{ color: eraColor }}
-                    >
-                      {jet.role}
+                    <div className={`h-1 -mx-[18px] -mt-[16px] rounded-t-[20px] mb-3 ${
+                      jet.faction === 'nato' ? 'bg-gradient-to-r from-blue-500 to-cyan-400' : 'bg-gradient-to-r from-red-500 to-amber-400'
+                    }`} />
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{jet.faction === 'nato' ? '🛩️' : '✈️'}</span>
+                      <div>
+                        <div className="text-sm font-bold leading-tight text-white">{jet.name}</div>
+                        <div className="text-[10px] text-white/35">{FACTION_LABELS[jet.faction]}</div>
+                      </div>
+                      {active && <div className="ml-auto w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,242,255,0.6)]" />}
                     </div>
-                    <div className="mt-1 font-bold leading-tight text-white">{jet.name}</div>
-                    <div className="glass-mono text-xs text-white/45">{jet.callsign}</div>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {jet.traits.map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-cyan-100/90"
-                        >
-                          {t}
-                        </span>
-                      ))}
+                    <div className="space-y-1.5 mb-3">
+                      <GlassStat label="Speed" value={jBars.speed} locked={locked} />
+                      <GlassStat label="Wendigkeit" value={jBars.maneuver} locked={locked} />
+                      <GlassStat label="Panzerung" value={jBars.armor} locked={locked} />
                     </div>
-                    <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-white/40">
-                      <span>SPD ×{jet.stats.speedMult.toFixed(2)}</span>
-                      <span>TRN ×{jet.stats.turnMult.toFixed(2)}</span>
-                      <span>HP {jet.stats.hp}</span>
-                    </div>
-                    {jet.stats.missiles === 0 && (
-                      <div className="mt-1 text-[10px] text-amber-200/80">Nur Bordkanone</div>
-                    )}
-                  </button>
+                    {locked ? (
+                      <button type="button"
+                        className={`w-full py-2 rounded-lg font-bold text-[11px] tracking-[0.08em] uppercase flex items-center justify-center gap-1.5 transition-all duration-300 ${
+                          canAfford ? 'bg-amber-500/80 text-white hover:bg-amber-400 hover:shadow-[0_0_15px_rgba(255,215,0,0.25)]'
+                            : 'bg-white/[0.04] text-white/25 cursor-not-allowed'
+                        }`}
+                        disabled={!canAfford}
+                        onClick={(e) => { e.stopPropagation(); if (canAfford) { onPurchaseJet(jet.id, jet.price); onSelectJet(jet.id); } }}
+                      >
+                        <img src="./aero_credits.jpg" alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+                        {jet.price.toLocaleString()} AC
+                      </button>
+                    ) : owned ? (
+                      <button type="button"
+                        className={`w-full py-2 rounded-lg font-bold text-[11px] tracking-[0.08em] uppercase transition-all duration-300 ${
+                          active ? 'bg-cyan-500/90 text-white' : 'bg-white/[0.06] text-white/50 hover:bg-white/[0.12]'
+                        }`}
+                        onClick={(e) => { e.stopPropagation(); onSelectJet(jet.id); }}
+                      >
+                        {active ? 'Ausgewählt' : 'Auswählen'}
+                      </button>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -602,10 +604,11 @@ export function Menus({
 
             <button
               type="button"
-              className="glass-button glass-button-primary w-full py-4 text-base"
+              className={`glass-button w-full py-4 text-base font-bold ${isJetOwned(selectedJetId) ? 'glass-button-primary' : 'opacity-30 cursor-not-allowed'}`}
+              disabled={!isJetOwned(selectedJetId)}
               onClick={() => onStart(selectedJetId)}
             >
-              Jet auswählen & Abheben
+              {isJetOwned(selectedJetId) ? `JET ABHEBEN · ${selected.callsign}` : 'JET NICHT FREIGESCHALTET'}
             </button>
           </div>
         </div>

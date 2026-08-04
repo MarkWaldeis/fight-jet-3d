@@ -67,6 +67,8 @@ export interface JetDef {
   role: string;
   description: string;
   modelUrl: string;
+  /** Preis in Aero Credits (AC) */
+  price: number;
   /**
    * GLB-Orientierungskorrektur (Nase = local −Z).
    * z. B. Su-57: Asset schaut nach Auto-Align falsch herum → yawDeg: 180
@@ -159,6 +161,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Der agile Multirole-Klassiker. Gute Wendigkeit, M61 Vulcan und Sidewinder. Ideal zum Einsteigen.',
     modelUrl: './models/player-jet.glb',
+    price: 0,
     traits: ['Wendig', 'Vulcan', '6× AIM-9'],
     era: 'modern',
     engineType: 'jet',
@@ -197,6 +200,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Tarnkappen-Jäger der 5. Generation. Starke Sensoren und BVR-Raketen, in engen Kurven etwas träger.',
     modelUrl: './models/f35.glb',
+    price: 1800,
     traits: ['Stealth', 'BVR-Lock', '8× AMRAAM'],
     era: 'modern',
     engineType: 'jet',
@@ -235,6 +239,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Navy-Legende mit Schwenkflügeln und AIM-54 Phoenix. Sehr schnell in gerader Linie, schwer und träge in engen Turns.',
     modelUrl: './models/f14.glb',
+    price: 2500,
     traits: ['Phoenix BVR', 'Twin TF30', 'Carrier'],
     era: 'modern',
     engineType: 'jet',
@@ -272,6 +277,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Leichter Trainer/Angriffsjet. Langsam, aber wendig und übersichtlich — gut für Anfänger und Bodenziele.',
     modelUrl: './models/l39.glb',
+    price: 1200,
     traits: ['Wendig', 'Leicht', 'CAS-Light'],
     era: 'modern',
     engineType: 'jet',
@@ -315,6 +321,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Experimenteller High-Speed-Interceptor. Extrem schnell, Rail-Burst-Kanone, wenige aber schwere IR-Raketen.',
     modelUrl: './models/elite-jaeger.glb',
+    price: 3200,
     traits: ['Top-Speed', 'Rail-Burst', '3× Heavy IR'],
     era: 'modern',
     engineType: 'jet',
@@ -354,6 +361,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Gepanzerter Erdkampfflugzeug. Langsam, aber extrem robust — ideal gegen SAM und Bodenziele, im Dogfight im Nachteil.',
     modelUrl: './models/su25.glb',
+    price: 0,
     traits: ['Panzerung', 'CAS', '30mm GSh'],
     era: 'modern',
     engineType: 'jet',
@@ -397,6 +405,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Schwerer Jagdbomber mit starker Bewaffnung. Solide Geschwindigkeit, mittlere Wendigkeit, viele Raketen.',
     modelUrl: './models/su34.glb',
+    price: 2200,
     traits: ['Strike', 'Twin AL-31', '8× R-77'],
     era: 'modern',
     engineType: 'jet',
@@ -435,6 +444,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Russisches 5.-Gen-Jagdflugzeug. Schnell, wendig und mit starker Elektronik — Allround-Überlegenheit.',
     modelUrl: './models/su57.glb',
+    price: 2800,
     // Auto-Align setzt Nase auf −Z; früherer yawDeg:180 drehte den Felon rückwärts
     traits: ['5th Gen', 'Supermaneuver', 'BVR'],
     era: 'modern',
@@ -477,6 +487,11 @@ export function getJetDef(id: JetId): JetDef {
 
 export function jetsByFaction(faction: JetFaction): JetDef[] {
   return JET_CATALOG.filter((j) => j.faction === faction);
+}
+
+/** Alle Jets, sortiert nach Preis (günstigste zuerst) */
+export function jetsSortedByPrice(): JetDef[] {
+  return [...JET_CATALOG].sort((a, b) => a.price - b.price);
 }
 
 /** Legacy / schwächere Maschinen für frühe Wellen */
