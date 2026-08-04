@@ -273,14 +273,39 @@
 
 /* ─── Menu BG Vignette ──────────────────────────────────────────────────── */
 .menu-vignette {
-  position: absolute;
-  inset: 0;
-  background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
-  background-size: 64px 64px;
-  opacity: 0.025;
-  pointer-events: none;
+  position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 64px 64px; opacity: 0.025; pointer-events: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Hangar Atmosphere — Multi-layer Background & TopBar
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.hangar-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.hangar-bg-base{position:absolute;inset:0;background:radial-gradient(ellipse 65% 55% at 50% 40%,#0a1628 0%,#050c18 40%,#020610 100%)}
+.hangar-spot-left{position:absolute;top:-10%;left:-5%;width:55vw;height:55vw;border-radius:50%;background:radial-gradient(circle,rgba(0,242,255,.07) 0%,transparent 70%);animation:hangarSpotPulse 6s ease-in-out infinite}
+.hangar-spot-right{position:absolute;top:-5%;right:-8%;width:45vw;height:45vw;border-radius:50%;background:radial-gradient(circle,rgba(180,200,220,.05) 0%,transparent 70%);animation:hangarSpotPulse 7s ease-in-out 2s infinite}
+@keyframes hangarSpotPulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
+.hangar-floor{position:absolute;bottom:0;left:0;right:0;height:32%;background:linear-gradient(0deg,rgba(0,242,255,.06) 0%,rgba(10,132,255,.03) 25%,transparent 100%)}
+.hangar-grid{position:absolute;bottom:0;left:5%;right:5%;height:38%;background:repeating-linear-gradient(90deg,rgba(0,242,255,.04) 0px,rgba(0,242,255,.04) 1px,transparent 1px,transparent 80px),repeating-linear-gradient(0deg,transparent 0px,transparent 39px,rgba(0,242,255,.03) 40px);mask-image:linear-gradient(0deg,rgba(0,0,0,.4) 0%,rgba(0,0,0,0) 90%);-webkit-mask-image:linear-gradient(0deg,rgba(0,0,0,.4) 0%,rgba(0,0,0,0) 90%);transform:perspective(600px) rotateX(40deg);transform-origin:bottom center}
+.hangar-haze{position:absolute;left:15%;right:15%;top:30%;bottom:35%;background:radial-gradient(ellipse at center,rgba(0,242,255,.03) 0%,transparent 70%);animation:hangarHazePulse 8s ease-in-out infinite}
+@keyframes hangarHazePulse{0%,100%{opacity:.5}50%{opacity:1}}
+.hangar-silhouette{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;user-select:none}
+.hangar-silhouette-text{font-weight:900;font-size:clamp(5rem,14vw,15rem);letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.025);text-shadow:0 0 80px rgba(0,242,255,.05);white-space:nowrap;transition:all .8s ease;animation:silhouetteFloat 8s ease-in-out infinite}
+@keyframes silhouetteFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.hangar-particles{position:absolute;inset:0;pointer-events:none}
+.hangar-particle{position:absolute;width:2px;height:2px;border-radius:50%;background:#00f2ff;opacity:0;animation:particleFloat linear infinite}
+.hangar-particle:nth-child(1){left:15%;animation-duration:9s;animation-delay:0s}
+.hangar-particle:nth-child(2){left:28%;animation-duration:11s;animation-delay:1.5s}
+.hangar-particle:nth-child(3){left:42%;animation-duration:8s;animation-delay:3s}
+.hangar-particle:nth-child(4){left:55%;animation-duration:10s;animation-delay:.8s}
+.hangar-particle:nth-child(5){left:68%;animation-duration:12s;animation-delay:2.2s}
+.hangar-particle:nth-child(6){left:78%;animation-duration:7s;animation-delay:4s}
+.hangar-particle:nth-child(7){left:88%;animation-duration:9.5s;animation-delay:1s}
+.hangar-particle:nth-child(8){left:35%;animation-duration:11.5s;animation-delay:5s}
+.hangar-particle:nth-child(9){left:62%;animation-duration:8.5s;animation-delay:3.5s}
+@keyframes particleFloat{0%{bottom:-5%;opacity:0;transform:translateX(0)}10%{opacity:.6}90%{opacity:.6}100%{bottom:105%;opacity:0;transform:translateX(40px)}}
 
 /* ─── Glass Surfaces ─────────────────────────────────────────────────────── */
 
@@ -877,3 +902,17 @@
   background: linear-gradient(135deg, #0a84ff, #00f2ff);
   box-shadow: 0 4px 16px rgba(0, 242, 255, 0.35);
 }
+
+/* ─── Top Bar (War-Thunder style) ───────────────────────────────────────── */
+.topbar{position:relative;z-index:15;display:flex;align-items:center;gap:10px;padding:12px 20px;background:rgba(8,12,20,.55);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;pointer-events:auto}
+.topbar-chip{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03);cursor:pointer;transition:all .25s ease;flex-shrink:0}
+.topbar-chip:hover{background:rgba(255,255,255,.06);border-color:rgba(0,242,255,.25);box-shadow:0 0 16px rgba(0,242,255,.08)}
+.topbar-chip-icon{font-size:20px;flex-shrink:0}
+.topbar-chip-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);line-height:1}
+.topbar-chip-value{font-weight:700;font-size:13px;color:#fff;line-height:1.2}
+.topbar-chip-sub{font-size:10px;color:rgba(255,255,255,.4)}
+.topbar-start{display:flex;align-items:center;gap:8px;padding:10px 28px;border-radius:14px;border:none;background:linear-gradient(135deg,#0a84ff,#00a6ff);color:#fff;font-weight:700;font-size:14px;letter-spacing:.06em;cursor:pointer;transition:all .3s ease;box-shadow:0 4px 20px rgba(0,132,255,.35),0 0 30px rgba(0,242,255,.15);flex-shrink:0}
+.topbar-start:hover{background:linear-gradient(135deg,#0a94ff,#00b8ff);box-shadow:0 6px 28px rgba(0,242,255,.5),0 0 50px rgba(0,132,255,.25);transform:translateY(-1px)}
+.topbar-start:active{transform:scale(.97)}
+.topbar-spacer{flex:1;min-width:20px}
+@keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}

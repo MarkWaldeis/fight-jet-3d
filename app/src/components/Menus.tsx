@@ -183,6 +183,51 @@ export function Menus({
     </aside>
   );
 
+
+  // ─── Hangar Atmosphere Background ──────────────────────────────────────
+  const HangarBackground = () => (
+    <div className="hangar-bg">
+      <div className="hangar-bg-base" />
+      <div className="hangar-spot-left" />
+      <div className="hangar-spot-right" />
+      <div className="hangar-floor" />
+      <div className="hangar-grid" />
+      <div className="hangar-haze" />
+      <div className="hangar-silhouette">
+        <span className="hangar-silhouette-text">{selected.name}</span>
+      </div>
+      <div className="hangar-particles">
+        {Array.from({ length: 9 }).map((_, i) => <div key={i} className="hangar-particle" />)}
+      </div>
+    </div>
+  );
+
+  // ─── Top Bar (War-Thunder style) ───────────────────────────────────────
+  const TopBar = () => (
+    <div className="topbar">
+      <div className="topbar-chip" onClick={openHangar} title="Jet wechseln">
+        <span className="topbar-chip-icon">✈️</span>
+        <div>
+          <div className="topbar-chip-label">Dein Jet</div>
+          <div className="topbar-chip-value">{selected.name}</div>
+          <div className="topbar-chip-sub">{selected.role}</div>
+        </div>
+      </div>
+      <div className="topbar-chip" onClick={() => setScreen('maps')} title="Map wechseln">
+        <span className="topbar-chip-icon">🗺️</span>
+        <div>
+          <div className="topbar-chip-label">Karte</div>
+          <div className="topbar-chip-value">{selectedMap?.name ?? selectedMapId}</div>
+          <div className="topbar-chip-sub">{selectedMap ? `${(selectedMap.worldSizeM / 1000).toFixed(0)} km` : ''}</div>
+        </div>
+      </div>
+      <div className="topbar-spacer" />
+      <button type="button" className="topbar-start" onClick={() => onStart(selectedJetId)}>
+        ⚡ ABHEBEN
+      </button>
+    </div>
+  );
+
   // ─── Credits Badge (always visible on menu) ─────────────────────────────
   const CreditsBadge = () => (
     <div className="pointer-events-none fixed right-5 top-5 z-30">
@@ -413,81 +458,72 @@ export function Menus({
     );
   }
 
-  // ─── MENU states (main / hangar / missions / settings) ──────────────────
+  // ─── MENU states ────────────────────────────────────────────────────────
   return (
-    <div className="absolute left-[232px] right-0 top-0 bottom-0 z-10">
-      <div className="menu-vignette absolute inset-0" />
+    <div className="absolute left-[232px] right-0 top-0 bottom-0 z-10 flex flex-col">
       <Sidebar />
-      <CreditsBadge />
+      <TopBar />
+      <div className="flex-1 relative overflow-hidden">
+        {(state === 'menu' || screen !== 'main') && <HangarBackground />}
+        <CreditsBadge />
 
-      {/* MAIN LANDING */}
-      {screen === 'main' && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col justify-end pb-10 pt-24 sm:justify-center sm:pb-0">
-          <div className="pointer-events-auto mx-auto w-full max-w-xl px-4">
-            <div className="glass-panel p-6 sm:p-8">
-              <div className="glass-eyebrow mb-2">Air Combat · Liquid Glass</div>
-              <h1 className="glass-title mb-2 text-4xl sm:text-5xl">
-                Fight Jet{' '}
-                <span className="bg-gradient-to-r from-[#0A84FF] via-[#00F2FF] to-white bg-clip-text text-transparent">
-                  3D
-                </span>
-              </h1>
-              <p className="glass-subtitle mb-5 text-sm">
-                War-Thunder-Style Mouse-Aim. Verdiene Aero Credits, schalte neue Jets frei und dominiere die 3-Wellen-Mission.
-              </p>
+        {/* MAIN LANDING – Center Content */}
+        {screen === 'main' && (state === 'menu' || state === 'gameover' || state === 'victory') && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4">
+            <div className="pointer-events-auto w-full max-w-xl">
+              {/* Title */}
+              <div className="text-center mb-6">
+                <h1 className="text-5xl sm:text-6xl font-black tracking-[0.06em] mb-2 text-white drop-shadow-[0_0_30px_rgba(0,242,255,0.2)]"
+                  style={{ fontFamily: "'Orbitron', sans-serif" }}>
+                  FIGHT JET{' '}
+                  <span className="bg-gradient-to-r from-[#00f2ff] via-[#0a84ff] to-white bg-clip-text text-transparent">3D</span>
+                </h1>
+                <p className="text-sm tracking-[0.2em] text-white/35 uppercase">Tactical Air Combat · Mouse-Aim</p>
+              </div>
 
-              <div className="mb-5 grid gap-2 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/12 bg-white/[0.05] p-4">
-                  <div className="text-[11px] tracking-[0.2em] text-cyan-300/80 uppercase">
-                    {FACTION_LABELS[selected.faction]} · Jet
-                  </div>
-                  <div className="mt-1 text-lg font-bold text-white">{selected.name}</div>
-                  <div className="text-sm text-white/50">
-                    {selected.callsign} · {selected.role}
-                  </div>
+              {/* Info Cards */}
+              <div className="mb-5 grid gap-3 sm:grid-cols-2">
+                <div className="glass-panel-sm cursor-pointer p-4 hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(0,242,255,0.1)] transition-all duration-300"
+                  onClick={openHangar}>
+                  <div className="text-[10px] tracking-[0.15em] text-cyan-300/70 uppercase mb-1">Dein Jet</div>
+                  <div className="text-base font-bold text-white">{selected.name}</div>
+                  <div className="text-xs text-white/40">{selected.callsign} · {selected.role}</div>
+                  <div className="text-[10px] text-cyan-400/50 mt-1">{FACTION_LABELS[selected.faction]}</div>
                 </div>
-                <div className="rounded-2xl border border-white/12 bg-white/[0.05] p-4">
-                  <div className="text-[11px] tracking-[0.2em] text-cyan-300/80 uppercase">Karte</div>
-                  <div className="mt-1 text-lg font-bold text-white">{selectedMap.name}</div>
-                  <div className="text-sm text-white/50">
-                    {(selectedMap.worldSizeM / 1000).toFixed(0)} × {(selectedMap.worldSizeM / 1000).toFixed(0)} km
-                  </div>
+                <div className="glass-panel-sm cursor-pointer p-4 hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(0,242,255,0.1)] transition-all duration-300"
+                  onClick={() => setScreen('maps')}>
+                  <div className="text-[10px] tracking-[0.15em] text-cyan-300/70 uppercase mb-1">Karte</div>
+                  <div className="text-base font-bold text-white">{selectedMap?.name ?? selectedMapId}</div>
+                  <div className="text-xs text-white/40">{selectedMap ? `${(selectedMap.worldSizeM / 1000).toFixed(0)} × ${(selectedMap.worldSizeM / 1000).toFixed(0)} km` : ''}</div>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  className="menu-btn-primary group relative overflow-hidden w-full py-4 text-base font-bold rounded-2xl border border-white/20 bg-white/[0.08] backdrop-blur-2xl text-white transition-all duration-500 hover:bg-white/[0.16] hover:border-cyan-400/40 hover:shadow-[0_0_30px_rgba(0,242,255,0.25)]"
-                  onClick={() => onStart(selectedJetId)}
-                >
-                  <span className="relative z-10 flex items-center justify-center gap-2">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="transition-transform duration-300 group-hover:translate-x-1"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                    Abheben mit {selected.callsign}
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-400/10 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                </button>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3.5 rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-xl text-white/85 font-semibold text-sm transition-all duration-300 hover:bg-white/[0.12] hover:border-white/25 hover:text-white hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]" onClick={openHangar}>
-                    <span className="relative z-10">Garage</span>
+              {/* MAIN CTA */}
+              <button type="button"
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-[length:200%_100%] text-white font-bold text-lg tracking-[0.08em] shadow-[0_6px_30px_rgba(0,132,255,0.4),0_0_50px_rgba(0,242,255,0.2)] transition-all duration-300 hover:shadow-[0_8px_40px_rgba(0,242,255,0.55)] hover:-translate-y-0.5 active:scale-[0.98]"
+                style={{ fontFamily: "'Orbitron', sans-serif", animation: 'gradientShift 3s ease-in-out infinite' }}
+                onClick={() => onStart(selectedJetId)}>
+                🚀 MISSION STARTEN · {selected.callsign}
+              </button>
+
+              {/* Quick Links */}
+              <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {[
+                  { icon: '✈️', label: 'Garage', action: openHangar },
+                  { icon: '🗺️', label: 'Maps', action: () => setScreen('maps') },
+                  { icon: '🎯', label: 'Kampagne', action: () => setScreen('missions') },
+                  { icon: '⚙️', label: 'Settings', action: () => setScreen('settings') },
+                ].map(({ icon, label, action }) => (
+                  <button key={label} type="button" onClick={action}
+                    className="glass-panel-sm py-3 px-2 text-center text-white/60 text-xs font-semibold tracking-[0.05em] hover:text-white hover:border-white/20 transition-all duration-300">
+                    <div className="text-lg mb-0.5">{icon}</div>
+                    {label}
                   </button>
-                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3.5 rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-xl text-white/85 font-semibold text-sm transition-all duration-300 hover:bg-white/[0.12] hover:border-white/25 hover:text-white hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]" onClick={() => setScreen('maps')}>
-                    <span className="relative z-10">Maps</span>
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3 rounded-2xl border border-white/8 bg-white/[0.03] backdrop-blur-lg text-white/65 font-medium text-xs transition-all duration-300 hover:bg-white/[0.08] hover:border-white/18 hover:text-white/90" onClick={() => setScreen('missions')}>
-                    <span className="relative z-10">Einsatze</span>
-                  </button>
-                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3 rounded-2xl border border-white/8 bg-white/[0.03] backdrop-blur-lg text-white/65 font-medium text-xs transition-all duration-300 hover:bg-white/[0.08] hover:border-white/18 hover:text-white/90" onClick={() => setScreen('settings')}>
-                    <span className="relative z-10">Einstellungen</span>
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* HANGAR / GARAGE */}
       {screen === 'hangar' && (
@@ -888,6 +924,7 @@ export function Menus({
       )}
 
       <ExitModal />
+    </div>
     </div>
   );
 }
