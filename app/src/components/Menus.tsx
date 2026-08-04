@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { GameState } from '../game/Game';
-import { CONFIG } from '../game/config';
 import {
   JET_CATALOG,
   FACTION_LABELS,
@@ -132,16 +131,61 @@ export function Menus({
     if (state !== 'menu') onMenu();
   };
 
-  // ─── Top Navigation ─────────────────────────────────────────────────────
-  const TopNav = ({ active }: { active?: Screen }) => (
-    <nav className="glass-nav pointer-events-auto absolute left-1/2 top-5 z-20 flex -translate-x-1/2 items-center gap-1 px-2 py-1.5">
-      <button type="button" className={`glass-nav-item ${active === 'main' || (!active && screen === 'main') ? 'is-active' : ''}`} onClick={() => setScreen('main')}>Home</button>
-      <button type="button" className={`glass-nav-item ${screen === 'hangar' ? 'is-active' : ''}`} onClick={openHangar}>Garage</button>
-      <button type="button" className={`glass-nav-item ${screen === 'maps' ? 'is-active' : ''}`} onClick={() => setScreen('maps')}>Maps</button>
-      <button type="button" className={`glass-nav-item ${screen === 'missions' ? 'is-active' : ''}`} onClick={() => setScreen('missions')}>Einsätze</button>
-      <button type="button" className={`glass-nav-item ${screen === 'settings' ? 'is-active' : ''}`} onClick={() => setScreen('settings')}>Einstellungen</button>
-      <button type="button" className="glass-nav-item" onClick={tryExit}>Beenden</button>
-    </nav>
+  // ─── Sidebar Navigation ─────────────────────────────────────────────────
+  const NAV_ITEMS: { screen: Screen; icon: string; label: string }[] = [
+    { screen: 'main', icon: '🏠', label: 'Home' },
+    { screen: 'hangar', icon: '✈️', label: 'Garage' },
+    { screen: 'missions', icon: '🎯', label: 'Kampagne' },
+    { screen: 'maps', icon: '🗺️', label: 'Maps' },
+    { screen: 'settings', icon: '⚙️', label: 'Einstellungen' },
+  ];
+
+  const Sidebar = () => (
+    <aside className="pointer-events-auto fixed left-0 top-0 z-20 flex h-full w-[240px] flex-col border-r border-white/[0.06] bg-black/50 backdrop-blur-2xl">
+      {/* Logo area */}
+      <div className="flex items-center gap-3 border-b border-white/[0.05] px-5 py-5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-sm font-black text-white shadow-[0_0_16px_rgba(0,242,255,0.3)]"
+          style={{ fontFamily: 'Orbitron, sans-serif' }}>FJ</div>
+        <div>
+          <div className="text-[13px] font-bold tracking-[0.08em] text-white" style={{ fontFamily: 'Orbitron, sans-serif' }}>FIGHT JET 3D</div>
+          <div className="text-[9px] tracking-[0.15em] text-white/30 uppercase">Tactical Air Combat</div>
+        </div>
+      </div>
+
+      {/* Nav items */}
+      <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.screen}
+            type="button"
+            onClick={() => {
+              if (item.screen === 'hangar') openHangar();
+              else setScreen(item.screen);
+            }}
+            className={`group flex items-center gap-3 rounded-xl px-4 py-3 text-[12px] font-semibold tracking-[0.06em] transition-all duration-300 ${
+              screen === item.screen
+                ? 'bg-gradient-to-r from-blue-500/20 to-cyan-400/10 border border-cyan-400/30 text-white shadow-[0_0_20px_rgba(0,242,255,0.1),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                : 'border border-transparent text-white/45 hover:bg-white/[0.04] hover:text-white/80 hover:border-white/[0.08]'
+            }`}
+          >
+            <span className="text-lg">{item.icon}</span>
+            <span style={{ fontFamily: 'Orbitron, sans-serif' }}>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* Exit button at bottom */}
+      <div className="border-t border-white/[0.05] px-3 py-3">
+        <button
+          type="button"
+          onClick={tryExit}
+          className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-[12px] font-semibold tracking-[0.06em] text-white/35 transition-all duration-300 hover:bg-red-500/8 hover:text-red-400 hover:border-red-400/20 border border-transparent"
+        >
+          <span className="text-lg">🚪</span>
+          <span style={{ fontFamily: 'Orbitron, sans-serif' }}>Beenden</span>
+        </button>
+      </div>
+    </aside>
   );
 
   // ─── Credits Badge (always visible on menu) ─────────────────────────────
@@ -376,9 +420,9 @@ export function Menus({
 
   // ─── MENU states (main / hangar / missions / settings) ──────────────────
   return (
-    <div className="absolute inset-0 z-10">
+    <div className="absolute left-[240px] right-0 top-0 bottom-0 z-10">
       <div className="menu-vignette absolute inset-0" />
-      <TopNav active={screen} />
+      <Sidebar />
       <CreditsBadge />
 
       {/* MAIN LANDING */}
@@ -761,43 +805,76 @@ export function Menus({
         </div>
       )}
 
-      {/* MISSIONS */}
+      {/* MISSIONS – Campaign Level Cards */}
       {screen === 'missions' && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pt-16">
-          <div className="glass-panel pointer-events-auto w-full max-w-2xl p-6 sm:p-8">
+          <div className="glass-panel pointer-events-auto w-full max-w-3xl p-6 sm:p-8">
             <div className="mb-1 flex items-center justify-between">
               <div className="glass-eyebrow">Einsätze</div>
               <button type="button" className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs" onClick={() => setScreen('main')}>
                 ← Zurück
               </button>
             </div>
-            <h2 className="glass-title mb-2 text-3xl">Kampagne</h2>
-            <p className="glass-subtitle mb-5 text-sm">
-              Drei Wellen — Luftüberlegenheit bis SEAD. Lock-On auf Luft- und Bodenziele.
+            <h2 className="glass-title mb-1 text-3xl">Kampagne</h2>
+            <p className="glass-subtitle mb-6 text-sm">
+              Wähle deine Mission. Weitere Einsätze werden in zukünftigen Updates freigeschaltet.
             </p>
-            <div className="mb-6 space-y-3">
-              {CONFIG.mission.waves.map((w, i) => (
-                <div
-                  key={w.label}
-                  className="rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-3"
-                >
-                  <div className="text-[11px] tracking-[0.2em] text-cyan-300/80 uppercase">
-                    Welle {i + 1}
-                  </div>
-                  <div className="mt-0.5 font-semibold text-white">{w.label}</div>
-                  <div className="mt-1 text-xs text-white/45">
-                    {w.bandits} Bandits
-                    {w.sams > 0 ? ` · ${w.sams} SAM-Stellungen` : ''}
-                  </div>
+
+            <div className="mb-6 grid gap-4 sm:grid-cols-2">
+              {/* Level 1 – Active */}
+              <div
+                className="group cursor-pointer rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-blue-500/10 to-cyan-400/5 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/50 hover:shadow-[0_12px_40px_rgba(0,0,0,0.4),0_0_30px_rgba(0,242,255,0.15)]"
+                onClick={() => onStart(selectedJetId)}
+              >
+                <div className="text-[40px] font-black leading-none tracking-tight text-cyan-400/20" style={{ fontFamily: 'Orbitron, sans-serif' }}>01</div>
+                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white" style={{ fontFamily: 'Orbitron, sans-serif' }}>
+                  OPERATION DESERT STORM
                 </div>
-              ))}
+                <p className="mt-2 text-[12px] leading-relaxed text-white/45">
+                  Eliminiere feindliche Bodentruppen in der Wüstenregion. Weiche SAM-Raketen aus und zerstöre das gegnerische Hauptquartier.
+                </p>
+                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/35">
+                  Schwierigkeit: <span className="text-amber-400">★★</span><span className="text-white/15">☆☆☆</span>
+                </div>
+                <span className="mt-3 inline-block rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-cyan-300 uppercase">
+                  🔓 Bereit
+                </span>
+              </div>
+
+              {/* Level 2 – Locked */}
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 opacity-55">
+                <div className="text-[40px] font-black leading-none tracking-tight text-white/[0.06]" style={{ fontFamily: 'Orbitron, sans-serif' }}>02</div>
+                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white/40" style={{ fontFamily: 'Orbitron, sans-serif' }}>CANYON RUN</div>
+                <p className="mt-2 text-[12px] leading-relaxed text-white/25">Navigiere durch enge Canyons und weiche Radarfallen aus. Tiefflug-Mission bei Nacht.</p>
+                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/20">Schwierigkeit: <span className="text-amber-400/50">★★★</span><span className="text-white/08">☆☆</span></div>
+                <span className="mt-3 inline-block rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-white/25 uppercase">🔒 Demnächst</span>
+              </div>
+
+              {/* Level 3 – Locked */}
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 opacity-55">
+                <div className="text-[40px] font-black leading-none tracking-tight text-white/[0.06]" style={{ fontFamily: 'Orbitron, sans-serif' }}>03</div>
+                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white/40" style={{ fontFamily: 'Orbitron, sans-serif' }}>NIGHT RAID</div>
+                <p className="mt-2 text-[12px] leading-relaxed text-white/25">Infiltriere den Luftraum bei Nacht. Zerstöre feindliche Bomber bevor sie deine Basis erreichen.</p>
+                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/20">Schwierigkeit: <span className="text-amber-400/50">★★★★</span><span className="text-white/08">☆</span></div>
+                <span className="mt-3 inline-block rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-white/25 uppercase">🔒 Demnächst</span>
+              </div>
+
+              {/* Level 4 – Locked */}
+              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 opacity-55">
+                <div className="text-[40px] font-black leading-none tracking-tight text-white/[0.06]" style={{ fontFamily: 'Orbitron, sans-serif' }}>04</div>
+                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white/40" style={{ fontFamily: 'Orbitron, sans-serif' }}>FINAL ASSAULT</div>
+                <p className="mt-2 text-[12px] leading-relaxed text-white/25">Die finale Schlacht. Stelle dich der gesamten gegnerischen Luftflotte und verteidige dein Heimatland.</p>
+                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/20">Schwierigkeit: <span className="text-amber-400/50">★★★★★</span></div>
+                <span className="mt-3 inline-block rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-white/25 uppercase">🔒 Demnächst</span>
+              </div>
             </div>
+
             <button
               type="button"
               className="glass-button glass-button-primary w-full py-3.5"
               onClick={() => onStart(selectedJetId)}
             >
-              Mission starten · {selected.callsign}
+              🚀 Mission starten · {selected.callsign}
             </button>
           </div>
         </div>
