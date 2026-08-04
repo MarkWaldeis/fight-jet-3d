@@ -128,29 +128,19 @@ export abstract class Aircraft {
       twinMuzzles: twinM,
     });
 
-    // Zentrierungs-Offset aus GlbJetLoader (Modell wurde zentriert, 
-    // Katalog-Koordinaten muessen entsprechend angepasst werden)
-    const co = (visual as any).userData?.centerOffset;
-    const centerOffset = co ? new THREE.Vector3(co.x ?? 0, co.y ?? 0, co.z ?? 0) : new THREE.Vector3();
-
-    // WICHTIG: centerOffset ist in wrap-Lokalraum; fuer Katalog-Koordinaten
-    // muessen wir den Offset in den root-Lokalraum transformieren (root hat Rotation!)
-    const rootNode = visual.children.find(c => c.name === 'root') ?? null;
-    const rootQuatInv = rootNode ? rootNode.quaternion.clone().invert() : null;
-    const coInRootLocal = rootQuatInv 
-      ? centerOffset.clone().applyQuaternion(rootQuatInv)
-      : centerOffset.clone();
-
-    // Modell-AABBs erkennen Spannweite und Rumpf, aber keine Triebwerksduesen
-    // oder Pylone zuverlaessig. Die am echten GLB kalibrierten Katalogpunkte
-    // sind deshalb fuer diese beiden sichtbaren Systeme autoritativ.
-    // ABER: Da das Modell jetzt zentriert ist (BBox-Mitte = 0,0,0), muessen
-    // die Katalog-Koordinaten um den centerOffset korrigiert werden.
+    // Katalog-FX-Koordinaten sind bereits im normalisierten Raum (BBox-Mitte ≈ 0,
+    // Nase = −Z, Heck = +Z). GlbJetLoader zentriert das Mesh dorthin — kein
+    // zusätzlicher centerOffset-Abzug (der früher bei Root-Rotation Jets um
+    // hundert Meter verschoben und Waffen/Düsen abgerissen hat).
+    //
+    // Modell-AABBs erkennen Spannweite und Rumpf, aber keine Triebwerksdüsen
+    // oder Pylone zuverlässig. Die kalibrierten Katalogpunkte sind deshalb
+    // für diese beiden sichtbaren Systeme autoritativ.
     if (catalogHint?.nozzles.length) {
-      auto.nozzles = catalogHint.nozzles.map((v) => v.clone().sub(coInRootLocal));
+      auto.nozzles = catalogHint.nozzles.map((v) => v.clone());
     }
     if (catalogHint?.hardpoints?.length) {
-      auto.hardpoints = catalogHint.hardpoints.map((v) => v.clone().sub(coInRootLocal));
+      auto.hardpoints = catalogHint.hardpoints.map((v) => v.clone());
     }
     if (catalogHint?.nozzleScale) auto.nozzleScale = catalogHint.nozzleScale;
     if (catalogHint?.wingHalfSpan) {

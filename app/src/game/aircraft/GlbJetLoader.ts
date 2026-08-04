@@ -114,45 +114,42 @@ export async function loadJetGlb(
   applyScaling(wrap, targetLength);
 
   // ---- Phase 3: Zentrierung EXAKT EINMAL ----
+  // Three.js local matrix = T * R * S. Vertex world (wrap at origin, uniform scale S):
+  //   world = S * (root.position + R * v_local)
+  // Box3.setFromObject liefert world-space AABB-Zentrum preCenter ≈ S * (pos + R*C).
+  // Mit pos=0: preCenter ≈ S * R * C  ⇒  root.position = -preCenter / S
+  // (NICHT R⁻¹ anwenden und dann /S — das liefert -C statt -R*C und bricht bei
+  //  Root-Rotation, typisch F-14/Su-34 mit Residual-Z ~−120.)
   root.position.set(0, 0, 0);
   wrap.updateMatrixWorld(true);
 
   let box = new THREE.Box3().setFromObject(wrap);
   const preCenter = box.getCenter(new THREE.Vector3());
   const ws = wrap.scale.x; // uniform scale
+  const invScale = Math.abs(ws) > 0.0001 ? 1.0 / ws : 1.0;
 
-  // Verschiebe root so, dass BBox-Zentrum = (0,0,0)
-  // root.position ist in root's LOKALEM Raum (inkl. Rotation!)
-  // preCenter ist in wrap's Lokalraum (keine Rotation)
-  // → Wir muessen preCenter in root-Lokal umrechnen
-  const rootQuatInv = root.quaternion.clone().invert();
-  const centerInRootLocal = preCenter.clone().applyQuaternion(rootQuatInv);
-  if (Math.abs(ws) > 0.0001) {
-    root.position.set(
-      -centerInRootLocal.x / ws,
-      -centerInRootLocal.y / ws,
-      -centerInRootLocal.z / ws
-    );
-  } else {
-    root.position.copy(centerInRootLocal.clone().negate());
-  }
+  root.position.set(
+    -preCenter.x * invScale,
+    -preCenter.y * invScale,
+    -preCenter.z * invScale
+  );
   wrap.updateMatrixWorld(true);
 
-  // === Verifikation ===
+  // === Verifikation + iterative Nachjustierung (AABB kann bei Rotation leicht abweichen) ===
   box = new THREE.Box3().setFromObject(wrap);
-  const size = box.getSize(new THREE.Vector3());
   const finalCenter = box.getCenter(new THREE.Vector3());
 
-  // Iterative Nachjustierung falls noetig (max 5 Versuche) - mit scale- und Rotations-Korrektur
   for (let i = 0; i < 5; i++) {
-    if (Math.abs(finalCenter.x) < 0.005 && Math.abs(finalCenter.y) < 0.005 && Math.abs(finalCenter.z) < 0.005) break;
-    const invScale = Math.abs(ws) > 0.0001 ? 1.0 / ws : 1.0;
-    // finalCenter ist in wrap-Lokalraum, muss nach root-Lokal konvertiert werden
-    const rootQuatInv2 = root.quaternion.clone().invert();
-    const corrInRootLocal = finalCenter.clone().applyQuaternion(rootQuatInv2).negate();
-    root.position.x += corrInRootLocal.x * invScale;
-    root.position.y += corrInRootLocal.y * invScale;
-    root.position.z += corrInRootLocal.z * invScale;
+    if (
+      Math.abs(finalCenter.x) < 0.005 &&
+      Math.abs(finalCenter.y) < 0.005 &&
+      Math.abs(finalCenter.z) < 0.005
+    ) {
+      break;
+    }
+    root.position.x -= finalCenter.x * invScale;
+    root.position.y -= finalCenter.y * invScale;
+    root.position.z -= finalCenter.z * invScale;
     wrap.updateMatrixWorld(true);
     box = new THREE.Box3().setFromObject(wrap);
     finalCenter.copy(box.getCenter(new THREE.Vector3()));
@@ -166,14 +163,17 @@ export async function loadJetGlb(
     );
   }
 
-  // Store centerOffset for downstream coordinate adjustment
-  // Use plain object so it survives JSON.stringify/parse during clone
-  wrap.userData.centerOffset = { x: preCenter.x, y: preCenter.y, z: preCenter.z };
+  // Residual-Offset nach Zentrierung (sollte ~0 sein). Plain object → clone-sicher.
+  wrap.userData.centerOffset = {
+    x: finalCenter.x,
+    y: finalCenter.y,
+    z: finalCenter.z,
+  };
 
   return {
     group: wrap,
     size: box.getSize(new THREE.Vector3()),
-    centerOffset: preCenter.clone(),
+    centerOffset: finalCenter.clone(),
   };
 }
 
@@ -237,6 +237,9 @@ function bakeMeshesToFlatGroup(source: THREE.Object3D): THREE.Group {
     if (geom.attributes.normal) {
       geom.computeVertexNormals();
     }
+    // Bounding volumes nach Bake neu — setFromObject/Zentrierung brauchen aktuelle AABB
+    geom.computeBoundingBox();
+    geom.computeBoundingSphere();
 
     const baked = new THREE.Mesh(geom, mesh.material);
     baked.name = mesh.name || 'mesh';
