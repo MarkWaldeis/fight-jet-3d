@@ -128,19 +128,11 @@ export abstract class Aircraft {
       twinMuzzles: twinM,
     });
 
-    // Katalog-FX-Koordinaten sind bereits im normalisierten Raum (BBox-Mitte ≈ 0,
-    // Nase = −Z, Heck = +Z). GlbJetLoader zentriert das Mesh dorthin — kein
-    // zusätzlicher centerOffset-Abzug (der früher bei Root-Rotation Jets um
-    // hundert Meter verschoben und Waffen/Düsen abgerissen hat).
-    //
-    // Modell-AABBs erkennen Spannweite und Rumpf, aber keine Triebwerksdüsen
-    // oder Pylone zuverlässig. Die kalibrierten Katalogpunkte sind deshalb
-    // für diese beiden sichtbaren Systeme autoritativ.
+    // Düsen: Katalog ist am echten GLB kalibriert (autoritativ).
+    // Hardpoints: IMMER aus Geometrie (Flügel-Unterseite) — Katalog-Y lag oft
+    // 0.5–1.5 m zu hoch und setzte Raketen auf die Flügeloberkante.
     if (catalogHint?.nozzles.length) {
       auto.nozzles = catalogHint.nozzles.map((v) => v.clone());
-    }
-    if (catalogHint?.hardpoints?.length) {
-      auto.hardpoints = catalogHint.hardpoints.map((v) => v.clone());
     }
     if (catalogHint?.nozzleScale) auto.nozzleScale = catalogHint.nozzleScale;
     if (catalogHint?.wingHalfSpan) {
@@ -235,12 +227,18 @@ export abstract class Aircraft {
     this.missileRack.clear();
     this.mountedMissiles = [];
     const hardpoints = this.getHardpoints();
+    // Gerade Anzahl bevorzugt L/R-Paare von aussen; ungerade: Rest innen
     const stationCount = Math.min(count, hardpoints.length);
     for (let index = 0; index < stationCount; index++) {
       const visual = factory();
       if (!visual) continue;
       visual.name = `mountedMissile-${index}`;
+      // Hardpoint = Aufhängepunkt (Flügelunterseite − Clearance); Raketen-Mesh
+      // ist zentriert → leicht nach unten, damit der Körper unter dem Flügel hängt
       visual.position.copy(hardpoints[index]);
+      visual.position.y -= 0.06;
+      // Nase = local −Z (Flight-Richtung), Identity-Rotation
+      visual.quaternion.identity();
       this.missileRack.add(visual);
       this.mountedMissiles[index] = visual;
     }

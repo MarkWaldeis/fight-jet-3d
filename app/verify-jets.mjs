@@ -72,6 +72,31 @@ for (const id of catalog) {
       const noz = (p.anchors?.nozzles ?? []).map((a) => [+a.x.toFixed(2), +a.y.toFixed(2), +a.z.toFixed(2)]);
       const muz = p.getMuzzles().map((a) => [+a.x.toFixed(2), +a.y.toFixed(2), +a.z.toFixed(2)]);
 
+      // Flügel-Unterseite und montierte Raketen-Y prüfen
+      let wingSkinY = 0, wingN = 0;
+      const halfW = (max.x - min.x) * 0.5;
+      visual.traverse((obj) => {
+        if (!obj.isMesh || !obj.geometry?.attributes?.position || !obj.visible) return;
+        const pos = obj.geometry.attributes.position;
+        const step = Math.max(1, Math.floor(pos.count / 2500));
+        for (let i = 0; i < pos.count; i += step) {
+          v.fromBufferAttribute(pos, i);
+          obj.localToWorld(v);
+          p.object.worldToLocal(v);
+          if (Math.abs(v.x) > halfW * 0.55 && Math.abs(v.x) < halfW * 0.95 && v.y < cy) {
+            wingSkinY += v.y;
+            wingN++;
+          }
+        }
+      });
+      const avgWingY = wingN > 8 ? wingSkinY / wingN : cy - 0.5;
+      const mounted = [];
+      p.missileRack?.traverse((o) => {
+        if (o.name?.startsWith('mountedMissile-')) {
+          mounted.push([+o.position.x.toFixed(2), +o.position.y.toFixed(2), +o.position.z.toFixed(2)]);
+        }
+      });
+
       // Nase/Heck-Heuristik: mittlerer Radius der Vertices in vorderem/hinterem 12%-Band
       let rF = 0, nF = 0, rA = 0, nA = 0;
       const bandF = min.z + len * 0.12, bandA = max.z - len * 0.12;
@@ -95,6 +120,8 @@ for (const id of catalog) {
         max: [+max.x.toFixed(2), +max.y.toFixed(2), +max.z.toFixed(2)],
         span: +span.toFixed(2), len: +len.toFixed(2), hgt: +hgt.toFixed(2),
         hardpoints: hp, nozzles: noz, muzzles: muz,
+        avgWingY: +avgWingY.toFixed(2),
+        mounted,
         noseRadFront: nF ? +(rF / nF).toFixed(2) : null,
         tailRadAft: nA ? +(rA / nA).toFixed(2) : null,
       };
@@ -133,6 +160,18 @@ for (const id of catalog) {
         problems.push(`RUECKWAERTS: Duesen z=${avgNozZ.toFixed(2)} vor Muendungen z=${avgMuzZ.toFixed(2)}`);
       }
     }
+    // Raketen unter dem Flügel: äussere Stationen (|x| gross) unter Wing-Skin.
+    // Bauch-Pylone liegen oft höher als die Flügelspitzen-Unterseite — ok.
+    const midY = (diag.min[1] + diag.max[1]) / 2;
+    diag.hardpoints.forEach((h, i) => {
+      if (h[1] > midY + 0.15) {
+        problems.push(`HP${i} UEBER Mitte (y=${h[1]} midY=${midY.toFixed(2)}) — soll unter Fluegel`);
+      }
+      const isOuterWing = Math.abs(h[0]) > halfSpan * 0.35;
+      if (isOuterWing && diag.avgWingY != null && h[1] > diag.avgWingY + 0.45) {
+        problems.push(`HP${i} UEBER Fluegel (y=${h[1]} wingY≈${diag.avgWingY})`);
+      }
+    });
 
     // Screenshots: Heck (chase), Seite, Oben
     const views = [

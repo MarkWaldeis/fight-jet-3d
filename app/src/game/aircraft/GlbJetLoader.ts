@@ -55,14 +55,17 @@ export async function loadJetGlb(
   const gltf = await loader.loadAsync(url);
   const rawRoot = gltf.scene;
 
-  // Lichter entfernen, Fahrwerk ausblenden, Material feinjustieren
+  // Lichter entfernen; Fahrwerk + mitgelieferte Waffen ausblenden
+  // (Loadout kommt aus missileRack — doppelte Mesh-Raketen vermeiden)
   const gearRe = /gear|wheel|tire|tyre|landing|baydoor|bay_door|strut|oleo/i;
+  const weaponRe =
+    /missile|aim[-_ ]?9|aim[-_ ]?120|sidewinder|amraam|phoenix|sparrow|r[-_ ]?77|r[-_ ]?73|r[-_ ]?27|rocket|bomb|ordnance|weapon_?rack|pylon.*store|fuel_?tank|droptank|drop_?tank/i;
   rawRoot.traverse((obj) => {
     if ((obj as THREE.Light).isLight) {
       obj.parent?.remove(obj);
       return;
     }
-    if (gearRe.test(obj.name)) {
+    if (gearRe.test(obj.name) || weaponRe.test(obj.name)) {
       obj.visible = false;
     }
     const mesh = obj as THREE.Mesh;
@@ -395,19 +398,32 @@ function detectUpsideDown(wrap: THREE.Object3D): boolean {
 
 function detectNoseTowardNegZ(wrap: THREE.Object3D, root: THREE.Object3D): boolean {
   const propRe = /prop(?!ulsion)|blade|spinner|airscrew|rotor/i;
+  const noseNameRe = /nose|cockpit|canopy|radar|pilot|intake|inlet|cabin|front/i;
+  const tailNameRe = /nozzle|exhaust|engine|afterburn|thrust|jetpipe|tailpipe|reheat/i;
   const propTips: THREE.Vector3[] = [];
+  const noseHints: THREE.Vector3[] = [];
+  const tailHints: THREE.Vector3[] = [];
   const tmp = new THREE.Vector3();
 
   root.traverse((obj) => {
-    if (!obj.name || !propRe.test(obj.name)) return;
+    if (!obj.name) return;
     obj.getWorldPosition(tmp);
     wrap.worldToLocal(tmp);
-    propTips.push(tmp.clone());
+    if (propRe.test(obj.name)) propTips.push(tmp.clone());
+    if (noseNameRe.test(obj.name)) noseHints.push(tmp.clone());
+    if (tailNameRe.test(obj.name)) tailHints.push(tmp.clone());
   });
 
   if (propTips.length > 0) {
     const avgZ = propTips.reduce((s, v) => s + v.z, 0) / propTips.length;
     return avgZ < 0;
+  }
+
+  // Benannte Cockpit/Nase vs. Düse/Engine — robuster als Radius bei schlanken Jets
+  if (noseHints.length >= 1 && tailHints.length >= 1) {
+    const nZ = noseHints.reduce((s, v) => s + v.z, 0) / noseHints.length;
+    const tZ = tailHints.reduce((s, v) => s + v.z, 0) / tailHints.length;
+    if (Math.abs(nZ - tZ) > 0.5) return nZ < tZ;
   }
 
   const box = new THREE.Box3().setFromObject(wrap);
@@ -416,14 +432,19 @@ function detectNoseTowardNegZ(wrap: THREE.Object3D, root: THREE.Object3D): boole
   const zLen = Math.max(0.001, zMax - zMin);
   const band = zLen * 0.12;
 
+  // Moderne Jets: Heck oft ZWILLINGS-Düsen (zwei Cluster abseits der Mittelebene),
+  // Nase ein einzelner spitzer Kegel. Radius-Heuristik allein verwechselt dünne
+  // Düsen mit der Nase — zusätzlich Lateral-Spread und "Spitze auf Achse" nutzen.
   let rMin = 0,
     nMin = 0,
     rMax = 0,
     nMax = 0;
+  let offMin = 0,
+    offMax = 0;
   const v = new THREE.Vector3();
   wrap.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
-    if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+    if (!mesh.isMesh || !mesh.geometry?.attributes?.position || !mesh.visible) return;
     const pos = mesh.geometry.attributes.position;
     const step = Math.max(1, Math.floor(pos.count / 2500));
     for (let i = 0; i < pos.count; i += step) {
@@ -431,18 +452,35 @@ function detectNoseTowardNegZ(wrap: THREE.Object3D, root: THREE.Object3D): boole
       mesh.localToWorld(v);
       wrap.worldToLocal(v);
       const rad = Math.hypot(v.x, v.y);
+      const offX = Math.abs(v.x);
       if (v.z <= zMin + band) {
         rMin += rad;
+        offMin += offX;
         nMin++;
       } else if (v.z >= zMax - band) {
         rMax += rad;
+        offMax += offX;
         nMax++;
       }
     }
   });
 
   if (nMin < 5 || nMax < 5) return false;
-  return rMin / nMin <= rMax / nMax;
+  const avgRMin = rMin / nMin;
+  const avgRMax = rMax / nMax;
+  const avgOffMin = offMin / nMin;
+  const avgOffMax = offMax / nMax;
+
+  // Twin-nozzle heck: größeres |x|-Spread am Heck → Nase am anderen Ende
+  if (avgOffMax > avgOffMin * 1.35 && avgOffMax > 0.35) {
+    return true; // Nase bei −Z (min)
+  }
+  if (avgOffMin > avgOffMax * 1.35 && avgOffMin > 0.35) {
+    return false; // Nase bei +Z
+  }
+
+  // Fallback: dünneres Ende = Nase (Props / spitze Jets)
+  return avgRMin <= avgRMax;
 }
 
 /**

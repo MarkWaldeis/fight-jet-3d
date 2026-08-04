@@ -435,8 +435,7 @@ export const JET_CATALOG: JetDef[] = [
     description:
       'Russisches 5.-Gen-Jagdflugzeug. Schnell, wendig und mit starker Elektronik — Allround-Überlegenheit.',
     modelUrl: './models/su57.glb',
-    // GLB zeigt nach Standard-Align mit dem Heck nach vorn — 180° Yaw korrigiert Nase/−Z
-    modelOrient: { yawDeg: 180 },
+    // Auto-Align setzt Nase auf −Z; früherer yawDeg:180 drehte den Felon rückwärts
     traits: ['5th Gen', 'Supermaneuver', 'BVR'],
     era: 'modern',
     engineType: 'jet',
