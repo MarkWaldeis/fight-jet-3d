@@ -1,6 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Apple Liquid Glass & Tactical HUD — Design Tokens & Components
-   Skill: apple-glass-game-ui
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -39,6 +38,248 @@
   font-family: var(--font-family);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Game-Specific Components: Sidebar, Mission Cards, Loading
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Glass Sidebar ─────────────────────────────────────────────────────── */
+.glass-sidebar {
+  background: rgba(8, 10, 16, 0.65);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-sidebar-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #0a84ff, #00f2ff);
+  font-family: var(--font-family);
+  font-weight: 900;
+  font-size: 14px;
+  color: #fff;
+  box-shadow: 0 0 18px rgba(0, 242, 255, 0.35), 0 0 40px rgba(10, 132, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.glass-sidebar-btn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 16px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  width: 100%;
+}
+
+.glass-sidebar-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.glass-sidebar-btn.is-active {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.18), rgba(0, 242, 255, 0.08));
+  border-color: rgba(0, 242, 255, 0.35);
+  color: #fff;
+  box-shadow: 0 0 22px rgba(0, 242, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.glass-sidebar-btn.is-active .sidebar-btn-icon {
+  filter: drop-shadow(0 0 6px rgba(0, 242, 255, 0.45));
+}
+
+.sidebar-btn-icon {
+  font-size: 18px;
+  width: 26px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.glass-sidebar-exit {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 16px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.glass-sidebar-exit:hover {
+  background: rgba(255, 70, 70, 0.06);
+  border-color: rgba(255, 70, 70, 0.2);
+  color: #ff6b6b;
+}
+
+/* ─── Mission / Campaign Cards ──────────────────────────────────────────── */
+.mission-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.mission-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  padding: 22px 24px;
+  transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.mission-card.is-playable {
+  cursor: pointer;
+  border-color: rgba(0, 242, 255, 0.22);
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.08), rgba(0, 242, 255, 0.03));
+}
+
+.mission-card.is-playable:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 242, 255, 0.45);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45), 0 0 32px rgba(0, 242, 255, 0.12);
+}
+
+.mission-card.is-locked {
+  opacity: 0.5;
+  filter: grayscale(0.15);
+}
+
+.mission-card-nr {
+  font-weight: 900;
+  font-size: 42px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: rgba(0, 242, 255, 0.06);
+}
+
+.mission-card.is-playable .mission-card-nr {
+  color: rgba(0, 242, 255, 0.18);
+}
+
+.mission-card-name {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: #fff;
+  margin-top: 4px;
+}
+
+.mission-card.is-locked .mission-card-name {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.mission-card-desc {
+  font-size: 12px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 6px;
+}
+
+.mission-card.is-locked .mission-card-desc {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.mission-difficulty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 10px;
+}
+
+.mission-star { color: #fbbf24; font-size: 13px; }
+.mission-star-empty { color: rgba(255, 255, 255, 0.08); }
+
+.mission-card-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 12px;
+}
+
+.mission-card-badge.ready {
+  background: rgba(0, 242, 255, 0.1);
+  border: 1px solid rgba(0, 242, 255, 0.28);
+  color: #00f2ff;
+}
+
+.mission-card-badge.locked-badge {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* ─── Loading Screen Glass ─────────────────────────────────────────────── */
+.glass-loading-overlay {
+  background: radial-gradient(ellipse 70% 60% at 50% 35%, #0d1f3c 0%, #020810 100%);
+}
+
+.glass-loading-ring {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 2.5;
+}
+
+.glass-loading-ring-fill {
+  fill: none;
+  stroke: url(#loadGrad);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50px 50px;
+  transition: stroke-dasharray 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-loading-progress-bar {
+  width: 224px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.glass-loading-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #0a84ff, #00f2ff);
+  box-shadow: 0 0 12px rgba(0, 242, 255, 0.45);
+  transition: width 0.5s ease-out;
+}
+
+/* ─── Menu BG Vignette ──────────────────────────────────────────────────── */
+.menu-vignette {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.025;
+  pointer-events: none;
 }
 
 /* ─── Glass Surfaces ─────────────────────────────────────────────────────── */

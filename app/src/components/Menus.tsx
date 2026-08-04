@@ -141,19 +141,18 @@ export function Menus({
   ];
 
   const Sidebar = () => (
-    <aside className="pointer-events-auto fixed left-0 top-0 z-20 flex h-full w-[240px] flex-col border-r border-white/[0.06] bg-black/50 backdrop-blur-2xl">
+    <aside className="glass-sidebar pointer-events-auto fixed left-0 top-0 z-20 flex h-full w-[232px] flex-col">
       {/* Logo area */}
-      <div className="flex items-center gap-3 border-b border-white/[0.05] px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-sm font-black text-white shadow-[0_0_16px_rgba(0,242,255,0.3)]"
-          style={{ fontFamily: 'Orbitron, sans-serif' }}>FJ</div>
+      <div className="flex items-center gap-3 border-b border-white/[0.05] px-4 py-4">
+        <div className="glass-sidebar-logo">FJ</div>
         <div>
-          <div className="text-[13px] font-bold tracking-[0.08em] text-white" style={{ fontFamily: 'Orbitron, sans-serif' }}>FIGHT JET 3D</div>
-          <div className="text-[9px] tracking-[0.15em] text-white/30 uppercase">Tactical Air Combat</div>
+          <div className="text-[12px] font-bold tracking-[0.08em] text-white leading-tight">FIGHT JET 3D</div>
+          <div className="text-[8px] tracking-[0.14em] text-white/25 uppercase">Tactical Air Combat</div>
         </div>
       </div>
 
       {/* Nav items */}
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
+      <nav className="flex flex-1 flex-col gap-0.5 px-3 py-3">
         {NAV_ITEMS.map((item) => (
           <button
             key={item.screen}
@@ -162,27 +161,23 @@ export function Menus({
               if (item.screen === 'hangar') openHangar();
               else setScreen(item.screen);
             }}
-            className={`group flex items-center gap-3 rounded-xl px-4 py-3 text-[12px] font-semibold tracking-[0.06em] transition-all duration-300 ${
-              screen === item.screen
-                ? 'bg-gradient-to-r from-blue-500/20 to-cyan-400/10 border border-cyan-400/30 text-white shadow-[0_0_20px_rgba(0,242,255,0.1),inset_0_1px_0_rgba(255,255,255,0.08)]'
-                : 'border border-transparent text-white/45 hover:bg-white/[0.04] hover:text-white/80 hover:border-white/[0.08]'
-            }`}
+            className={`glass-sidebar-btn ${screen === item.screen ? 'is-active' : ''}`}
           >
-            <span className="text-lg">{item.icon}</span>
-            <span style={{ fontFamily: 'Orbitron, sans-serif' }}>{item.label}</span>
+            <span className="sidebar-btn-icon">{item.icon}</span>
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>
 
       {/* Exit button at bottom */}
-      <div className="border-t border-white/[0.05] px-3 py-3">
+      <div className="border-t border-white/[0.05] px-3 py-2.5">
         <button
           type="button"
           onClick={tryExit}
-          className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-[12px] font-semibold tracking-[0.06em] text-white/35 transition-all duration-300 hover:bg-red-500/8 hover:text-red-400 hover:border-red-400/20 border border-transparent"
+          className="glass-sidebar-exit"
         >
-          <span className="text-lg">🚪</span>
-          <span style={{ fontFamily: 'Orbitron, sans-serif' }}>Beenden</span>
+          <span className="sidebar-btn-icon">🚪</span>
+          <span>Beenden</span>
         </button>
       </div>
     </aside>
@@ -420,7 +415,7 @@ export function Menus({
 
   // ─── MENU states (main / hangar / missions / settings) ──────────────────
   return (
-    <div className="absolute left-[240px] right-0 top-0 bottom-0 z-10">
+    <div className="absolute left-[232px] right-0 top-0 bottom-0 z-10">
       <div className="menu-vignette absolute inset-0" />
       <Sidebar />
       <CreditsBadge />
@@ -821,51 +816,47 @@ export function Menus({
             </p>
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2">
-              {/* Level 1 – Active */}
+              {/* Level 1 – Playable */}
               <div
-                className="group cursor-pointer rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-blue-500/10 to-cyan-400/5 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/50 hover:shadow-[0_12px_40px_rgba(0,0,0,0.4),0_0_30px_rgba(0,242,255,0.15)]"
+                className="mission-card is-playable"
                 onClick={() => onStart(selectedJetId)}
               >
-                <div className="text-[40px] font-black leading-none tracking-tight text-cyan-400/20" style={{ fontFamily: 'Orbitron, sans-serif' }}>01</div>
-                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white" style={{ fontFamily: 'Orbitron, sans-serif' }}>
-                  OPERATION DESERT STORM
-                </div>
-                <p className="mt-2 text-[12px] leading-relaxed text-white/45">
+                <div className="mission-card-nr">01</div>
+                <div className="mission-card-name">OPERATION DESERT STORM</div>
+                <p className="mission-card-desc">
                   Eliminiere feindliche Bodentruppen in der Wüstenregion. Weiche SAM-Raketen aus und zerstöre das gegnerische Hauptquartier.
                 </p>
-                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/35">
-                  Schwierigkeit: <span className="text-amber-400">★★</span><span className="text-white/15">☆☆☆</span>
+                <div className="mission-difficulty">
+                  Schwierigkeit: <span className="mission-star">★★</span><span className="mission-star-empty">☆☆☆</span>
                 </div>
-                <span className="mt-3 inline-block rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-cyan-300 uppercase">
-                  🔓 Bereit
-                </span>
+                <span className="mission-card-badge ready">🔓 Bereit</span>
               </div>
 
               {/* Level 2 – Locked */}
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 opacity-55">
-                <div className="text-[40px] font-black leading-none tracking-tight text-white/[0.06]" style={{ fontFamily: 'Orbitron, sans-serif' }}>02</div>
-                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white/40" style={{ fontFamily: 'Orbitron, sans-serif' }}>CANYON RUN</div>
-                <p className="mt-2 text-[12px] leading-relaxed text-white/25">Navigiere durch enge Canyons und weiche Radarfallen aus. Tiefflug-Mission bei Nacht.</p>
-                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/20">Schwierigkeit: <span className="text-amber-400/50">★★★</span><span className="text-white/08">☆☆</span></div>
-                <span className="mt-3 inline-block rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-white/25 uppercase">🔒 Demnächst</span>
+              <div className="mission-card is-locked">
+                <div className="mission-card-nr">02</div>
+                <div className="mission-card-name">CANYON RUN</div>
+                <p className="mission-card-desc">Navigiere durch enge Canyons und weiche Radarfallen aus. Tiefflug-Mission bei Nacht.</p>
+                <div className="mission-difficulty">Schwierigkeit: <span className="mission-star" style={{opacity:0.5}}>★★★</span><span className="mission-star-empty">☆☆</span></div>
+                <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
               </div>
 
               {/* Level 3 – Locked */}
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 opacity-55">
-                <div className="text-[40px] font-black leading-none tracking-tight text-white/[0.06]" style={{ fontFamily: 'Orbitron, sans-serif' }}>03</div>
-                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white/40" style={{ fontFamily: 'Orbitron, sans-serif' }}>NIGHT RAID</div>
-                <p className="mt-2 text-[12px] leading-relaxed text-white/25">Infiltriere den Luftraum bei Nacht. Zerstöre feindliche Bomber bevor sie deine Basis erreichen.</p>
-                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/20">Schwierigkeit: <span className="text-amber-400/50">★★★★</span><span className="text-white/08">☆</span></div>
-                <span className="mt-3 inline-block rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-white/25 uppercase">🔒 Demnächst</span>
+              <div className="mission-card is-locked">
+                <div className="mission-card-nr">03</div>
+                <div className="mission-card-name">NIGHT RAID</div>
+                <p className="mission-card-desc">Infiltriere den Luftraum bei Nacht. Zerstöre feindliche Bomber bevor sie deine Basis erreichen.</p>
+                <div className="mission-difficulty">Schwierigkeit: <span className="mission-star" style={{opacity:0.5}}>★★★★</span><span className="mission-star-empty">☆</span></div>
+                <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
               </div>
 
               {/* Level 4 – Locked */}
-              <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 opacity-55">
-                <div className="text-[40px] font-black leading-none tracking-tight text-white/[0.06]" style={{ fontFamily: 'Orbitron, sans-serif' }}>04</div>
-                <div className="mt-1 text-[15px] font-bold tracking-[0.04em] text-white/40" style={{ fontFamily: 'Orbitron, sans-serif' }}>FINAL ASSAULT</div>
-                <p className="mt-2 text-[12px] leading-relaxed text-white/25">Die finale Schlacht. Stelle dich der gesamten gegnerischen Luftflotte und verteidige dein Heimatland.</p>
-                <div className="mt-3 flex items-center gap-1 text-[11px] text-white/20">Schwierigkeit: <span className="text-amber-400/50">★★★★★</span></div>
-                <span className="mt-3 inline-block rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[10px] font-semibold tracking-[0.1em] text-white/25 uppercase">🔒 Demnächst</span>
+              <div className="mission-card is-locked">
+                <div className="mission-card-nr">04</div>
+                <div className="mission-card-name">FINAL ASSAULT</div>
+                <p className="mission-card-desc">Die finale Schlacht. Stelle dich der gesamten gegnerischen Luftflotte und verteidige dein Heimatland.</p>
+                <div className="mission-difficulty">Schwierigkeit: <span className="mission-star" style={{opacity:0.5}}>★★★★★</span></div>
+                <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
               </div>
             </div>
 
