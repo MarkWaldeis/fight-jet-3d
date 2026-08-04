@@ -50,23 +50,6 @@ function StatBar({ label, value }: { label: string; value: number }) {
   );
 }
 
-function GlassStat({ label, value, locked }: { label: string; value: number; locked?: boolean }) {
-  const v = Math.max(0, Math.min(100, value));
-  const color = locked ? 'rgba(255,255,255,0.15)' : '#00f2ff';
-  return (
-    <div>
-      <div className="flex justify-between text-[10px] mb-0.5">
-        <span className="text-white/35 uppercase tracking-[0.1em]">{label}</span>
-        <span className="font-mono text-white/50">{v}</span>
-      </div>
-      <div className="h-1 rounded-full bg-white/[0.04] overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${v}%`, background: `linear-gradient(90deg, ${color}, ${locked ? 'rgba(255,255,255,0.25)' : '#0a84ff'})`, boxShadow: locked ? 'none' : `0 0 6px ${color}40` }} />
-      </div>
-    </div>
-  );
-}
-
 export function Menus({
   state,
   score,
