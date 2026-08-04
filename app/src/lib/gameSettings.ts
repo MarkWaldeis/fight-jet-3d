@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   showHud: true,
   masterVolume: 0.85,
   muted: false,
-  aeroCredits: 2500,
+  aeroCredits: 999999,
   ownedJets: [...INITIAL_OWNED],
 };
 

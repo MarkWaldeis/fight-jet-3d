@@ -111,15 +111,28 @@ export default function App() {
     <div className="liquid-ui-root relative h-screen w-screen overflow-hidden bg-black">
       {isMenu && (
         <div className="fixed inset-0 z-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 35%, #0d1f3c 0%, #06101e 45%, #020810 100%)' }}>
-          <div className="absolute inset-0 opacity-[0.025]"
-            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)', backgroundSize: '64px 64px' }} />
-          <div className="absolute top-[15%] left-[20%] w-[40vw] h-[40vw] rounded-full opacity-[0.06] animate-pulse"
-            style={{ background: 'radial-gradient(circle, #0a84ff 0%, transparent 70%)' }} />
-          <div className="absolute bottom-[25%] right-[15%] w-[35vw] h-[35vw] rounded-full opacity-[0.05] animate-pulse"
-            style={{ background: 'radial-gradient(circle, #00f2ff 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 35%, #0a1628 0%, #040d18 45%, #020810 100%)' }}>
+          {/* Grid lines */}
+          <div className="absolute inset-0 opacity-[0.03]"
+            style={{ backgroundImage: 'linear-gradient(rgba(0,242,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,242,255,0.3) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+          {/* Radar sweep glow top */}
+          <div className="absolute top-[12%] left-[18%] w-[45vw] h-[45vw] rounded-full opacity-[0.08]"
+            style={{ background: 'radial-gradient(circle, #0a84ff 0%, transparent 70%)', animation: 'menuGlowPulse 4s ease-in-out infinite' }} />
+          {/* Radar sweep glow bottom */}
+          <div className="absolute bottom-[20%] right-[12%] w-[40vw] h-[40vw] rounded-full opacity-[0.06]"
+            style={{ background: 'radial-gradient(circle, #00f2ff 0%, transparent 70%)', animation: 'menuGlowPulse 5s ease-in-out 1s infinite' }} />
+          {/* Floor line fade */}
+          <div className="absolute bottom-0 left-0 right-0 h-[35%]"
+            style={{ background: 'linear-gradient(0deg, rgba(0,242,255,0.04) 0%, transparent 100%)' }} />
         </div>
       )}
+      {/* CSS keyframes for menu glow animation */}
+      <style>{`
+        @keyframes menuGlowPulse {
+          0%, 100% { opacity: 0.06; transform: scale(1); }
+          50% { opacity: 0.12; transform: scale(1.08); }
+        }
+      `}</style>
 
       {isLoading && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6"
@@ -145,7 +158,7 @@ export default function App() {
       )}
 
       <canvas ref={canvasRef}
-        className={`absolute inset-0 h-full w-full ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-500`} />
+        className={`absolute inset-0 h-full w-full ${isLoading || isMenu ? 'opacity-0 pointer-events-none' : 'opacity-100'} transition-opacity duration-500`} />
 
       <Hud data={hud} />
 
