@@ -375,6 +375,104 @@ export class Game {
     this.hudListeners.push(cb);
   }
 
+  /** Preload all assets with real progress reporting. Returns when everything is ready. */
+  async preloadAllAssets(
+    jetId: JetId,
+    mapId: MapId,
+    onProgress: (pct: number, text: string) => void,
+  ): Promise<void> {
+    const steps: { pct: number; text: string }[] = [
+      { pct: 10, text: 'Lade Jet-Modell...' },
+      { pct: 35, text: 'Bewaffnung kalibrieren...' },
+      { pct: 50, text: 'Lade Karte...' },
+      { pct: 70, text: 'Terrain generieren...' },
+      { pct: 85, text: 'Gegner platzieren...' },
+      { pct: 95, text: 'Systeme hochfahren...' },
+      { pct: 100, text: 'Startbereit!' },
+    ];
+
+    onProgress(0, 'Initialisiere...');
+
+    // Step 1: Select jet (loads GLB + missile visuals)
+    onProgress(5, steps[0].text);
+    this.selectedJetId = jetId;
+    const jetDef = getJetDef(jetId);
+    this.player.applyLoadout(jetDef);
+    this.sound.setEngineMode(jetDef.engineType);
+    this.player.reset();
+    this.player.resetMountedMissiles(this.player.missilesLeft);
+
+    // Preload the jet visual
+    const template = await this.loadJetTemplate(jetId);
+    onProgress(20, 'Verarbeite Jet-Geometrie...');
+    if (template) {
+      this.player.applyFlightPhysics(jetDef.physics, jetDef.engineType);
+      const instance = template.clone(true);
+      const fx = jetFxVectors(jetDef);
+      this.player.applyExternalVisual(instance, {
+        ...fx,
+        hideEngineFx: jetDef.engineType === 'piston',
+      });
+    }
+    onProgress(steps[1].pct, steps[1].text);
+
+    // Step 2: Missile visuals
+    if (jetDef.stats.missiles > 0) {
+      const missileVisualId = missileIdForJet(jetId);
+      await preloadMissileVisual(missileVisualId);
+      this.player.configureMountedMissiles(
+        () => cloneMissileVisual(missileVisualId),
+        jetDef.stats.missiles,
+      );
+    } else {
+      this.player.configureMountedMissiles(() => null, 0);
+    }
+    onProgress(steps[2].pct, steps[2].text);
+
+    // Step 3: Map loading
+    const mapDef = getMapDef(mapId);
+    if (mapDef.kind === 'glb') {
+      onProgress(55, 'Lade 3D-Terrain...');
+      let map = this.mapCache.get(mapId);
+      if (!map) {
+        const loaded = await loadGlbMap(mapDef);
+        map = new GlbMapTerrain(loaded);
+        this.mapCache.set(mapId, map);
+      }
+      this.activateGlbMap(map, mapDef.showSea, mapDef.fogFar, mapDef.worldSizeM);
+    } else {
+      this.activateProceduralMap();
+    }
+    this.selectedMapId = mapId;
+    onProgress(steps[3].pct, steps[3].text);
+
+    // Step 4: Place player & spawn
+    this.placePlayerForMap();
+    onProgress(steps[4].pct, steps[4].text);
+
+    // Step 5: Initialize sound & spawn enemies
+    this.sound.init();
+    const def2 = getJetDef(this.selectedJetId);
+    this.sound.setEngineMode(def2.engineType);
+    this.player.applyLoadout(def2);
+    this.player.reset();
+    this.player.resetMountedMissiles(this.player.missilesLeft);
+    this.clearActors();
+    this.waveIndex = 0;
+    this.waveDelay = 0;
+    this.spawnWave(0);
+    onProgress(steps[5].pct, steps[5].text);
+
+    this.cam.snapBehind(this.player.object);
+    onProgress(steps[6].pct, steps[6].text);
+
+    // Brief pause so player sees 100%
+    await new Promise(r => setTimeout(r, 300));
+    this.state = 'playing';
+    this.setPlayCursor(true);
+    this.emitHud();
+  }
+
   async startGame(jetId?: JetId) {
     if (jetId) await this.selectJet(jetId);
     else await this.ensureJetVisual(this.selectedJetId);

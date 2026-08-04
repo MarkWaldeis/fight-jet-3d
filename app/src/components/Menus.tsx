@@ -158,13 +158,28 @@ export function Menus({
       <button type="button" className={`glass-nav-item ${screen === 'missions' ? 'is-active' : ''}`} onClick={() => setScreen('missions')}>Einsätze</button>
       <button type="button" className={`glass-nav-item ${screen === 'settings' ? 'is-active' : ''}`} onClick={() => setScreen('settings')}>Einstellungen</button>
       <button type="button" className="glass-nav-item" onClick={tryExit}>Beenden</button>
-      {/* Aero Credits inline in nav */}
-      <div className="ml-4 flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 backdrop-blur-xl">
-        <img src="./aero_credits.jpg" alt="AC" className="h-5 w-5 rounded-full object-cover shadow-[0_0_8px_rgba(255,215,0,0.4)]" style={{ animation: 'coin-spin 4s linear infinite' }} />
-        <span className="text-xs font-bold tracking-[0.08em] text-amber-200/90">{aeroCredits.toLocaleString()}</span>
-        <span className="text-[10px] text-amber-300/50">AC</span>
-      </div>
     </nav>
+  );
+
+  // ─── Credits Badge (always visible on menu) ─────────────────────────────
+  const CreditsBadge = () => (
+    <div className="pointer-events-none fixed right-5 top-5 z-30">
+      <div className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-white/15 bg-black/40 backdrop-blur-2xl px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]">
+        <div className="relative w-7 h-7 shrink-0">
+          <img
+            src="./aero_credits.jpg"
+            alt="Aero Credits"
+            className="w-full h-full rounded-full object-cover shadow-[0_0_12px_rgba(255,215,0,0.5),0_0_24px_rgba(255,180,0,0.2)]"
+            style={{ animation: 'coin-spin 3s linear infinite' }}
+          />
+          <div className="absolute inset-0 rounded-full bg-gradient-to-b from-yellow-300/20 to-transparent pointer-events-none" />
+        </div>
+        <div className="flex flex-col leading-tight">
+          <span className="text-xs font-bold text-amber-100 tracking-[0.06em] tabular-nums">{aeroCredits.toLocaleString()}</span>
+          <span className="text-[9px] text-amber-300/50 tracking-[0.15em] uppercase">Aero Credits</span>
+        </div>
+      </div>
+    </div>
   );
 
   // ─── Exit confirm ───────────────────────────────────────────────────────
@@ -381,6 +396,7 @@ export function Menus({
     <div className="absolute inset-0 z-10">
       <div className="menu-vignette absolute inset-0" />
       <TopNav active={screen} />
+      <CreditsBadge />
 
       {/* MAIN LANDING */}
       {screen === 'main' && (
@@ -417,28 +433,32 @@ export function Menus({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-3">
                 <button
                   type="button"
-                  className="glass-button glass-button-primary w-full py-3.5 text-base"
+                  className="menu-btn-primary group relative overflow-hidden w-full py-4 text-base font-bold rounded-2xl border border-white/20 bg-white/[0.08] backdrop-blur-2xl text-white transition-all duration-500 hover:bg-white/[0.16] hover:border-cyan-400/40 hover:shadow-[0_0_30px_rgba(0,242,255,0.25)]"
                   onClick={() => onStart(selectedJetId)}
                 >
-                  Abheben mit {selected.callsign}
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="transition-transform duration-300 group-hover:translate-x-1"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    Abheben mit {selected.callsign}
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-400/10 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 </button>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" className="glass-button w-full py-3" onClick={openHangar}>
-                    Garage
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3.5 rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-xl text-white/85 font-semibold text-sm transition-all duration-300 hover:bg-white/[0.12] hover:border-white/25 hover:text-white hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]" onClick={openHangar}>
+                    <span className="relative z-10">Garage</span>
                   </button>
-                  <button type="button" className="glass-button w-full py-3" onClick={() => setScreen('maps')}>
-                    Maps
+                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3.5 rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-xl text-white/85 font-semibold text-sm transition-all duration-300 hover:bg-white/[0.12] hover:border-white/25 hover:text-white hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]" onClick={() => setScreen('maps')}>
+                    <span className="relative z-10">Maps</span>
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" className="glass-button glass-button-ghost" onClick={() => setScreen('missions')}>
-                    Einsätze
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3 rounded-2xl border border-white/8 bg-white/[0.03] backdrop-blur-lg text-white/65 font-medium text-xs transition-all duration-300 hover:bg-white/[0.08] hover:border-white/18 hover:text-white/90" onClick={() => setScreen('missions')}>
+                    <span className="relative z-10">Einsatze</span>
                   </button>
-                  <button type="button" className="glass-button glass-button-ghost" onClick={() => setScreen('settings')}>
-                    Einstellungen
+                  <button type="button" className="menu-btn-glass group relative overflow-hidden w-full py-3 rounded-2xl border border-white/8 bg-white/[0.03] backdrop-blur-lg text-white/65 font-medium text-xs transition-all duration-300 hover:bg-white/[0.08] hover:border-white/18 hover:text-white/90" onClick={() => setScreen('settings')}>
+                    <span className="relative z-10">Einstellungen</span>
                   </button>
                 </div>
               </div>
@@ -450,91 +470,143 @@ export function Menus({
       {/* HANGAR / GARAGE */}
       {screen === 'hangar' && (
         <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-y-auto px-3 pb-8 pt-20 sm:items-center sm:pt-24">
-          <div className="glass-panel glass-scroll pointer-events-auto w-full max-w-5xl max-h-[min(90vh,920px)] overflow-y-auto p-5 sm:p-7">
-            <div className="mb-1 flex items-center justify-between gap-3">
+          <div className="glass-panel pointer-events-auto w-full max-w-5xl max-h-[min(90vh,920px)] overflow-hidden flex flex-col p-5 sm:p-7">
+            <div className="mb-1 flex items-center justify-between gap-3 shrink-0">
               <div className="glass-eyebrow">Garage</div>
               <button type="button" className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs" onClick={() => setScreen('main')}>
-                ← Zurück
+                Zuruck
               </button>
             </div>
-            <h2 className="glass-title mb-1 text-3xl text-white">Flugzeug wählen</h2>
-            <p className="glass-subtitle mb-4 text-sm">
+            <h2 className="glass-title mb-1 text-3xl text-white shrink-0">Flugzeug wahlen</h2>
+            <p className="glass-subtitle mb-4 text-sm shrink-0">
               Moderne Jets, Early Jets und WWII-Propeller — jeweils eigene Physik, Waffen und Sound.
             </p>
 
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-wrap gap-2 shrink-0">
               {(['nato', 'russia'] as JetFaction[]).map((f) => (
                 <button
                   key={f}
                   type="button"
-                  className={`glass-button !px-4 !py-2 !text-xs ${
-                    faction === f ? 'glass-button-primary' : 'glass-button-ghost'
+                  className={`glass-pill px-5 py-2 text-xs font-semibold tracking-[0.1em] uppercase transition-all duration-300 ${
+                    faction === f
+                      ? 'bg-white/[0.14] text-white border-white/30 shadow-[0_0_15px_rgba(0,242,255,0.15)]'
+                      : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/75'
                   }`}
                   onClick={() => setFaction(f)}
                 >
-                  {FACTION_LABELS[f]}
-                  <span className="opacity-70">({JET_CATALOG.filter(j => j.faction === f).length})</span>
+                  {FACTION_LABELS[f]} ({JET_CATALOG.filter(j => j.faction === f).length})
                 </button>
               ))}
             </div>
 
-            <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedJets.map((jet) => {
-                const active = jet.id === selectedJetId;
-                const owned = isJetOwned(jet.id);
-                const locked = !owned && jet.price > 0;
-                const canAfford = aeroCredits >= jet.price;
-                const jBars = jetStatBars(jet.stats);
-                return (
-                  <div
-                    key={jet.id}
-                    onClick={() => { if (owned) { onSelectJet(jet.id); } }}
-                    className={`glass-card text-left cursor-pointer ${active ? 'is-selected' : ''} ${locked ? 'opacity-60' : ''}`}
-                  >
-                    <div className={`h-1 -mx-[18px] -mt-[16px] rounded-t-[20px] mb-3 ${
-                      jet.faction === 'nato' ? 'bg-gradient-to-r from-blue-500 to-cyan-400' : 'bg-gradient-to-r from-red-500 to-amber-400'
-                    }`} />
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">{jet.faction === 'nato' ? '🛩️' : '✈️'}</span>
-                      <div>
-                        <div className="text-sm font-bold leading-tight text-white">{jet.name}</div>
-                        <div className="text-[10px] text-white/35">{FACTION_LABELS[jet.faction]}</div>
+            <div className="mb-5 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar flex gap-3 snap-x snap-mandatory scroll-pl-1">
+              {sortedJets
+                .filter((j) => j.faction === faction)
+                .map((jet) => {
+                  const active = jet.id === selectedJetId;
+                  const owned = isJetOwned(jet.id);
+                  const locked = !owned && jet.price > 0;
+                  const canAfford = aeroCredits >= jet.price;
+                  const jBars = jetStatBars(jet.stats);
+                  return (
+                    <div
+                      key={jet.id}
+                      onClick={() => { if (owned) { onSelectJet(jet.id); } }}
+                      className={`glass-card flex-shrink-0 w-[220px] sm:w-[240px] snap-start cursor-pointer text-left relative ${
+                        active ? 'is-selected ring-1 ring-cyan-400/50' : ''
+                      } ${locked ? 'opacity-70' : ''}`}
+                    >
+                      <div
+                        className={`h-1 -mx-[18px] -mt-[16px] rounded-t-[20px] mb-3 ${
+                          jet.faction === 'nato'
+                            ? 'bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500'
+                            : 'bg-gradient-to-r from-red-400 via-amber-400 to-red-500'
+                        }`}
+                      />
+                      {/* Jet Name + Role */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xl">{jet.faction === 'nato' ? '🛩️' : '✈️'}</span>
+                        <div>
+                          <div className="text-sm font-bold leading-tight text-white">{jet.name}</div>
+                          <div className="text-[10px] text-white/35">{jet.role}</div>
+                        </div>
+                        {active && (
+                          <div className="ml-auto w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(0,242,255,0.7)] animate-pulse" />
+                        )}
                       </div>
-                      {active && <div className="ml-auto w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,242,255,0.6)]" />}
-                    </div>
-                    <div className="space-y-1.5 mb-3">
-                      <GlassStat label="Speed" value={jBars.speed} locked={locked} />
-                      <GlassStat label="Wendigkeit" value={jBars.maneuver} locked={locked} />
-                      <GlassStat label="Panzerung" value={jBars.armor} locked={locked} />
-                    </div>
-                    {locked ? (
-                      <button type="button"
-                        className={`w-full py-2 rounded-lg font-bold text-[11px] tracking-[0.08em] uppercase flex items-center justify-center gap-1.5 transition-all duration-300 ${
-                          canAfford ? 'bg-amber-500/80 text-white hover:bg-amber-400 hover:shadow-[0_0_15px_rgba(255,215,0,0.25)]'
-                            : 'bg-white/[0.04] text-white/25 cursor-not-allowed'
-                        }`}
-                        disabled={!canAfford}
-                        onClick={(e) => { e.stopPropagation(); if (canAfford) { onPurchaseJet(jet.id, jet.price); onSelectJet(jet.id); } }}
-                      >
-                        <img src="./aero_credits.jpg" alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
-                        {jet.price.toLocaleString()} AC
-                      </button>
-                    ) : owned ? (
-                      <button type="button"
-                        className={`w-full py-2 rounded-lg font-bold text-[11px] tracking-[0.08em] uppercase transition-all duration-300 ${
-                          active ? 'bg-cyan-500/90 text-white' : 'bg-white/[0.06] text-white/50 hover:bg-white/[0.12]'
-                        }`}
-                        onClick={(e) => { e.stopPropagation(); onSelectJet(jet.id); }}
-                      >
-                        {active ? 'Ausgewählt' : 'Auswählen'}
-                      </button>
-                    ) : null}
+
+                      {/* Neon-Blue Status Bars */}
+                      <div className="space-y-2 mb-3">
+                        {[['Speed', jBars.speed], ['Wendigkeit', jBars.maneuver], ['Panzerung', jBars.armor]].map(([label, val]) => (
+                          <div key={label as string}>
+                            <div className="flex justify-between text-[9px] mb-0.5">
+                              <span className="text-white/40 uppercase tracking-[0.1em]">{label as string}</span>
+                              <span className="font-mono text-white/50">{val as number}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-700 ease-out"
+                                style={{
+                                  width: `${val as number}%`,
+                                  background: locked
+                                    ? 'linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.2))'
+                                    : 'linear-gradient(90deg, #00f2ff, #0a84ff)',
+                                  boxShadow: locked ? 'none' : '0 0 8px rgba(0,242,255,0.5)',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Buy / Select Button */}
+                      {locked ? (
+                        <button
+                          type="button"
+                          className={`w-full py-2.5 rounded-xl font-bold text-[11px] tracking-[0.06em] uppercase flex items-center justify-center gap-2 transition-all duration-300 ${
+                            canAfford
+                              ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/30 text-amber-200 hover:from-amber-500/35 hover:to-yellow-500/35 hover:border-amber-300/50 hover:shadow-[0_0_20px_rgba(255,200,0,0.2)]'
+                              : 'bg-white/[0.03] border border-white/[0.06] text-white/25 cursor-not-allowed'
+                          }`}
+                          disabled={!canAfford}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (canAfford) {
+                              const ok = onPurchaseJet(jet.id, jet.price);
+                              if (ok) onSelectJet(jet.id);
+                            }
+                          }}
+                        >
+                          <img
+                            src="./aero_credits.jpg"
+                            alt="AC"
+                            className="w-4 h-4 rounded-full object-cover shadow-[0_0_8px_rgba(255,215,0,0.5)]"
+                            style={{ animation: 'coin-spin 4s linear infinite' }}
+                          />
+                          {jet.price.toLocaleString()} AC
+                        </button>
+                      ) : owned ? (
+                        <button
+                          type="button"
+                          className={`w-full py-2.5 rounded-xl font-bold text-[11px] tracking-[0.06em] uppercase transition-all duration-300 ${
+                            active
+                              ? 'bg-gradient-to-r from-cyan-500/40 to-blue-500/40 border border-cyan-400/40 text-white shadow-[0_0_15px_rgba(0,242,255,0.2)]'
+                              : 'bg-white/[0.05] border border-white/[0.08] text-white/60 hover:bg-white/[0.12] hover:text-white/90 hover:border-white/15'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectJet(jet.id);
+                          }}
+                        >
+                          {active ? 'Ausgewahlt' : 'Auswahlen'}
+                        </button>
+                      ) : null}
                   </div>
                 );
               })}
             </div>
 
-            <div className="mb-5 grid gap-5 rounded-2xl border border-white/12 bg-white/[0.04] p-4 lg:grid-cols-2">
+            <div className="mb-5 grid gap-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:grid-cols-2 shrink-0">
               <div>
                 <div className="flex flex-wrap items-baseline gap-2">
                   <div className="text-xl font-bold text-white">{selected.name}</div>
@@ -596,7 +668,7 @@ export function Menus({
               </div>
               <div>
                 <StatBar label="Geschwindigkeit" value={bars.speed} />
-                <StatBar label="Manövrierfähigkeit" value={bars.maneuver} />
+                <StatBar label="Manovrierfahigkeit" value={bars.maneuver} />
                 <StatBar label="Panzerung" value={bars.armor} />
                 <StatBar label="Bewaffnung" value={bars.weapons} />
               </div>
@@ -604,7 +676,11 @@ export function Menus({
 
             <button
               type="button"
-              className={`glass-button w-full py-4 text-base font-bold ${isJetOwned(selectedJetId) ? 'glass-button-primary' : 'opacity-30 cursor-not-allowed'}`}
+              className={`w-full py-4 text-base font-bold rounded-2xl transition-all duration-300 shrink-0 ${
+                isJetOwned(selectedJetId)
+                  ? 'bg-gradient-to-r from-cyan-500/30 to-blue-500/30 border border-cyan-400/30 text-white hover:from-cyan-500/50 hover:to-blue-500/50 hover:border-cyan-300/50 hover:shadow-[0_0_30px_rgba(0,242,255,0.2)] backdrop-blur-xl'
+                  : 'bg-white/[0.03] border border-white/[0.06] text-white/20 cursor-not-allowed'
+              }`}
               disabled={!isJetOwned(selectedJetId)}
               onClick={() => onStart(selectedJetId)}
             >

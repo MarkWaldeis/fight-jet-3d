@@ -85,23 +85,18 @@ export default function App() {
   const onStart = useCallback(async (id: JetId) => {
     setPhase('loading');
     setLoadingProgress(0);
-    setLoadingText('Lade Welt...');
-    const stages = [
-      { p: 15, t: 'Lade Jet-Modell...', d: 400 },
-      { p: 30, t: 'Bewaffnung kalibrieren...', d: 500 },
-      { p: 55, t: 'Terrain generieren...', d: 700 },
-      { p: 75, t: 'Gegner platzieren...', d: 500 },
-      { p: 90, t: 'Systeme hochfahren...', d: 600 },
-      { p: 100, t: 'Startbereit!', d: 400 },
-    ];
-    for (const stage of stages) {
-      setLoadingProgress(stage.p);
-      setLoadingText(stage.t);
-      await new Promise(r => setTimeout(r, stage.d));
+    setLoadingText('Initialisiere...');
+    try {
+      await gameRef.current?.preloadAllAssets(id, hud.selectedMapId, (pct, text) => {
+        setLoadingProgress(pct);
+        setLoadingText(text);
+      });
+      setPhase('playing');
+    } catch (err) {
+      console.error('Fehler beim Laden:', err);
+      setPhase('menu');
     }
-    await gameRef.current?.startGame(id);
-    setPhase('playing');
-  }, []);
+  }, [hud.selectedMapId]);
 
   const onPurchaseJet = useCallback((jetId: string, price: number) => {
     const ok = purchaseJet(jetId, price);
