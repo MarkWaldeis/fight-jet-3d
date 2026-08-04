@@ -71,17 +71,55 @@ export function computeFxAnchors(
     ? [new THREE.Vector3(-mx, muzzleY, noseZ), new THREE.Vector3(mx, muzzleY, noseZ)]
     : [new THREE.Vector3(-mx * 0.6, muzzleY, noseZ)];
 
-  // Hardpoints: Wingtip-Rails + Underwing (vor dem Schwerpunkt, leicht unter Flügel)
-  const wingY = midY - height * 0.08;
-  const wingZ = minZ + length * 0.42; // etwas vor der Mitte
+  // Hardpoints: Wingtip-Rails + Mid-Wing + Inner-Wing + Belly (8 Stationen fuer volle Raketen-Beladung)
+  // Positionen werden an der tatsaechlichen Fluegel-Unterseite (Wing Skin) verankert
+  
+  // Sample wing Z position from actual vertices (where |x| is max → Fluegel)
+  let wingZcomputed = minZ + length * 0.40;
+  let wingSampleN = 0;
+  const vWing = new THREE.Vector3();
+  visual.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+    const pos = mesh.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(pos.count / 800));
+    for (let i = 0; i < pos.count; i += step) {
+      vWing.fromBufferAttribute(pos, i);
+      mesh.localToWorld(vWing);
+      visual.worldToLocal(vWing);
+      // Nur aeussere 30% der Spannweite → Fluegelspitzen
+      if (Math.abs(vWing.x) > width * 0.30) {
+        wingZcomputed += vWing.z;
+        wingSampleN++;
+      }
+    }
+  });
+  const wingZ = wingSampleN > 10 ? wingZcomputed / wingSampleN : (minZ + length * 0.40);
+  
   const tipX = width * 0.46;
-  const underX = width * 0.28;
-  const hardpoints = [
-    new THREE.Vector3(-tipX, wingY, wingZ),
-    new THREE.Vector3(tipX, wingY, wingZ),
-    new THREE.Vector3(-underX, wingY - height * 0.06, wingZ + length * 0.05),
-    new THREE.Vector3(underX, wingY - height * 0.06, wingZ + length * 0.05),
+  const midX = width * 0.34;
+  const innerX = width * 0.22;
+  const bellyX = width * 0.11;
+
+  // Sample die Fluegel-Unterseite an jeder Hardpoint-Position
+  const hpCandidates = [
+    { x: -tipX, z: wingZ },
+    { x: tipX, z: wingZ },
+    { x: -midX, z: wingZ + length * 0.03 },
+    { x: midX, z: wingZ + length * 0.03 },
+    { x: -innerX, z: wingZ + length * 0.06 },
+    { x: innerX, z: wingZ + length * 0.06 },
+    { x: -bellyX, z: wingZ + length * 0.08 },
+    { x: bellyX, z: wingZ + length * 0.08 },
   ];
+
+  // Wing-Skin-Sampling: Finde niedrigsten Vertex in der Naehe jedes Hardpoints
+  // Erweiterter Suchradius fuer bessere Erkennung
+  const hardpoints = hpCandidates.map((hp) => {
+    const skinY = sampleWingSkinY(visual, hp.x, hp.z, width * 0.10, midY);
+    const fallbackY = midY - height * (0.08 + Math.abs(hp.x) / width * 0.30);
+    return new THREE.Vector3(hp.x, skinY ?? fallbackY, hp.z);
+  });
 
   return {
     nozzles,
@@ -90,4 +128,47 @@ export function computeFxAnchors(
     wingHalfSpan: width * 0.48,
     nozzleScale: THREE.MathUtils.clamp(width / 11, 0.55, 1.25),
   };
+}
+
+/**
+ * Sucht die unterste Vertex-Y-Position in der Naehe eines Hardpoints,
+ * um die Rakete exakt an der Fluegel-Unterseite zu platzieren.
+ * Gibt null zurueck wenn keine Vertices in der Suchregion gefunden werden.
+ */
+function sampleWingSkinY(
+  visual: THREE.Object3D,
+  targetX: number,
+  targetZ: number,
+  searchRadius: number,
+  midY: number
+): number | null {
+  let bestY: number | null = null;
+  const v = new THREE.Vector3();
+
+  visual.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+    const pos = mesh.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(pos.count / 1200));
+    for (let i = 0; i < pos.count; i += step) {
+      v.fromBufferAttribute(pos, i);
+      mesh.localToWorld(v);
+      visual.worldToLocal(v);
+
+      // Nur Vertices in der Naehe des Hardpoints (XZ-Radius)
+      const dx = v.x - targetX;
+      const dz = v.z - targetZ;
+      if (Math.abs(dx) > searchRadius || Math.abs(dz) > searchRadius * 1.5) continue;
+
+      // Nur untere Haelfte des Fluegels (unter midY)
+      if (v.y > midY) continue;
+
+      // Niedrigster Y = Fluegel-Unterseite
+      if (bestY === null || v.y < bestY) {
+        bestY = v.y;
+      }
+    }
+  });
+
+  return bestY;
 }

@@ -88,8 +88,33 @@ function extractMissile(packRoot: THREE.Object3D, match: RegExp, targetLength: n
   } else if (size.y > size.z * 1.15 && size.y > size.x) {
     clone.rotateX(-Math.PI / 2);
   }
-  // Viele Assets: Nase +Z → 180° auf −Z
-  clone.rotateY(Math.PI);
+  
+  // Check nose direction: sample vertices at +Z and -Z ends, nose = thinner end
+  // If nose is at +Z, rotate 180 to put it at -Z
+  wrap.updateMatrixWorld(true);
+  const box1 = new THREE.Box3().setFromObject(wrap);
+  const zLen = Math.max(0.001, box1.max.z - box1.min.z);
+  const band = zLen * 0.12;
+  let rPlus = 0, nPlus = 0, rMinus = 0, nMinus = 0;
+  const vSample = new THREE.Vector3();
+  wrap.traverse((obj) => {
+    const m = obj as THREE.Mesh;
+    if (!m.isMesh || !m.geometry?.attributes?.position) return;
+    const pos = m.geometry.attributes.position;
+    const step = Math.max(1, Math.floor(pos.count / 800));
+    for (let i = 0; i < pos.count; i += step) {
+      vSample.fromBufferAttribute(pos, i);
+      m.localToWorld(vSample);
+      wrap.worldToLocal(vSample);
+      const rad = Math.hypot(vSample.x, vSample.y);
+      if (vSample.z <= box1.min.z + band) { rMinus += rad; nMinus++; }
+      else if (vSample.z >= box1.max.z - band) { rPlus += rad; nPlus++; }
+    }
+  });
+  // Nose is the thinner end; if +Z end has smaller radius, rotate 180°
+  if (nMinus > 4 && nPlus > 4 && rMinus / nMinus > rPlus / nPlus * 1.05) {
+    clone.rotateY(Math.PI);
+  }
 
   wrap.updateMatrixWorld(true);
   const box2 = new THREE.Box3().setFromObject(wrap);

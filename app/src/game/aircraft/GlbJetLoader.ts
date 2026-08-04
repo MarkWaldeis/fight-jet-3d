@@ -27,8 +27,10 @@ export interface LoadJetOptions {
 
 export interface LoadedJetVisual {
   group: THREE.Group;
-  /** Bounding box nach Normalisierung (lokal) */
+  /** Bounding box nach Normalisierung (lokal, zentriert bei (0,0,0)) */
   size: THREE.Vector3;
+  /** Verschiebung des Modells beim Zentrieren (fuer Katalog-Koordinaten-Anpassung) */
+  centerOffset: THREE.Vector3;
 }
 
 /**
@@ -86,79 +88,93 @@ export async function loadJetGlb(
   // Hierarchie flach backen — eliminiert Rest‑Node‑Transforms zuverlässig
   const baked = bakeMeshesToFlatGroup(rawRoot);
 
+  // ============================================================
+  // REVIDIERTE PIPELINE:
+  // 1. Hierarchy aufbauen (wrap > root > baked)
+  // 2. ALLE Rotationen auf root anwenden (kein Centering!)
+  // 3. EINMAL skalieren
+  // 4. EINMAL zentrieren
+  // ============================================================
+
   const wrap = new THREE.Group();
   wrap.name = 'glbJet';
   const root = new THREE.Group();
   root.name = 'glbJetRoot';
-  // Explizit Identity — keine vererbten GLB‑Root‑Transforms
+  // Explizit Identity - keine vererbten GLB-Root-Transforms
   root.position.set(0, 0, 0);
   root.rotation.set(0, 0, 0);
   root.scale.set(1, 1, 1);
   root.add(baked);
   wrap.add(root);
 
-  // Bounding box messen + zentrieren
+  // ---- Phase 1: ALLE Rotationen ZUERST (nur root.rotation, kein root.position) ----
+  applyAllRotations(wrap, root, orient);
+
+  // ---- Phase 2: Skalierung EINMAL ----
+  applyScaling(wrap, targetLength);
+
+  // ---- Phase 3: Zentrierung EXAKT EINMAL ----
+  root.position.set(0, 0, 0);
+  wrap.updateMatrixWorld(true);
+
   let box = new THREE.Box3().setFromObject(wrap);
-  let size = box.getSize(new THREE.Vector3());
-  let center = box.getCenter(new THREE.Vector3());
-  root.position.sub(center);
+  const preCenter = box.getCenter(new THREE.Vector3());
+  const ws = wrap.scale.x; // uniform scale
 
+  // Verschiebe root so, dass BBox-Zentrum = (0,0,0)
+  // root.position ist in root's LOKALEM Raum (inkl. Rotation!)
+  // preCenter ist in wrap's Lokalraum (keine Rotation)
+  // → Wir muessen preCenter in root-Lokal umrechnen
+  const rootQuatInv = root.quaternion.clone().invert();
+  const centerInRootLocal = preCenter.clone().applyQuaternion(rootQuatInv);
+  if (Math.abs(ws) > 0.0001) {
+    root.position.set(
+      -centerInRootLocal.x / ws,
+      -centerInRootLocal.y / ws,
+      -centerInRootLocal.z / ws
+    );
+  } else {
+    root.position.copy(centerInRootLocal.clone().negate());
+  }
+  wrap.updateMatrixWorld(true);
+
+  // === Verifikation ===
   box = new THREE.Box3().setFromObject(wrap);
-  size = box.getSize(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const finalCenter = box.getCenter(new THREE.Vector3());
 
-  // Vorläufig skalieren (längste Kante → targetLength)
-  const longest = Math.max(size.x, size.y, size.z);
-  const scale = targetLength / Math.max(longest, 0.001);
-  wrap.scale.setScalar(scale);
-
-  box = new THREE.Box3().setFromObject(wrap);
-  size = box.getSize(new THREE.Vector3());
-  center = box.getCenter(new THREE.Vector3());
-  root.position.sub(center.clone().divideScalar(scale));
-
-  // Achsen: Up=+Y, Span=+X, Nase=−Z
-  alignAircraftAxes(wrap, root, orient);
-
-  // Nach Align: Rumpflänge (Z) auf targetLength
-  box = new THREE.Box3().setFromObject(wrap);
-  size = box.getSize(new THREE.Vector3());
-  const fuselageLen = Math.max(size.z, 0.001);
-  const span = Math.max(size.x, 0.001);
-  const zPlausible =
-    fuselageLen > span * 0.35 &&
-    fuselageLen < span * 2.8 &&
-    fuselageLen < targetLength * 2.5 &&
-    size.y < span * 1.2;
-  if (zPlausible && Math.abs(fuselageLen - targetLength) / targetLength > 0.12) {
-    const fix = targetLength / fuselageLen;
-    wrap.scale.multiplyScalar(fix);
+  // Iterative Nachjustierung falls noetig (max 5 Versuche) - mit scale- und Rotations-Korrektur
+  for (let i = 0; i < 5; i++) {
+    if (Math.abs(finalCenter.x) < 0.005 && Math.abs(finalCenter.y) < 0.005 && Math.abs(finalCenter.z) < 0.005) break;
+    const invScale = Math.abs(ws) > 0.0001 ? 1.0 / ws : 1.0;
+    // finalCenter ist in wrap-Lokalraum, muss nach root-Lokal konvertiert werden
+    const rootQuatInv2 = root.quaternion.clone().invert();
+    const corrInRootLocal = finalCenter.clone().applyQuaternion(rootQuatInv2).negate();
+    root.position.x += corrInRootLocal.x * invScale;
+    root.position.y += corrInRootLocal.y * invScale;
+    root.position.z += corrInRootLocal.z * invScale;
     wrap.updateMatrixWorld(true);
     box = new THREE.Box3().setFromObject(wrap);
-    center = box.getCenter(new THREE.Vector3());
-    root.position.sub(center.clone().divideScalar(wrap.scale.x));
+    finalCenter.copy(box.getCenter(new THREE.Vector3()));
   }
 
-  // Final: nur leichte Feinkorrektur wenn Höhe bereits gut
-  wrap.updateMatrixWorld(true);
-  box = new THREE.Box3().setFromObject(wrap);
-  size = box.getSize(new THREE.Vector3());
-  const finalHRatio = size.y / Math.max(size.x, size.z, 0.01);
-  if (finalHRatio > 0.5) {
-    for (let i = 0; i < 3; i++) autoLevelWingsAndPitch(wrap, root, 0.5);
-  } else {
-    for (let i = 0; i < 2; i++) autoLevelWingsAndPitch(wrap, root, 0.1);
+  // Abschliessende Pruefung
+  if (Math.abs(finalCenter.x) > 0.05 || Math.abs(finalCenter.y) > 0.05 || Math.abs(finalCenter.z) > 0.05) {
+    console.warn(
+      `[GlbJetLoader] ${url}: BBox-Zentrum nicht exakt zentriert ` +
+      `(${finalCenter.x.toFixed(3)}, ${finalCenter.y.toFixed(3)}, ${finalCenter.z.toFixed(3)})`
+    );
   }
 
-  wrap.updateMatrixWorld(true);
-  box = new THREE.Box3().setFromObject(wrap);
-  size = box.getSize(new THREE.Vector3());
-  center = box.getCenter(new THREE.Vector3());
-  root.position.sub(center);
+  // Store centerOffset for downstream coordinate adjustment
+  // Use plain object so it survives JSON.stringify/parse during clone
+  wrap.userData.centerOffset = { x: preCenter.x, y: preCenter.y, z: preCenter.z };
 
-  wrap.updateMatrixWorld(true);
-  box = new THREE.Box3().setFromObject(wrap);
-  size = box.getSize(new THREE.Vector3());
-  return { group: wrap, size };
+  return {
+    group: wrap,
+    size: box.getSize(new THREE.Vector3()),
+    centerOffset: preCenter.clone(),
+  };
 }
 
 /**
@@ -233,18 +249,19 @@ function bakeMeshesToFlatGroup(source: THREE.Object3D): THREE.Group {
   return flat;
 }
 
-/**
- * Richtet Flugzeuge so aus:
- *  - +Y = oben (kleinste Achse / Höhe)
- *  - +X = rechts (Spannweite)
- *  - −Z = Nase / Flugrichtung
- */
-function alignAircraftAxes(wrap: THREE.Group, root: THREE.Object3D, orient?: ModelOrient) {
+// ============================================================
+// Phase 1: ALLE Rotationen (kein Centering, kein Scaling)
+// ============================================================
+function applyAllRotations(
+  wrap: THREE.Group,
+  root: THREE.Object3D,
+  orient?: ModelOrient
+) {
   wrap.updateMatrixWorld(true);
   let box = new THREE.Box3().setFromObject(wrap);
   let size = box.getSize(new THREE.Vector3());
 
-  // A) Kleinste Dimension → Up (+Y)
+  // A) Kleinste Dimension -> Up (+Y)
   const dims: { axis: 0 | 1 | 2; s: number }[] = [
     { axis: 0, s: size.x },
     { axis: 1, s: size.y },
@@ -263,7 +280,7 @@ function alignAircraftAxes(wrap: THREE.Group, root: THREE.Object3D, orient?: Mod
   box = new THREE.Box3().setFromObject(wrap);
   size = box.getSize(new THREE.Vector3());
 
-  // B) Horizontal: Span → X, Rumpf → Z
+  // B) Horizontal: Span -> X, Rumpf -> Z
   const lengthIsLargest = orient?.lengthIsLargest === true;
   if (lengthIsLargest) {
     if (size.x > size.z * 1.08) {
@@ -275,7 +292,7 @@ function alignAircraftAxes(wrap: THREE.Group, root: THREE.Object3D, orient?: Mod
 
   wrap.updateMatrixWorld(true);
 
-  // C) Nase auf −Z
+  // C) Nase auf -Z
   const noseTowardNegZ = detectNoseTowardNegZ(wrap, root);
   if (!orient?.skipDefaultYawFlip) {
     if (!noseTowardNegZ) {
@@ -283,15 +300,17 @@ function alignAircraftAxes(wrap: THREE.Group, root: THREE.Object3D, orient?: Mod
     }
   }
 
-  // D) Auto‑Level: bei guter Höhe nur Feintuning + AABB‑Höhen‑Min (Roll)
+  // D) Auto-Level: Roll-Minimierung + Pitch
   wrap.updateMatrixWorld(true);
   box = new THREE.Box3().setFromObject(wrap);
   size = box.getSize(new THREE.Vector3());
   const hRatio = size.y / Math.max(size.x, size.z, 0.01);
+
   if (hRatio > 0.5) {
+    // Grobe Lage: intensiveres Leveling
     for (let i = 0; i < 4; i++) autoLevelWingsAndPitch(wrap, root, 0.7);
   } else {
-    // AABB‑Höhe über Roll minimieren (robuster als Vertex‑Sampling)
+    // Feine Lage: Roll-Minimierung + leichtes Leveling
     minimizeRollByHeight(wrap, root, THREE.MathUtils.degToRad(25));
     for (let i = 0; i < 2; i++) autoLevelWingsAndPitch(wrap, root, 0.1);
   }
@@ -304,26 +323,47 @@ function alignAircraftAxes(wrap: THREE.Group, root: THREE.Object3D, orient?: Mod
   if (Math.abs(pitch) > 1e-6) root.rotateX(pitch);
   if (Math.abs(roll) > 1e-6) root.rotateZ(roll);
 
-  // Zentrieren
-  wrap.updateMatrixWorld(true);
-  let box2 = new THREE.Box3().setFromObject(wrap);
-  let c = box2.getCenter(new THREE.Vector3());
-  root.position.sub(c);
-
-  // Auf dem Kopf?
+  // F) Auf dem Kopf? -> Umdrehen
   wrap.updateMatrixWorld(true);
   if (detectUpsideDown(wrap)) {
     root.rotateZ(Math.PI);
-    wrap.updateMatrixWorld(true);
-    box2 = new THREE.Box3().setFromObject(wrap);
-    c = box2.getCenter(new THREE.Vector3());
-    root.position.sub(c);
   }
 
   wrap.updateMatrixWorld(true);
-  box2 = new THREE.Box3().setFromObject(wrap);
-  c = box2.getCenter(new THREE.Vector3());
-  root.position.sub(c);
+}
+
+// ============================================================
+// Phase 2: Skalierung EINMAL
+// ============================================================
+function applyScaling(wrap: THREE.Group, targetLength: number) {
+  wrap.updateMatrixWorld(true);
+  let box = new THREE.Box3().setFromObject(wrap);
+  let size = box.getSize(new THREE.Vector3());
+
+  // Initial: laengste Kante -> targetLength (grobe Skalierung)
+  const longest = Math.max(size.x, size.y, size.z);
+  const initialScale = targetLength / Math.max(longest, 0.001);
+  wrap.scale.setScalar(initialScale);
+
+  wrap.updateMatrixWorld(true);
+  box = new THREE.Box3().setFromObject(wrap);
+  size = box.getSize(new THREE.Vector3());
+
+  // Fein-Skalierung: Rumpflaenge (Z) auf targetLength
+  const fuselageLen = Math.max(size.z, 0.001);
+  const span = Math.max(size.x, 0.001);
+  const zPlausible =
+    fuselageLen > span * 0.35 &&
+    fuselageLen < span * 2.8 &&
+    fuselageLen < targetLength * 2.5 &&
+    size.y < span * 1.2;
+
+  if (zPlausible && Math.abs(fuselageLen - targetLength) / targetLength > 0.08) {
+    const fix = targetLength / fuselageLen;
+    wrap.scale.multiplyScalar(fix);
+  }
+
+  wrap.updateMatrixWorld(true);
 }
 
 function detectUpsideDown(wrap: THREE.Object3D): boolean {

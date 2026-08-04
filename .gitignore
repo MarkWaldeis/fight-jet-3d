@@ -3,3 +3,4 @@ dist/
 .wb-req-*.json
 /tmp/
 app/shots/
+.aider*
