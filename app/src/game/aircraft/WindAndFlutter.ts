@@ -18,20 +18,20 @@ export class WindField {
     this.time += dt;
     this.gustTimer -= dt;
     if (this.gustTimer <= 0) {
-      this.gustTimer = 1.8 + Math.random() * 3.5;
-      // Böen bis ~12 m/s
+      this.gustTimer = 1.4 + Math.random() * 2.8;
+      // Böen bis ~16 m/s — spürbar, aber nicht unkontrollierbar
       this.targetGust.set(
-        (Math.random() - 0.5) * 14,
-        (Math.random() - 0.5) * 4,
-        (Math.random() - 0.5) * 14
+        (Math.random() - 0.5) * 18,
+        (Math.random() - 0.5) * 5.5,
+        (Math.random() - 0.5) * 18
       );
     }
-    const k = 1 - Math.exp(-1.2 * dt);
+    const k = 1 - Math.exp(-1.35 * dt);
     this.gust.lerp(this.targetGust, k);
-    // Sanfter Basiswind driftet
-    this.wind.x = 3.5 + Math.sin(this.time * 0.07 + this.gustPhase) * 2.5;
-    this.wind.z = -1.5 + Math.cos(this.time * 0.05) * 2;
-    this.wind.y = Math.sin(this.time * 0.11) * 0.6;
+    // Basiswind driftet (etwas stärker als zuvor)
+    this.wind.x = 5.5 + Math.sin(this.time * 0.07 + this.gustPhase) * 3.2;
+    this.wind.z = -2.2 + Math.cos(this.time * 0.05) * 2.8;
+    this.wind.y = Math.sin(this.time * 0.11) * 0.9;
   }
 
   /** Gesamtwind am Ort (inkl. leichter räumlicher Variation) */
@@ -40,8 +40,8 @@ export class WindField {
       Math.sin(pos.x * 0.0008 + this.time * 0.4) *
       Math.cos(pos.z * 0.0007 + this.time * 0.35);
     out.copy(this.wind).add(this.gust);
-    out.x += spatial * 3;
-    out.y += spatial * 1.2;
+    out.x += spatial * 4;
+    out.y += spatial * 1.6;
     return out;
   }
 }

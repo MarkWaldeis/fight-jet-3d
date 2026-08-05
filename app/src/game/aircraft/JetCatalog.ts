@@ -109,7 +109,8 @@ export const MODERN_JET_PHYSICS: FlightPhysicsProfile = {
   hasAfterburner: true,
   torqueRoll: 0,
   pFactorYaw: 0,
-  windSusceptibility: 0.25,
+  /** Spürbarer Wind (Rollen/Gieren/Drift), aber noch spielbar */
+  windSusceptibility: 0.42,
   stallSpeedMult: 1,
   stallDropMult: 1,
   modelLengthM: 15.5,

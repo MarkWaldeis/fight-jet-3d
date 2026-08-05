@@ -207,16 +207,34 @@ export class FlightModel {
       yawRate += P.pFactorYaw * tPow * 0.65;
     }
 
-    // --- Windböen: ältere Flugzeuge stärker betroffen ---
+    // --- Wind & Böen: drehen / schieben die Zelle realistischer ---
+    // windSusceptibility skaliert (Props stärker, moderne Jets spürbar aber spielbar)
     if (opts.wind && opts.wind.lengthSq() > 0.01) {
       this._wind.copy(opts.wind);
-      const sus = P.windSusceptibility;
-      // Seitenwind → Roll/Yaw Störung
-      const side = this._wind.dot(this._right);
-      const upW = this._wind.dot(this._up);
-      this.rollOmega += side * 0.012 * sus * dt * 8;
-      yawRate += side * 0.004 * sus;
-      pitchRate += upW * 0.0035 * sus;
+      const sus = Math.max(0.2, P.windSusceptibility);
+      const wLen = this._wind.length();
+      const side = this._wind.dot(this._right); // Seitenwind
+      const upW = this._wind.dot(this._up); // Auf-/Abwind
+      const head = -this._wind.dot(this._fwd); // Gegenwind (+)
+
+      // 1) Seitenwind: rollt die Tragfläche an + leichte Gier
+      this.rollOmega += side * 0.028 * sus * dt * 10;
+      yawRate += side * 0.012 * sus;
+
+      // 2) Aufwind / Fallböe: Nase hoch/runter
+      pitchRate += upW * 0.014 * sus;
+
+      // 3) Weathercocking: Nase will in den Wind (realistisch bei Seitenwind)
+      //    Gegenwind von schräg vorne → leichte Gier in den Wind
+      const weathervane = side * (0.55 + Math.max(0, head) * 0.04);
+      yawRate += weathervane * 0.008 * sus;
+
+      // 4) Turbulenz-Jitter proportional zur Windstärke (Böen)
+      const turb = THREE.MathUtils.clamp(wLen / 14, 0, 1.4) * sus;
+      const t = performance.now() * 0.001;
+      this.rollOmega += Math.sin(t * 7.3 + side) * 0.35 * turb * dt * 6;
+      pitchRate += Math.sin(t * 5.1 + upW) * 0.22 * turb;
+      yawRate += Math.cos(t * 6.2 + head) * 0.18 * turb;
     }
 
     // Stall: Nase fällt, Ruder weich, ggf. Trudeln
@@ -311,12 +329,15 @@ export class FlightModel {
     const climbEffect = -this.velocityDir.y * 22;
     this.speed += (accel - drag + climbEffect) * dt;
 
-    // Wind: leichter Geschwindigkeits-Offset (Gegenwind bremst)
+    // Wind: Geschwindigkeit + Drift (Gegenwind bremst, Seitenwind schiebt)
     if (opts.wind && opts.wind.lengthSq() > 0.01) {
+      const sus = Math.max(0.2, P.windSusceptibility);
       const head = -opts.wind.dot(this.velocityDir);
-      this.speed += head * 0.08 * P.windSusceptibility * dt;
-      // Seitliche Versetzung
-      this.object.position.addScaledVector(opts.wind, dt * 0.12 * P.windSusceptibility);
+      this.speed += head * 0.14 * sus * dt;
+      // Seitliche / vertikale Versetzung (Drift)
+      this.object.position.addScaledVector(opts.wind, dt * 0.22 * sus);
+      // Velocity-Dir leicht vom Wind mitgenommen (mehr „weht ab“)
+      this.velocityDir.addScaledVector(opts.wind, dt * 0.006 * sus).normalize();
     }
 
     const minSpd = opts.airbrake ? 28 : Math.max(22, 30 * (0.85 + P.stallSpeedMult * 0.1));
