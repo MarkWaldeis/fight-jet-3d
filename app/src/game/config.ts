@@ -104,6 +104,13 @@ export const CONFIG = {
     respawnDelay: 6,
     skillEvasionChance: 0.28,
     speedScale: 0.72,
+    /** Luft-Luft-Raketen gegen Spieler */
+    missileRange: 2100,
+    missileConeDeg: 28,
+    /** Pause zwischen Gegner-Raketen (s) — genug Zeit für Flares */
+    missileCooldown: 9.5,
+    /** Min. Distanz, damit sie nicht sofort-Hits machen */
+    missileMinRange: 380,
   },
   missile: {
     speed: 780,
@@ -118,6 +125,32 @@ export const CONFIG = {
     ejectSpeed: 12,
     /** Lead-Pursuit: Vorhalt auf Zielgeschwindigkeit */
     leadGain: 0.55,
+    /**
+     * Langsamere Profile für Feind-/SAM-Raketen:
+     * Spieler hat Zeit für Manöver + Flares (WT-Feel).
+     */
+    enemy: {
+      speed: 430,
+      life: 14,
+      turnRate: 1.85,
+      damage: 42,
+      proximityRadius: 34,
+      lockLoseAngleDeg: 95,
+      boostTime: 2.4,
+      leadGain: 0.38,
+      startBoost: 55,
+    },
+    sam: {
+      speed: 390,
+      life: 16,
+      turnRate: 1.55,
+      damage: 48,
+      proximityRadius: 36,
+      lockLoseAngleDeg: 100,
+      boostTime: 2.8,
+      leadGain: 0.32,
+      startBoost: 35,
+    },
   },
   // ─── FROZEN camera feel (siehe config.baseline.json) ───────────────────
   camera: {
@@ -158,8 +191,8 @@ export const CONFIG = {
     shakeWep: 0.02,
   },
   hud: {
-    radarRange: 4000,
-    radarSize: 180,
+    radarRange: 5000,
+    radarSize: 210,
   },
   score: {
     kill: 500,

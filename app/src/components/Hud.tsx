@@ -273,41 +273,219 @@ export function Hud({ data }: { data: HudData }) {
             </div>
           </div>
 
-          {/* Radar glass bottom left */}
+          {/* Radar glass bottom left — War Thunder style TWS */}
           <div className="absolute bottom-5 left-5">
-            <div className="hud-glass-pill !rounded-[22px] p-3">
-              <svg width={CONFIG.hud.radarSize} height={CONFIG.hud.radarSize} viewBox="-100 -100 200 200">
-                <circle cx="0" cy="0" r="96" fill="rgba(8,14,28,0.55)" stroke="rgba(0,242,255,0.35)" strokeWidth="1.4" />
-                <circle cx="0" cy="0" r="60" fill="none" stroke="rgba(0,242,255,0.2)" strokeWidth="0.6" />
-                <circle cx="0" cy="0" r="30" fill="none" stroke="rgba(0,242,255,0.15)" strokeWidth="0.6" />
-                <line x1="-96" y1="0" x2="96" y2="0" stroke="rgba(0,242,255,0.15)" strokeWidth="0.5" />
-                <line x1="0" y1="-96" x2="0" y2="96" stroke="rgba(0,242,255,0.15)" strokeWidth="0.5" />
-                <polygon points="0,-6 4,5 -4,5" fill={CYAN} />
-                {data.radar.map((r, i) => (
-                  <g key={i}>
-                    {r.locked ? (
-                      <rect
-                        x={r.x * 90 - 4}
-                        y={r.y * 90 - 4}
-                        width="8"
-                        height="8"
-                        fill="none"
-                        stroke={DANGER}
-                        strokeWidth="1.5"
-                        transform={`rotate(45 ${r.x * 90} ${r.y * 90})`}
-                      />
-                    ) : r.isEnemy ? (
-                      <circle cx={r.x * 90} cy={r.y * 90} r="3.5" fill={DANGER} />
-                    ) : (
-                      <rect x={r.x * 90 - 3} y={r.y * 90 - 3} width="6" height="6" fill={AMBER} />
+            {(() => {
+              const sz = CONFIG.hud.radarSize;
+              const km = CONFIG.hud.radarRange / 1000;
+              const R = 92;
+              const scale = R * 0.92;
+              const threats = data.radar.filter((c) => c.kind === 'missile' && c.incoming);
+              const bandits = data.radar.filter((c) => c.kind === 'bandit').length;
+              return (
+                <div className="hud-radar-panel">
+                  <div className="hud-radar-header">
+                    <span className="hud-radar-title">TWS</span>
+                    <span className="hud-radar-range">{km.toFixed(0)} km</span>
+                    {threats.length > 0 && (
+                      <span className="hud-radar-alert">MSSL ×{threats.length}</span>
                     )}
-                  </g>
-                ))}
-              </svg>
-              <div className="mt-1 text-center text-[10px] tracking-[0.18em] text-cyan-300/60 uppercase">
-                TWS {CONFIG.hud.radarRange / 1000} km
-              </div>
-            </div>
+                  </div>
+                  <div className="hud-radar-scope" style={{ width: sz, height: sz }}>
+                    <svg
+                      width={sz}
+                      height={sz}
+                      viewBox="-100 -100 200 200"
+                      className="hud-radar-svg"
+                    >
+                      <defs>
+                        <radialGradient id="radarScopeBg" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stopColor="rgba(0,40,55,0.95)" />
+                          <stop offset="70%" stopColor="rgba(4,14,28,0.98)" />
+                          <stop offset="100%" stopColor="rgba(2,6,14,1)" />
+                        </radialGradient>
+                        <linearGradient id="radarSweepGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="rgba(0,242,255,0)" />
+                          <stop offset="70%" stopColor="rgba(0,242,255,0.08)" />
+                          <stop offset="100%" stopColor="rgba(0,242,255,0.35)" />
+                        </linearGradient>
+                        <filter id="radarGlow" x="-50%" y="-50%" width="200%" height="200%">
+                          <feGaussianBlur stdDeviation="1.2" result="b" />
+                          <feMerge>
+                            <feMergeNode in="b" />
+                            <feMergeNode in="SourceGraphic" />
+                          </feMerge>
+                        </filter>
+                      </defs>
+
+                      {/* Scope face */}
+                      <circle cx="0" cy="0" r={R} fill="url(#radarScopeBg)" />
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r={R}
+                        fill="none"
+                        stroke="rgba(0,242,255,0.45)"
+                        strokeWidth="1.6"
+                      />
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r={R - 1.5}
+                        fill="none"
+                        stroke="rgba(0,242,255,0.12)"
+                        strokeWidth="0.6"
+                      />
+
+                      {/* Range rings */}
+                      {[0.33, 0.66, 1].map((f) => (
+                        <circle
+                          key={f}
+                          cx="0"
+                          cy="0"
+                          r={R * f * 0.92}
+                          fill="none"
+                          stroke="rgba(0,242,255,0.14)"
+                          strokeWidth="0.7"
+                          strokeDasharray={f === 1 ? undefined : '2 3'}
+                        />
+                      ))}
+
+                      {/* Cross + diagonal ticks */}
+                      <line x1={-R + 4} y1="0" x2={R - 4} y2="0" stroke="rgba(0,242,255,0.12)" strokeWidth="0.5" />
+                      <line x1="0" y1={-R + 4} x2="0" y2={R - 4} stroke="rgba(0,242,255,0.12)" strokeWidth="0.5" />
+                      {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
+                        const a = (deg * Math.PI) / 180;
+                        const x1 = Math.sin(a) * (R - 8);
+                        const y1 = -Math.cos(a) * (R - 8);
+                        const x2 = Math.sin(a) * (R - 3);
+                        const y2 = -Math.cos(a) * (R - 3);
+                        return (
+                          <line
+                            key={deg}
+                            x1={x1}
+                            y1={y1}
+                            x2={x2}
+                            y2={y2}
+                            stroke="rgba(0,242,255,0.28)"
+                            strokeWidth="1"
+                          />
+                        );
+                      })}
+
+                      {/* Range labels (outer half) */}
+                      <text x="4" y={-R * 0.33 + 3} fill="rgba(0,242,255,0.35)" fontSize="7" fontFamily="monospace">
+                        {(km * 0.33).toFixed(1)}
+                      </text>
+                      <text x="4" y={-R * 0.66 + 3} fill="rgba(0,242,255,0.35)" fontSize="7" fontFamily="monospace">
+                        {(km * 0.66).toFixed(1)}
+                      </text>
+
+                      {/* Rotating sweep */}
+                      <g className="hud-radar-sweep">
+                        <path
+                          d={`M 0 0 L 0 ${-R * 0.92} A ${R * 0.92} ${R * 0.92} 0 0 1 ${R * 0.92 * 0.5} ${-R * 0.92 * 0.866} Z`}
+                          fill="url(#radarSweepGrad)"
+                        />
+                        <line
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2={-R * 0.92}
+                          stroke="rgba(0,242,255,0.55)"
+                          strokeWidth="1.2"
+                        />
+                      </g>
+
+                      {/* Contacts */}
+                      {data.radar.map((r, i) => {
+                        const cx = r.x * scale;
+                        const cy = r.y * scale;
+                        if (r.kind === 'missile') {
+                          const col = r.incoming ? DANGER : 'rgba(255,180,80,0.85)';
+                          return (
+                            <g key={`m-${i}`} filter="url(#radarGlow)" className={r.incoming ? 'hud-radar-blink' : undefined}>
+                              {/* Diamond = missile threat */}
+                              <polygon
+                                points={`${cx},${cy - 5} ${cx + 4},${cy} ${cx},${cy + 5} ${cx - 4},${cy}`}
+                                fill={r.incoming ? 'rgba(255,59,48,0.35)' : 'rgba(255,159,10,0.25)'}
+                                stroke={col}
+                                strokeWidth="1.4"
+                              />
+                              {r.incoming && (
+                                <line
+                                  x1={cx}
+                                  y1={cy}
+                                  x2="0"
+                                  y2="0"
+                                  stroke="rgba(255,59,48,0.35)"
+                                  strokeWidth="0.8"
+                                  strokeDasharray="2 2"
+                                />
+                              )}
+                            </g>
+                          );
+                        }
+                        if (r.kind === 'sam') {
+                          return (
+                            <g key={`s-${i}`}>
+                              <rect
+                                x={cx - 3.5}
+                                y={cy - 3.5}
+                                width="7"
+                                height="7"
+                                fill={r.locked ? 'rgba(255,159,10,0.35)' : 'rgba(255,159,10,0.15)'}
+                                stroke={AMBER}
+                                strokeWidth={r.locked ? 1.6 : 1.1}
+                              />
+                            </g>
+                          );
+                        }
+                        // bandit
+                        return (
+                          <g key={`b-${i}`} filter={r.locked ? 'url(#radarGlow)' : undefined}>
+                            {r.locked ? (
+                              <>
+                                <polygon
+                                  points={`${cx},${cy - 6} ${cx + 5},${cy + 4} ${cx - 5},${cy + 4}`}
+                                  fill="rgba(255,59,48,0.25)"
+                                  stroke={DANGER}
+                                  strokeWidth="1.5"
+                                />
+                                <circle cx={cx} cy={cy} r="9" fill="none" stroke={DANGER} strokeWidth="0.8" opacity="0.7" />
+                              </>
+                            ) : (
+                              <polygon
+                                points={`${cx},${cy - 5} ${cx + 4.2},${cy + 3.5} ${cx - 4.2},${cy + 3.5}`}
+                                fill={DANGER}
+                                stroke="rgba(255,120,100,0.9)"
+                                strokeWidth="0.6"
+                                opacity="0.95"
+                              />
+                            )}
+                          </g>
+                        );
+                      })}
+
+                      {/* Own aircraft (center) */}
+                      <polygon
+                        points="0,-7 5,6 -5,6"
+                        fill={CYAN}
+                        stroke="rgba(255,255,255,0.5)"
+                        strokeWidth="0.5"
+                        filter="url(#radarGlow)"
+                      />
+                      <circle cx="0" cy="0" r="1.5" fill="#fff" opacity="0.9" />
+                    </svg>
+                  </div>
+                  <div className="hud-radar-legend">
+                    <span><i className="hud-leg-bandit" /> Bandit {bandits}</span>
+                    <span><i className="hud-leg-sam" /> SAM</span>
+                    <span><i className="hud-leg-mssl" /> MSSL</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Score glass bottom right */}

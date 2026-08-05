@@ -993,6 +993,150 @@
   font-weight: 600;
 }
 
+/* ─── War Thunder style TWS Radar ────────────────────────────────────────── */
+.hud-radar-panel {
+  background: rgba(6, 12, 22, 0.72);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid rgba(0, 242, 255, 0.28);
+  border-radius: 20px;
+  padding: 10px 12px 8px;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(0, 242, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.hud-radar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+
+.hud-radar-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: #00f2ff;
+  text-shadow: 0 0 10px rgba(0, 242, 255, 0.45);
+}
+
+.hud-radar-range {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.06em;
+}
+
+.hud-radar-alert {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #ff3b30;
+  text-shadow: 0 0 12px rgba(255, 59, 48, 0.7);
+  animation: radarAlertPulse 0.7s ease-in-out infinite;
+}
+
+@keyframes radarAlertPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.hud-radar-scope {
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 24px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(0, 242, 255, 0.15);
+}
+
+.hud-radar-svg {
+  display: block;
+}
+
+.hud-radar-sweep {
+  transform-origin: 0 0;
+  animation: radarSweep 4.2s linear infinite;
+}
+
+@keyframes radarSweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hud-radar-blink {
+  animation: radarBlink 0.55s ease-in-out infinite;
+}
+
+@keyframes radarBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.hud-radar-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.hud-radar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hud-radar-legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.hud-leg-bandit {
+  width: 0 !important;
+  height: 0 !important;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 7px solid #ff3b30;
+  background: none !important;
+}
+
+.hud-leg-sam {
+  background: #ff9f0a;
+  border-radius: 1px;
+}
+
+.hud-leg-mssl {
+  width: 7px !important;
+  height: 7px !important;
+  background: #ff3b30;
+  transform: rotate(45deg);
+  box-shadow: 0 0 6px rgba(255, 59, 48, 0.6);
+}
+
 .hud-value {
   font-family: var(--font-mono);
   font-weight: 700;

@@ -60,7 +60,18 @@ export interface HudData {
   gunCrosshair: ScreenPos;   // Reticle 3: Nase / Gun
   manualOverride: boolean;
   airbrake: boolean;
-  radar: { x: number; y: number; isEnemy: boolean; locked: boolean }[];
+  /**
+   * Radar-Kontakte (lokaler Jet-Raum, -1..1 relativ radarRange):
+   * bandit = Luftgegner, sam = Boden, missile = eingehende Lenkwaffe
+   */
+  radar: {
+    x: number;
+    y: number;
+    kind: 'bandit' | 'sam' | 'missile';
+    locked: boolean;
+    /** true wenn Rakete den Spieler anvisiert */
+    incoming?: boolean;
+  }[];
   /** Welt→Bildschirm Marker über Gegnern (HP + Distanz) */
   worldMarkers: {
     x: number; // % Bildschirm
@@ -798,6 +809,9 @@ export class Game {
             this.enemyFireTimers.set(e, timer);
           }
         }
+        if (e.wantsMissileFire() && player.alive) {
+          this.launchEnemyMissile(e);
+        }
       } else {
         const done = e.updateDeath(dt);
         if (Math.random() < dt * 20) this.effects.damageSmoke(e.position);
@@ -811,14 +825,16 @@ export class Game {
     // --- SAM-Stellungen ---
     for (const sam of this.sams) {
       sam.update(dt, player, (site) => {
-        // SAM-Rakete auf den Spieler
+        // SAM-Rakete auf den Spieler (langsameres Profil → Flares möglich)
+        const toPlayer = player.position.clone().sub(site.position).normalize();
+        const launchDir = toPlayer.lerp(new THREE.Vector3(0, 1, 0), 0.35).normalize();
         const m = new Missile(
           player,
           site.position.clone().add(new THREE.Vector3(0, 8, 0)),
-          new THREE.Vector3(0, 1, 0),
+          launchDir,
           site,
           this.effects,
-          { carrierSpeed: 40 }
+          { carrierSpeed: 40, profile: 'sam' }
         );
         this.missiles.push(m);
         this.engine.scene.add(m.object);
@@ -837,7 +853,8 @@ export class Game {
         if (res.hit) {
           const victim = res.hit;
           const isSam = this.sams.includes(victim as SamSite);
-          const killed = victim.takeDamage(isSam ? CONFIG.missile.damage : CONFIG.missile.damage);
+          const dmg = m.damage;
+          const killed = victim.takeDamage(dmg);
           if (victim.isPlayer) {
             if (killed) this.onPlayerKilled();
           } else if (isSam) {
@@ -1058,6 +1075,23 @@ export class Game {
     if (this.player.lockTarget === (e as unknown as Damageable)) this.clearLock();
   }
 
+  /** Gegner-Luft-Luft-Rakete (langsames Profil, flare-fähig) */
+  private launchEnemyMissile(e: EnemyJet) {
+    const player = this.player;
+    if (!player.alive || !e.alive) return;
+    const toPlayer = player.position.clone().sub(e.position);
+    if (toPlayer.lengthSq() < 1) return;
+    const startDir = toPlayer.normalize().lerp(e.forward, 0.35).normalize();
+    const start = e.position.clone().addScaledVector(e.forward, 8).add(new THREE.Vector3(0, -0.8, 0));
+    const m = new Missile(player, start, startDir, e, this.effects, {
+      carrierSpeed: e.flight.speed,
+      profile: 'enemy',
+    });
+    this.missiles.push(m);
+    this.engine.scene.add(m.object);
+    this.sound.missileLaunch();
+  }
+
   /**
    * Flare-Salve: visuelle IR-Köder + 50/50-Chance, alle auf den Spieler
    * gelenkten Raketen (SAMs) zu spoofen.
@@ -1172,7 +1206,7 @@ export class Game {
       radar.push({
         x: THREE.MathUtils.clamp(rel.x / range, -1, 1),
         y: THREE.MathUtils.clamp(rel.z / range, -1, 1),
-        isEnemy: true,
+        kind: 'bandit',
         locked: p.lockTarget === (e as unknown as Damageable) && p.lockProgress >= 1,
       });
     }
@@ -1182,8 +1216,22 @@ export class Game {
       radar.push({
         x: THREE.MathUtils.clamp(rel.x / range, -1, 1),
         y: THREE.MathUtils.clamp(rel.z / range, -1, 1),
-        isEnemy: false, // Bodenziel = anderes Symbol
+        kind: 'sam',
         locked: p.lockTarget === (s as unknown as Damageable) && p.lockProgress >= 1,
+      });
+    }
+    // Eingehende / eigene Lenkwaffen auf dem Radar (WT-Style Threat)
+    for (const m of this.missiles) {
+      if (!m.alive) continue;
+      const rel = m.position.clone().sub(p.position).applyQuaternion(invQ);
+      const dist = Math.hypot(rel.x, rel.z);
+      if (dist > range * 1.15) continue;
+      radar.push({
+        x: THREE.MathUtils.clamp(rel.x / range, -1, 1),
+        y: THREE.MathUtils.clamp(rel.z / range, -1, 1),
+        kind: 'missile',
+        locked: false,
+        incoming: m.isIncomingThreat(),
       });
     }
 

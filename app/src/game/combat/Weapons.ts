@@ -235,6 +235,8 @@ export class CannonSystem {
   }
 }
 
+export type MissileProfileId = 'player' | 'enemy' | 'sam';
+
 export type MissileLaunchOpts = {
   /** 3D-Modell der Rakete (optional) */
   visual?: THREE.Object3D | null;
@@ -242,17 +244,76 @@ export type MissileLaunchOpts = {
   carrierSpeed?: number;
   /** Lokaler „Drop“: Welt-Vektor nach unten/außen beim Launch */
   ejectWorld?: THREE.Vector3;
+  /** Flugprofil — enemy/sam sind absichtlich langsamer (Flares möglich) */
+  profile?: MissileProfileId;
 };
+
+type MissileTune = {
+  speed: number;
+  life: number;
+  turnRate: number;
+  damage: number;
+  proximityRadius: number;
+  lockLoseAngleDeg: number;
+  boostTime: number;
+  leadGain: number;
+  startBoost: number;
+};
+
+function resolveMissileTune(profile: MissileProfileId): MissileTune {
+  const base = CONFIG.missile;
+  if (profile === 'enemy' && base.enemy) {
+    return {
+      speed: base.enemy.speed,
+      life: base.enemy.life,
+      turnRate: base.enemy.turnRate,
+      damage: base.enemy.damage,
+      proximityRadius: base.enemy.proximityRadius,
+      lockLoseAngleDeg: base.enemy.lockLoseAngleDeg,
+      boostTime: base.enemy.boostTime,
+      leadGain: base.enemy.leadGain,
+      startBoost: base.enemy.startBoost,
+    };
+  }
+  if (profile === 'sam' && base.sam) {
+    return {
+      speed: base.sam.speed,
+      life: base.sam.life,
+      turnRate: base.sam.turnRate,
+      damage: base.sam.damage,
+      proximityRadius: base.sam.proximityRadius,
+      lockLoseAngleDeg: base.sam.lockLoseAngleDeg,
+      boostTime: base.sam.boostTime,
+      leadGain: base.sam.leadGain,
+      startBoost: base.sam.startBoost,
+    };
+  }
+  return {
+    speed: base.speed,
+    life: base.life,
+    turnRate: base.turnRate,
+    damage: base.damage,
+    proximityRadius: base.proximityRadius,
+    lockLoseAngleDeg: base.lockLoseAngleDeg,
+    boostTime: base.boostTime ?? 1.6,
+    leadGain: base.leadGain ?? 0.55,
+    startBoost: 40,
+  };
+}
 
 // Lenkrakete: Start am Hardpoint, Drop, Boost, Pursuit mit Lead, 3D-Visual.
 export class Missile {
   readonly object = new THREE.Group();
   alive = true;
+  /** Für Radar / Threat-Display */
+  readonly profile: MissileProfileId;
+  readonly damage: number;
   private vel: THREE.Vector3;
   private life: number;
   private age = 0;
   private target: Damageable | null;
   private effects: Effects;
+  private tune: MissileTune;
   private prevTargetPos = new THREE.Vector3();
   private targetVel = new THREE.Vector3();
   private hasPrevTarget = false;
@@ -275,6 +336,9 @@ export class Missile {
     effects: Effects,
     opts: MissileLaunchOpts = {}
   ) {
+    this.profile = opts.profile ?? 'player';
+    this.tune = resolveMissileTune(this.profile);
+    this.damage = this.tune.damage;
     this.target = target;
     this.effects = effects;
     this.object.position.copy(start);
@@ -282,12 +346,16 @@ export class Missile {
     const dir = startDir.clone().normalize();
     const carrier = opts.carrierSpeed ?? CONFIG.flight.cruiseSpeed;
     // Start mit Jet-Geschwindigkeit + leichter Boost-Anteil
-    this.vel = dir.multiplyScalar(Math.max(80, carrier * 0.95 + 40));
+    const startSpd =
+      this.profile === 'player'
+        ? Math.max(80, carrier * 0.95 + this.tune.startBoost)
+        : Math.max(60, carrier * 0.75 + this.tune.startBoost);
+    this.vel = dir.multiplyScalar(startSpd);
     // Drop/Eject vom Pylon (seitlich/unten)
     if (opts.ejectWorld) {
       this.vel.add(opts.ejectWorld);
     }
-    this.life = CONFIG.missile.life;
+    this.life = this.tune.life;
 
     let tailZ = 1.12;
     let exhaustRadius = 0.13;
@@ -385,8 +453,17 @@ export class Missile {
     return power;
   }
 
+  get position(): THREE.Vector3 {
+    return this.object.position;
+  }
+
+  /** Eingehende Bedrohung gegen den Spieler (für Radar / Warnung) */
+  isIncomingThreat(): boolean {
+    return this.alive && this.target?.isPlayer === true;
+  }
+
   update(dt: number): { hit: Damageable | null; expired: boolean } {
-    const M = CONFIG.missile;
+    const M = this.tune;
     this.life -= dt;
     this.age += dt;
     if (this.life <= 0 || !this.alive) {
@@ -394,10 +471,12 @@ export class Missile {
       return { hit: null, expired: true };
     }
 
-    // Boost-Phase: stark beschleunigen, dann Cruise
-    const boost = M.boostTime ?? 1.6;
+    // Boost-Phase: stark beschleunigen, dann Cruise (enemy/sam langsamer)
+    const boost = M.boostTime;
     const motorPower = this.updateMotorFx(boost);
-    const accel = this.age < 0.12 ? 0 : this.age < boost ? 520 : 180;
+    const boostAccel = this.profile === 'player' ? 520 : this.profile === 'enemy' ? 280 : 220;
+    const cruiseAccel = this.profile === 'player' ? 180 : 110;
+    const accel = this.age < 0.12 ? 0 : this.age < boost ? boostAccel : cruiseAccel;
     const maxSpd = this.age < boost ? M.speed * 0.92 : M.speed;
     this.vel.setLength(Math.min(maxSpd, this.vel.length() + accel * dt));
 
@@ -423,7 +502,7 @@ export class Missile {
       const tHit = dist / closing;
       this._lead
         .copy(this.target.object.position)
-        .addScaledVector(this.targetVel, tHit * (M.leadGain ?? 0.55));
+        .addScaledVector(this.targetVel, tHit * M.leadGain);
 
       this._to.copy(this._lead).sub(this.object.position);
       if (this._to.lengthSq() > 1e-6) this._to.normalize();
@@ -431,8 +510,19 @@ export class Missile {
       this._dir.copy(this.vel).normalize();
       const angle = this._dir.angleTo(this._to);
 
-      // Nach Drop-Phase härter drehen; anfangs etwas träger
-      const turnMul = this.age < 0.35 ? 0.35 : this.age < boost ? 0.85 : 1.15;
+      // Nach Drop-Phase härter drehen; Feind-Raketen anfangs träger (Flares-Fenster)
+      const turnMul =
+        this.age < 0.45
+          ? this.profile === 'player'
+            ? 0.35
+            : 0.22
+          : this.age < boost
+            ? this.profile === 'player'
+              ? 0.85
+              : 0.7
+            : this.profile === 'player'
+              ? 1.15
+              : 0.95;
       if (angle > THREE.MathUtils.degToRad(M.lockLoseAngleDeg) && this.age > 1.2) {
         this.target = null;
       } else {

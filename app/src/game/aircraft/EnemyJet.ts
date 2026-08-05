@@ -17,10 +17,13 @@ export class EnemyJet extends Aircraft {
   state: AIState = 'patrol';
   cannonCooldown = 0;
   respawnTimer = 0;
+  /** Cooldown bis nächste Luft-Luft-Rakete */
+  missileCooldown = 3 + Math.random() * 4;
   private waypoint = new THREE.Vector3();
   private thinkTimer = Math.random();
   private evadeTimer = 0;
   private burstTimer = 0;
+  private pendingMissile = false;
   private input = { pitch: 0, roll: 0, yaw: 0 };
   private catalogMuzzles: THREE.Vector3[];
   private readonly maxHp: number;
@@ -85,17 +88,32 @@ export class EnemyJet extends Aircraft {
     return this.burstTimer > 0;
   }
 
+  /** true einmalig, wenn KI eine Lenkwaffe abfeuern will */
+  wantsMissileFire(): boolean {
+    if (!this.pendingMissile) return false;
+    this.pendingMissile = false;
+    return true;
+  }
+
+  private canLaunchMissile(): boolean {
+    return this.loadout.stats.missiles > 0 && this.missileCooldown <= 0;
+  }
+
   update(dt: number, player: Aircraft, terrain: HeightField) {
     if (!this.alive) return;
     const E = CONFIG.enemy;
     this.thinkTimer -= dt;
     this.cannonCooldown -= dt;
     this.burstTimer -= dt;
+    this.missileCooldown = Math.max(0, this.missileCooldown - dt);
 
     // --- Denken (niedrige Frequenz) ---
     if (this.thinkTimer <= 0) {
       this.thinkTimer = E.thinkInterval;
       const distToPlayer = player.alive ? this.position.distanceTo(player.position) : Infinity;
+      const mRange = E.missileRange ?? 2100;
+      const mMin = E.missileMinRange ?? 380;
+      const mCone = E.missileConeDeg ?? 28;
 
       switch (this.state) {
         case 'patrol':
@@ -105,6 +123,17 @@ export class EnemyJet extends Aircraft {
         case 'pursue':
           if (distToPlayer < 1100 && this.isTargetInFront(player, 30)) this.state = 'attack';
           if (distToPlayer > 4500) this.state = 'patrol';
+          // BVR-ish: aus Pursuit Rakete, wenn Spieler im Kegel
+          if (
+            player.alive &&
+            this.canLaunchMissile() &&
+            distToPlayer < mRange &&
+            distToPlayer > mMin &&
+            this.isTargetInFront(player, mCone)
+          ) {
+            this.pendingMissile = true;
+            this.missileCooldown = (E.missileCooldown ?? 9.5) * (0.85 + Math.random() * 0.4);
+          }
           if (Math.random() < E.skillEvasionChance * 0.1) this.startEvade();
           break;
         case 'attack':
@@ -112,6 +141,16 @@ export class EnemyJet extends Aircraft {
           if (this.isTargetInFront(player, E.fireConeDeg) && distToPlayer < E.fireRange && this.cannonCooldown <= 0) {
             this.burstTimer = E.burstLength;
             this.cannonCooldown = 1.2 + Math.random();
+          }
+          if (
+            player.alive &&
+            this.canLaunchMissile() &&
+            distToPlayer < mRange &&
+            distToPlayer > mMin &&
+            this.isTargetInFront(player, mCone + 6)
+          ) {
+            this.pendingMissile = true;
+            this.missileCooldown = (E.missileCooldown ?? 9.5) * (0.75 + Math.random() * 0.35);
           }
           if (Math.random() < E.skillEvasionChance * 0.06) this.startEvade();
           break;
