@@ -97,6 +97,7 @@ export function Menus({
   const [mapError, setMapError] = useState<string | null>(null);
   /** Verhindert Reset auf 'main' wenn z.B. aus GameOver absichtlich Garage geöffnet wird */
   const preserveScreenRef = useRef(false);
+  const prevStateRef = useRef<GameState>(state);
 
   const selected = JET_CATALOG.find((j) => j.id === selectedJetId) ?? JET_CATALOG[0];
   const selectedMap = getMapDef(selectedMapId);
@@ -122,8 +123,11 @@ export function Menus({
     onSoundChange?.({ muted: settings.muted, volume: settings.masterVolume });
   }, [settings, onSoundChange]);
 
+  // Nur beim echten Wechsel ZURÜCK ins Menü auf Home springen — nicht bei jedem Render
   useEffect(() => {
-    if (state === 'menu') {
+    const prev = prevStateRef.current;
+    prevStateRef.current = state;
+    if (state === 'menu' && prev !== 'menu') {
       if (preserveScreenRef.current) {
         preserveScreenRef.current = false;
       } else {
@@ -137,10 +141,16 @@ export function Menus({
   const patchSettings = (partial: Partial<GameSettings>) =>
     setSettings((s) => ({ ...s, ...partial }));
 
-  const openHangar = () => {
-    setFaction(selected.faction);
-    setScreen('hangar');
+  /** Zentrale Navigation — alle Sidebar/Quick-Link Buttons laufen hierüber */
+  const navigateTo = (next: Screen) => {
+    setExitConfirm(false);
+    if (next === 'hangar') {
+      setFaction(selected.faction);
+    }
+    setScreen(next);
   };
+
+  const openHangar = () => navigateTo('hangar');
 
   const tryExit = () => {
     setExitConfirm(true);
@@ -164,44 +174,6 @@ export function Menus({
     { screen: 'maps', icon: '🗺️', label: 'Maps' },
     { screen: 'settings', icon: '⚙️', label: 'Einstellungen' },
   ];
-
-  const Sidebar = () => (
-    <aside className="glass-sidebar pointer-events-auto fixed left-0 top-0 z-20 flex h-full w-[232px] flex-col">
-      <div className="flex items-center gap-3 border-b border-white/[0.05] px-4 py-4">
-        <div className="glass-sidebar-logo">FJ</div>
-        <div>
-          <div className="font-display text-[12px] font-bold tracking-[0.08em] text-white leading-tight">
-            FIGHT JET 3D
-          </div>
-          <div className="text-[8px] tracking-[0.14em] text-white/25 uppercase">Tactical Air Combat</div>
-        </div>
-      </div>
-
-      <nav className="flex flex-1 flex-col gap-0.5 px-3 py-3">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.screen}
-            type="button"
-            onClick={() => {
-              if (item.screen === 'hangar') openHangar();
-              else setScreen(item.screen);
-            }}
-            className={`glass-sidebar-btn ${screen === item.screen ? 'is-active' : ''}`}
-          >
-            <span className="sidebar-btn-icon">{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="border-t border-white/[0.05] px-3 py-2.5">
-        <button type="button" onClick={tryExit} className="glass-sidebar-exit">
-          <span className="sidebar-btn-icon">🚪</span>
-          <span>Beenden</span>
-        </button>
-      </div>
-    </aside>
-  );
 
   // ─── Hangar Atmosphere Background ──────────────────────────────────────
   const HangarBackground = () => (
@@ -270,7 +242,7 @@ export function Menus({
       </button>
 
       {/* KARTE */}
-      <button type="button" className="topbar-chip" onClick={() => setScreen('maps')} title="Map wechseln">
+      <button type="button" className="topbar-chip" onClick={() => navigateTo('maps')} title="Map wechseln">
         <span className="topbar-chip-icon">🗺️</span>
         <div className="min-w-0 text-left">
           <div className="topbar-chip-label">Karte</div>
@@ -292,10 +264,10 @@ export function Menus({
     </div>
   );
 
-  // ─── Exit confirm ───────────────────────────────────────────────────────
+  // ─── Exit confirm (fixed full-screen so Sidebar darunter nicht blockiert) ─
   const ExitModal = () =>
     exitConfirm ? (
-      <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-md">
+      <div className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-black/55 backdrop-blur-md">
         <div className="glass-panel mx-4 w-full max-w-md p-6 text-center">
           <div className="glass-eyebrow mb-2">System</div>
           <h3 className="glass-title mb-2 text-2xl">Sitzung beenden?</h3>
@@ -512,13 +484,68 @@ export function Menus({
   }
 
   // ─── MENU states ────────────────────────────────────────────────────────
+  // Flex-Shell: Sidebar ist Teil des Layouts (nicht nur fixed) → Klicks greifen zuverlässig
   return (
-    <div className="absolute bottom-0 left-[232px] right-0 top-0 z-10 flex flex-col">
-      <Sidebar />
-      <TopBar />
+    <div className="pointer-events-none absolute inset-0 z-30 flex">
+      {/* ── LEFT SIDEBAR ─────────────────────────────────────────────────── */}
+      <aside className="glass-sidebar pointer-events-auto relative z-50 flex h-full w-[232px] shrink-0 flex-col">
+        <div className="flex items-center gap-3 border-b border-white/[0.05] px-4 py-4">
+          <div className="glass-sidebar-logo">FJ</div>
+          <div>
+            <div className="font-display text-[12px] font-bold leading-tight tracking-[0.08em] text-white">
+              FIGHT JET 3D
+            </div>
+            <div className="text-[8px] uppercase tracking-[0.14em] text-white/25">Tactical Air Combat</div>
+          </div>
+        </div>
 
-      <div className="relative flex-1 overflow-hidden">
-        <HangarBackground />
+        <nav className="flex flex-1 flex-col gap-0.5 px-3 py-3" aria-label="Hauptnavigation">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.screen}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigateTo(item.screen);
+              }}
+              className={`glass-sidebar-btn ${screen === item.screen ? 'is-active' : ''}`}
+              aria-current={screen === item.screen ? 'page' : undefined}
+            >
+              <span className="sidebar-btn-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="border-t border-white/[0.05] px-3 py-2.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              tryExit();
+            }}
+            className="glass-sidebar-exit"
+          >
+            <span className="sidebar-btn-icon" aria-hidden="true">
+              🚪
+            </span>
+            <span>Beenden</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ── MAIN COLUMN (TopBar + Content) ───────────────────────────────── */}
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <div className="pointer-events-auto relative z-40 shrink-0">
+          <TopBar />
+        </div>
+
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <HangarBackground />
 
         {/* ═══════════════ MAIN LANDING ═══════════════ */}
         {screen === 'main' && (
@@ -568,7 +595,7 @@ export function Menus({
 
                 <button
                   type="button"
-                  onClick={() => setScreen('maps')}
+                  onClick={() => navigateTo('maps')}
                   className="main-info-card group text-left"
                 >
                   <div className="mb-2 flex items-center justify-between">
@@ -612,10 +639,10 @@ export function Menus({
               {/* Quick links 2×2 / 4 col */}
               <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {[
-                  { icon: '✈️', label: 'Garage', action: openHangar },
-                  { icon: '🗺️', label: 'Maps', action: () => setScreen('maps') },
-                  { icon: '🎯', label: 'Kampagne', action: () => setScreen('missions') },
-                  { icon: '⚙️', label: 'Einstellungen', action: () => setScreen('settings') },
+                  { icon: '✈️', label: 'Garage', action: () => navigateTo('hangar') },
+                  { icon: '🗺️', label: 'Maps', action: () => navigateTo('maps') },
+                  { icon: '🎯', label: 'Kampagne', action: () => navigateTo('missions') },
+                  { icon: '⚙️', label: 'Einstellungen', action: () => navigateTo('settings') },
                 ].map(({ icon, label, action }) => (
                   <button key={label} type="button" onClick={action} className="main-quick-link">
                     <span className="mb-1 block text-lg">{icon}</span>
@@ -640,7 +667,7 @@ export function Menus({
                 <button
                   type="button"
                   className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
-                  onClick={() => setScreen('main')}
+                  onClick={() => navigateTo('main')}
                 >
                   ← Zurück
                 </button>
@@ -872,7 +899,7 @@ export function Menus({
                 <button
                   type="button"
                   className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
-                  onClick={() => setScreen('main')}
+                  onClick={() => navigateTo('main')}
                 >
                   ← Zurück
                 </button>
@@ -960,7 +987,7 @@ export function Menus({
                 <button
                   type="button"
                   className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
-                  onClick={() => setScreen('main')}
+                  onClick={() => navigateTo('main')}
                 >
                   ← Zurück
                 </button>
@@ -1051,7 +1078,7 @@ export function Menus({
                 <button
                   type="button"
                   className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
-                  onClick={() => setScreen('main')}
+                  onClick={() => navigateTo('main')}
                 >
                   ← Zurück
                 </button>
@@ -1062,7 +1089,8 @@ export function Menus({
           </div>
         )}
 
-        <ExitModal />
+          <ExitModal />
+        </div>
       </div>
     </div>
   );

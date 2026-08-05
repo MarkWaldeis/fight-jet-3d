@@ -52,6 +52,11 @@ export default function App() {
     setPhase(next);
   }, []);
 
+  // TEMP: Credits beim Start nochmal aus Settings laden (Dev-Boost greift auch bei altem localStorage)
+  useEffect(() => {
+    setCredits(loadSettings().aeroCredits);
+  }, []);
+
   useEffect(() => {
     if (!canvasRef.current) return;
     const game = new Game(canvasRef.current);

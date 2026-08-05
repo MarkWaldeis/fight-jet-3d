@@ -17,32 +17,52 @@ const KEY = 'fightjet3d.settings.v1';
 
 const INITIAL_OWNED = ['f16', 'su25'];
 
+/**
+ * TEMP / DEV: Sehr hohe Credits zum Testen aller Jets.
+ * Später wieder auf einen normalen Startwert (z.B. 500–2000) setzen.
+ */
+export const DEV_TEST_CREDITS = 9_999_999;
+
 export const DEFAULT_SETTINGS: GameSettings = {
   graphicsQuality: 'high',
   showHud: true,
   masterVolume: 0.85,
   muted: false,
-  aeroCredits: 999999,
+  aeroCredits: DEV_TEST_CREDITS,
   ownedJets: [...INITIAL_OWNED],
 };
 
 export function loadSettings(): GameSettings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { ...DEFAULT_SETTINGS };
+    if (!raw) return { ...DEFAULT_SETTINGS, ownedJets: [...INITIAL_OWNED] };
     const parsed = JSON.parse(raw) as Partial<GameSettings>;
     // Migration: ensure initial owned jets
     if (!parsed.ownedJets || parsed.ownedJets.length === 0) {
       parsed.ownedJets = [...INITIAL_OWNED];
     }
-    return {
+    const result: GameSettings = {
       ...DEFAULT_SETTINGS,
       ...parsed,
       masterVolume: Math.max(0, Math.min(1, parsed.masterVolume ?? DEFAULT_SETTINGS.masterVolume)),
-      aeroCredits: Math.max(0, parsed.aeroCredits ?? DEFAULT_SETTINGS.aeroCredits),
+      ownedJets: [...(parsed.ownedJets ?? INITIAL_OWNED)],
+      // TEMP: immer genug Credits für den gesamten Jet-Katalog
+      aeroCredits: Math.max(
+        DEV_TEST_CREDITS,
+        Math.max(0, parsed.aeroCredits ?? DEFAULT_SETTINGS.aeroCredits)
+      ),
     };
+    // Persistiere den Dev-Credit-Boost, damit UI + Kauf sofort greifen
+    if ((parsed.aeroCredits ?? 0) < DEV_TEST_CREDITS) {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(result));
+      } catch {
+        /* ignore */
+      }
+    }
+    return result;
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_SETTINGS, ownedJets: [...INITIAL_OWNED] };
   }
 }
 
