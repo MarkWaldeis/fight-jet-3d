@@ -32,26 +32,26 @@ export const CONFIG = {
     /** Geschwindigkeitsverlust bei hohem AoA (zusätzlich) */
     aoaDrag: 0.07,
 
-    // --- Ruder-Raten (rad/s) — freier Pitch/Roll fürs Zielen ---
-    pitchRate: 1.95,
-    rollRate: 2.75,
-    yawRate: 0.68,
-    /** Roll-Winkelbeschleunigung (rad/s²) — schnelleres Einleiten */
-    rollAccel: 12.5,
-    /** Roll-Dämpfung ohne Eingabe (1/s) */
-    rollDamping: 3.6,
+    // --- Ruder-Raten: Pitch/Yaw stark (Zielen), Roll eher ruhig ---
+    pitchRate: 2.15,
+    rollRate: 1.85,        // weniger „Durchdrehen“
+    yawRate: 1.05,         // seitlich mit der Maus mitgehen
+    /** Roll-Winkelbeschleunigung (rad/s²) */
+    rollAccel: 8.5,
+    /** Roll-Dämpfung ohne Eingabe (1/s) — Schräglage klingt schneller ab */
+    rollDamping: 5.5,
 
-    // --- Mouse-Aim Fly-By-Wire (aggressiveres Folgen der Maus) ---
-    fbwRollGain: 4.4,
-    fbwPitchGain: 3.8,
-    fbwYawGain: 0.8,
-    /** Weniger „Roll first“ → Nase folgt eher der Maus beim Zielen */
-    fbwRollPriority: 0.52,
+    // --- Mouse-Aim: Nase/Kanone folgt Maus (wenig Rollen, mehr Pitch/Yaw) ---
+    fbwRollGain: 1.2,      // nur leichte Bank-Hilfe, kein Spin
+    fbwPitchGain: 4.2,     // Nase hoch/runter zum Mauspunkt
+    fbwYawGain: 1.35,      // Nase seitlich zum Mauspunkt
+    /** Kaum noch „erst rollen“ — Zielen per Nase */
+    fbwRollPriority: 0.85,
     /** Weiche Rückkehr nach Manual-Override (1/s) */
-    fbwRecaptureRate: 5.5,
+    fbwRecaptureRate: 6.0,
     /** Max. Aim-Reticle-Abstand vom Bildschirmrand (NDC, 0..1) */
     aimMargin: 0.95,
-    /** Aim-Cursor etwas empfindlicher (Lead leichter verfolgen) */
+    /** Aim-Cursor (Pointer-Lock) */
     aimSensitivity: 0.0017,
 
     // --- Velocity / AoA ---
