@@ -177,7 +177,7 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 2500,
       lockTime: 1.35,
       lockAngleDeg: 18,
-      flareCount: 8,
+      flareCount: 0, // Flares nur auf Top-Tier (Elite / Su-57)
     },
     special: {
       id: 'vulcan',
@@ -216,7 +216,7 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 3800,
       lockTime: 0.85,
       lockAngleDeg: 22,
-      flareCount: 10,
+      flareCount: 0,
     },
     special: {
       id: 'amraam',
@@ -255,7 +255,7 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 4200,
       lockTime: 1.0,
       lockAngleDeg: 16,
-      flareCount: 10,
+      flareCount: 0,
     },
     special: {
       id: 'phoenix',
@@ -300,7 +300,7 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 1800,
       lockTime: 1.5,
       lockAngleDeg: 20,
-      flareCount: 6,
+      flareCount: 0,
     },
     special: {
       id: 'trainer',
@@ -319,10 +319,10 @@ export const JET_CATALOG: JetDef[] = [
     callsign: 'RAZOR 9',
     role: 'Interceptor · Experimental',
     description:
-      'Experimenteller High-Speed-Interceptor. Extrem schnell, Rail-Burst-Kanone, wenige aber schwere IR-Raketen.',
+      'Experimenteller High-Speed-Interceptor. Extrem schnell, Rail-Burst-Kanone, schwere IR-Raketen und starke Flare-Gegenmaßnahmen.',
     modelUrl: './models/elite-jaeger.glb',
     price: 3200,
-    traits: ['Top-Speed', 'Rail-Burst', '3× Heavy IR'],
+    traits: ['Top-Speed', 'Rail-Burst', 'Flares'],
     era: 'modern',
     engineType: 'jet',
     physics: { ...MODERN_JET_PHYSICS, windSusceptibility: 0.18 },
@@ -337,12 +337,13 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 2200,
       lockTime: 1.1,
       lockAngleDeg: 14,
-      flareCount: 6,
+      // Bestes NATO-Jet: volle Flare-Last (WT-Gegenmaßnahmen)
+      flareCount: 24,
     },
     special: {
       id: 'railburst',
-      label: 'Rail-Burst Kanone',
-      detail: 'Wuchtige Schüsse, enge Streuung',
+      label: 'Rail-Burst + Flares',
+      detail: 'Wuchtige Schüsse, enge Streuung · X = Flares gegen SAMs',
     },
     fx: twinNozzle(0.72, -0.5, 7.35, 0.78, 6.2, [
       [-2.9, -0.4, -1.5], [2.9, -0.4, -1.5],
@@ -384,7 +385,7 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 2000,
       lockTime: 1.6,
       lockAngleDeg: 20,
-      flareCount: 12,
+      flareCount: 0,
     },
     special: {
       id: 'armor',
@@ -421,7 +422,7 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 3200,
       lockTime: 1.1,
       lockAngleDeg: 18,
-      flareCount: 12,
+      flareCount: 0,
     },
     special: {
       id: 'strike',
@@ -442,11 +443,11 @@ export const JET_CATALOG: JetDef[] = [
     callsign: 'FELON 1',
     role: 'Stealth · Air Superiority',
     description:
-      'Russisches 5.-Gen-Jagdflugzeug. Schnell, wendig und mit starker Elektronik — Allround-Überlegenheit.',
+      'Russisches 5.-Gen-Jagdflugzeug. Schnell, wendig, starke Elektronik und umfangreiche Flare-Gegenmaßnahmen.',
     modelUrl: './models/su57.glb',
     price: 2800,
     // Auto-Align setzt Nase auf −Z; früherer yawDeg:180 drehte den Felon rückwärts
-    traits: ['5th Gen', 'Supermaneuver', 'BVR'],
+    traits: ['5th Gen', 'Supermaneuver', 'Flares'],
     era: 'modern',
     engineType: 'jet',
     physics: { ...MODERN_JET_PHYSICS, windSusceptibility: 0.22, modelLengthM: 20 },
@@ -461,12 +462,13 @@ export const JET_CATALOG: JetDef[] = [
       lockRange: 3600,
       lockTime: 0.9,
       lockAngleDeg: 20,
-      flareCount: 10,
+      // Bestes Russland-Jet: volle Flare-Last (WT-Gegenmaßnahmen)
+      flareCount: 24,
     },
     special: {
       id: 'supermaneuver',
-      label: 'Supermaneuverability',
-      detail: 'Hohe Wendigkeit bei hoher Speed',
+      label: 'Supermaneuver + Flares',
+      detail: 'Hohe Wendigkeit · X = Flares gegen SAMs (50/50 Spoof)',
     },
     fx: twinNozzle(1.0, -0.3, 6.30, 0.84, 7.2, [
       [-3.3, -0.35, -1.6], [3.3, -0.35, -1.6],

@@ -42,6 +42,11 @@ export interface HudData {
   maxHp: number;
   score: number;
   missiles: number;
+  /** Verbleibende Flares (0 = keine / Jet hat keine) */
+  flares: number;
+  maxFlares: number;
+  /** true kurz nach Flare-Auswurf (HUD-Hinweis) */
+  flareActive: boolean;
   enemiesAlive: number;
   lockProgress: number; // 0=kein, 0..1 suchend, 1=lock
   lockedTargetName: string | null;
@@ -773,6 +778,10 @@ export class Game {
           this.launchPlayerMissile();
         }
       }
+      // Flares / Gegenmaßnahmen (War Thunder: Rakete kommt → X → 50/50 Spoof)
+      if (this.input.wasPressed('KeyX') || this.input.wasPressed('KeyZ')) {
+        this.popPlayerFlares();
+      }
     }
 
     // --- Gegner ---
@@ -1050,6 +1059,39 @@ export class Game {
   }
 
   /**
+   * Flare-Salve: visuelle IR-Köder + 50/50-Chance, alle auf den Spieler
+   * gelenkten Raketen (SAMs) zu spoofen.
+   */
+  private popPlayerFlares() {
+    const player = this.player;
+    if (!player.alive || !player.hasFlares) return;
+    if (!player.tryPopFlares()) return;
+
+    // Auswurf hinter dem Jet (Heck + etwas seitlich)
+    const back = player.forward.clone().multiplyScalar(-1);
+    const origin = player.position
+      .clone()
+      .addScaledVector(back, 6)
+      .add(new THREE.Vector3(0, -1.2, 0));
+    this.effects.flareBurst(origin, back);
+    // Zweite Mini-Salve leicht versetzt (links/rechts)
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(player.object.quaternion);
+    this.effects.flareBurst(origin.clone().addScaledVector(right, 2.5), back);
+    this.effects.flareBurst(origin.clone().addScaledVector(right, -2.5), back);
+
+    this.sound.flarePop();
+
+    // Spoof: jede eingehende Lenkwaffe hat ~50 % Chance, den Lock zu verlieren
+    const chance = CONFIG.player.flareSpoofChance ?? 0.5;
+    for (const m of this.missiles) {
+      if (!m.targetIs(player)) continue;
+      if (Math.random() < chance) {
+        m.decoy();
+      }
+    }
+  }
+
+  /**
    * Rakete vom nächsten Hardpoint des Jets abfeuern (nicht aus dem Rumpf-Zentrum).
    * 3D-Visual + Drop/Boost-Flugbahn zum gelockten Ziel.
    */
@@ -1149,7 +1191,8 @@ export class Game {
     if (p.flight.stalled && p.alive) warning = 'STALL';
     else if (p.hp < 30 && p.alive) warning = 'DAMAGE';
     const missileThreat = this.missiles.some((m) => m.targetIs(p));
-    if (missileThreat) warning = 'MISSILE';
+    if (missileThreat) warning = 'MISSILE — X FLARES';
+    else if (p.flareCloudTimer > 0.05 && p.alive) warning = 'FLARES OUT';
 
     // Lock-Ziel auf Bildschirm projizieren
     let lockScreen: HudData['lockScreen'] = null;
@@ -1239,6 +1282,9 @@ export class Game {
       maxHp: p.maxHp,
       score: p.score,
       missiles: p.missilesLeft,
+      flares: p.flaresLeft,
+      maxFlares: p.maxFlares,
+      flareActive: p.flareCloudTimer > 0.05,
       enemiesAlive: this.enemies.filter((e) => e.alive).length,
       lockProgress: p.lockProgress,
       lockedTargetName: p.lockProgress >= 1 && p.lockTarget ? p.lockTarget.name : null,

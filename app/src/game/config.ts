@@ -81,6 +81,15 @@ export const CONFIG = {
     lockAngleDeg: 18,
     lockTime: 1.4,
     flareCount: 8,
+    /** Pause zwischen Flare-Salven (s) */
+    flareCooldown: 0.85,
+    /** Sichtbare IR-Wolke nach Auswurf (s) */
+    flareCloudDuration: 2.4,
+    /**
+     * Chance, dass eine eingehende Lenkwaffe den Lock verliert (pro Salve).
+     * War-Thunder-Feel: ~50/50 bei korrektem Timing.
+     */
+    flareSpoofChance: 0.5,
   },
   enemy: {
     count: 4,

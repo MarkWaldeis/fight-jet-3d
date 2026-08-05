@@ -29,6 +29,7 @@ const CONTROLS: { key: string; label: string }[] = [
   { key: 'B', label: 'Luftbremse' },
   { key: 'Leertaste', label: 'Bordkanone' },
   { key: 'F / M', label: 'Rakete (nach Lock)' },
+  { key: 'X / Z', label: 'Flares (Gegenmaßnahmen, 50/50)' },
   { key: 'C / RMB', label: 'Free-Look (halten)' },
   { key: 'V', label: 'Cockpit / Chase' },
   { key: 'P / Esc', label: 'Pause' },

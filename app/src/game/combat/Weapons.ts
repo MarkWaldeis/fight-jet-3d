@@ -353,6 +353,20 @@ export class Missile {
     return this.target === t;
   }
 
+  /** Aktuelles Ziel (für Flare-/Threat-Logik) */
+  get guidedTarget(): Damageable | null {
+    return this.target;
+  }
+
+  /**
+   * Gegenmaßnahme: IR/Radar-Lock brechen (War-Thunder-Flares).
+   * Rakete fliegt ballistisch weiter, ohne Pursuit.
+   */
+  decoy(): void {
+    this.target = null;
+    this.hasPrevTarget = false;
+  }
+
   private updateMotorFx(boostTime: number) {
     const ignition = THREE.MathUtils.smoothstep(this.age, 0.1, 0.22);
     const burnout = 1 - THREE.MathUtils.smoothstep(this.age, boostTime + 0.15, boostTime + 0.6);

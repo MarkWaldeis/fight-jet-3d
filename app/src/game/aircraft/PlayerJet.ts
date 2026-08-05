@@ -13,6 +13,10 @@ export class PlayerJet extends Aircraft {
   loadout: JetDef = getJetDef('f16');
   missilesLeft: number = CONFIG.player.missileCount;
   flaresLeft: number = CONFIG.player.flareCount;
+  /** Abklingzeit zwischen Flare-Salven (s) */
+  flareCooldown = 0;
+  /** Solange > 0: aktive IR-Wolke (visuell + kurze Spoof-Fenster) */
+  flareCloudTimer = 0;
   /** Nächster Hardpoint-Index (rotiert L/R) */
   missileStation = 0;
   cannonCooldown = 0;
@@ -36,6 +40,8 @@ export class PlayerJet extends Aircraft {
     this.hp = def.stats.hp;
     this.missilesLeft = def.stats.missiles;
     this.flaresLeft = def.stats.flareCount;
+    this.flareCooldown = 0;
+    this.flareCloudTimer = 0;
     this.flight.speedMult = def.stats.speedMult;
     this.flight.turnMult = def.stats.turnMult;
     this.applyFlightPhysics(def.physics, def.engineType);
@@ -60,6 +66,8 @@ export class PlayerJet extends Aircraft {
     this.missileStation = 0;
     this.resetMountedMissiles(s.missiles);
     this.flaresLeft = s.flareCount;
+    this.flareCooldown = 0;
+    this.flareCloudTimer = 0;
     this.score = 0;
     this.lockTarget = null;
     this.lockProgress = 0;
@@ -93,8 +101,27 @@ export class PlayerJet extends Aircraft {
   get hasMissiles() {
     return this.loadout.stats.missiles > 0 && this.loadout.stats.lockRange > 0;
   }
+  get hasFlares() {
+    return this.loadout.stats.flareCount > 0;
+  }
+  get maxFlares() {
+    return this.loadout.stats.flareCount;
+  }
   get hasAfterburner() {
     return this.loadout.physics.hasAfterburner;
+  }
+
+  /**
+   * Eine Flare-Salve abfeuern. true = erfolgreich.
+   * Cooldown verhindert Spam; verbraucht 1 Flare pro Salve.
+   */
+  tryPopFlares(): boolean {
+    if (!this.alive || !this.hasFlares) return false;
+    if (this.flaresLeft <= 0 || this.flareCooldown > 0) return false;
+    this.flaresLeft -= 1;
+    this.flareCooldown = CONFIG.player.flareCooldown ?? 0.85;
+    this.flareCloudTimer = CONFIG.player.flareCloudDuration ?? 2.4;
+    return true;
   }
 
   update(
@@ -109,6 +136,9 @@ export class PlayerJet extends Aircraft {
     }
   ) {
     if (!this.alive) return;
+
+    this.flareCooldown = Math.max(0, this.flareCooldown - dt);
+    this.flareCloudTimer = Math.max(0, this.flareCloudTimer - dt);
 
     // Smooth Recapture: Manual Override drosselt FBW, Loslassen fährt weich hoch
     if (input.manualOverride || opts?.freeLook) {

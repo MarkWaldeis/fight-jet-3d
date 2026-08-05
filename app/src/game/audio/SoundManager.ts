@@ -236,6 +236,26 @@ export class SoundManager {
     src.start(t); src.stop(t + 0.65);
   }
 
+  /** Kurzes Zischen/Pop beim Flare-Auswurf */
+  flarePop() {
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const g = this.ctx.createGain();
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.setValueAtTime(1800, t);
+    f.frequency.exponentialRampToValueAtTime(400, t + 0.25);
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.ctx.destination);
+    src.start(t);
+    src.stop(t + 0.4);
+  }
+
   explosion(big = false) {
     if (!this.ctx || this.muted) return;
     const t = this.ctx.currentTime;

@@ -10,7 +10,7 @@ const initialHud: HudData = {
   state: 'menu',
   speedKnots: 0, altitudeFt: 0, headingDeg: 0, throttle: 0.6,
   afterburner: false, stalled: false, freeLook: false, autoTrack: false, gForce: 1,
-  hp: 100, maxHp: 100, score: 0, missiles: 6, enemiesAlive: 4,
+  hp: 100, maxHp: 100, score: 0, missiles: 6, flares: 0, maxFlares: 0, flareActive: false, enemiesAlive: 4,
   lockProgress: 0, lockedTargetName: null, lockScreen: null, warning: null, radar: [],
   mouseReticle: { x: 50, y: 50, visible: false },
   velocityVector: { x: 50, y: 50, visible: false },

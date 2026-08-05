@@ -161,6 +161,61 @@ export class Effects {
     );
   }
 
+  /**
+   * Flare-Wolke hinter dem Jet: heiße IR-Köder (hellgelb/orange) + Rauch.
+   * pos = Auswurfpunkt, backDir = Welt-Richtung hinter dem Jet (normalisiert).
+   */
+  flareBurst(pos: THREE.Vector3, backDir: THREE.Vector3) {
+    const cFlare = new THREE.Color(1, 0.92, 0.35);
+    const cHot = new THREE.Color(1, 0.55, 0.12);
+    const cWhite = new THREE.Color(1, 0.98, 0.85);
+
+    for (let i = 0; i < 18; i++) {
+      const side = (Math.random() - 0.5) * 2;
+      const up = (Math.random() - 0.35) * 1.4;
+      const vel = backDir
+        .clone()
+        .multiplyScalar(18 + Math.random() * 28)
+        .add(new THREE.Vector3(side * 22, up * 16 - 8 - Math.random() * 12, side * 10));
+      const bright = Math.random() > 0.4;
+      this.pool.spawn(
+        pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3)),
+        vel,
+        bright ? cFlare : cHot,
+        10 + Math.random() * 18,
+        1.4 + Math.random() * 1.6,
+        8 + Math.random() * 14
+      );
+    }
+    // Kurzer „Blitz“-Kern
+    for (let i = 0; i < 6; i++) {
+      this.pool.spawn(
+        pos,
+        backDir.clone().multiplyScalar(8 + Math.random() * 12).add(
+          new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 8)
+        ),
+        cWhite,
+        16 + Math.random() * 12,
+        0.35 + Math.random() * 0.25,
+        20
+      );
+    }
+    // Rauch-Spur der brennenden Flares
+    for (let i = 0; i < 10; i++) {
+      this.pool.spawn(
+        pos.clone().addScaledVector(backDir, Math.random() * 6),
+        backDir
+          .clone()
+          .multiplyScalar(4 + Math.random() * 8)
+          .add(new THREE.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6)),
+        this.cSmoke,
+        14 + Math.random() * 18,
+        2 + Math.random() * 1.8,
+        16
+      );
+    }
+  }
+
   update(dt: number) {
     this.pool.update(dt);
   }

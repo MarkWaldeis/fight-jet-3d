@@ -257,6 +257,19 @@ export function Hud({ data }: { data: HudData }) {
               <div className="hud-value text-3xl">{data.altitudeFt.toLocaleString()}</div>
               <div className="mt-3 hud-label">Missiles</div>
               <div className="hud-value text-xl">× {data.missiles}</div>
+              {data.maxFlares > 0 && (
+                <>
+                  <div className="mt-3 hud-label" style={{ color: data.flareActive ? AMBER : undefined }}>
+                    Flares
+                  </div>
+                  <div
+                    className="hud-value text-xl"
+                    style={{ color: data.flares <= 0 ? DANGER : data.flareActive ? AMBER : undefined }}
+                  >
+                    × {data.flares}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -303,6 +316,12 @@ export function Hud({ data }: { data: HudData }) {
               <div className="hud-label">Score</div>
               <div className="hud-value text-3xl">{data.score}</div>
               <div className="mt-2 text-xs text-white/50">AIM-9 × {data.missiles}</div>
+              {data.maxFlares > 0 && (
+                <div className="text-xs text-white/50">
+                  Flares × {data.flares}
+                  {data.flareActive ? ' · HOT' : ''}
+                </div>
+              )}
               <div className="text-xs text-white/50">Bandits {data.enemiesAlive}</div>
             </div>
           </div>
