@@ -101,6 +101,19 @@ class ParticlePool {
   }
 }
 
+/** Einzelner brennender Flare-Köder (Mesh-basiert, WT/Ace-Combat-Feel) */
+interface FlarePellet {
+  alive: boolean;
+  mesh: THREE.Mesh;
+  glow: THREE.Mesh;
+  life: number;
+  maxLife: number;
+  vel: THREE.Vector3;
+  spin: number;
+}
+
+const MAX_FLARE_PELLETS = 64;
+
 export class Effects {
   readonly group = new THREE.Group();
   private pool = new ParticlePool();
@@ -108,9 +121,83 @@ export class Effects {
   private cFireBright = new THREE.Color(1, 0.9, 0.4);
   private cSmoke = new THREE.Color(0.25, 0.25, 0.27);
   private cSpark = new THREE.Color(1, 0.8, 0.3);
+  private flarePellets: FlarePellet[] = [];
+  private flareCursor = 0;
+  /** Gestaffelte Salven: Flares nacheinander auswerfen */
+  private flareQueue: {
+    t: number;
+    pos: THREE.Vector3;
+    back: THREE.Vector3;
+    right: THREE.Vector3;
+    up: THREE.Vector3;
+    jetVel: THREE.Vector3;
+    side: number;
+  }[] = [];
 
   constructor() {
     this.group.add(this.pool.points);
+    this.initFlarePellets();
+  }
+
+  private initFlarePellets() {
+    const coreGeo = new THREE.SphereGeometry(0.22, 8, 6);
+    const glowGeo = new THREE.SphereGeometry(0.55, 8, 6);
+    for (let i = 0; i < MAX_FLARE_PELLETS; i++) {
+      const coreMat = new THREE.MeshBasicMaterial({
+        color: 0xffee88,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: 0xff7a20,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      });
+      const mesh = new THREE.Mesh(coreGeo, coreMat);
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      mesh.visible = false;
+      glow.visible = false;
+      mesh.frustumCulled = false;
+      glow.frustumCulled = false;
+      this.group.add(mesh);
+      this.group.add(glow);
+      this.flarePellets.push({
+        alive: false,
+        mesh,
+        glow,
+        life: 0,
+        maxLife: 1,
+        vel: new THREE.Vector3(),
+        spin: 0,
+      });
+    }
+  }
+
+  private spawnFlarePellet(
+    pos: THREE.Vector3,
+    vel: THREE.Vector3,
+    life = 3.2 + Math.random() * 1.4
+  ) {
+    const p = this.flarePellets[this.flareCursor];
+    this.flareCursor = (this.flareCursor + 1) % MAX_FLARE_PELLETS;
+    p.alive = true;
+    p.life = 0;
+    p.maxLife = life;
+    p.vel.copy(vel);
+    p.spin = (Math.random() - 0.5) * 8;
+    p.mesh.visible = true;
+    p.glow.visible = true;
+    p.mesh.position.copy(pos);
+    p.glow.position.copy(pos);
+    p.mesh.scale.setScalar(0.7 + Math.random() * 0.5);
+    p.glow.scale.setScalar(1);
+    (p.mesh.material as THREE.MeshBasicMaterial).opacity = 1;
+    (p.glow.material as THREE.MeshBasicMaterial).opacity = 0.55;
   }
 
   explosion(pos: THREE.Vector3, big = false) {
@@ -162,61 +249,191 @@ export class Effects {
   }
 
   /**
-   * Flare-Wolke hinter dem Jet: heiße IR-Köder (hellgelb/orange) + Rauch.
-   * pos = Auswurfpunkt, backDir = Welt-Richtung hinter dem Jet (normalisiert).
+   * War-Thunder / Ace-Combat Style: gestaffelte Flare-Salve.
+   * Viele kleine brennende Köder schießen nach hinten/seitlich und fallen brennend ab.
    */
-  flareBurst(pos: THREE.Vector3, backDir: THREE.Vector3) {
-    const cFlare = new THREE.Color(1, 0.92, 0.35);
-    const cHot = new THREE.Color(1, 0.55, 0.12);
-    const cWhite = new THREE.Color(1, 0.98, 0.85);
+  flareBurst(
+    origin: THREE.Vector3,
+    backDir: THREE.Vector3,
+    opts?: {
+      right?: THREE.Vector3;
+      up?: THREE.Vector3;
+      jetVelocity?: THREE.Vector3;
+      count?: number;
+    }
+  ) {
+    const right = opts?.right?.clone().normalize() ?? new THREE.Vector3(1, 0, 0);
+    const up = opts?.up?.clone().normalize() ?? new THREE.Vector3(0, 1, 0);
+    const back = backDir.clone().normalize();
+    const jetVel = opts?.jetVelocity?.clone() ?? new THREE.Vector3();
+    const count = opts?.count ?? 14;
 
-    for (let i = 0; i < 18; i++) {
-      const side = (Math.random() - 0.5) * 2;
-      const up = (Math.random() - 0.35) * 1.4;
-      const vel = backDir
-        .clone()
-        .multiplyScalar(18 + Math.random() * 28)
-        .add(new THREE.Vector3(side * 22, up * 16 - 8 - Math.random() * 12, side * 10));
-      const bright = Math.random() > 0.4;
+    // Sofortiger Muzzle-Flash am Heck
+    const cWhite = new THREE.Color(1, 0.98, 0.85);
+    const cHot = new THREE.Color(1, 0.55, 0.12);
+    for (let i = 0; i < 8; i++) {
       this.pool.spawn(
-        pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3)),
-        vel,
-        bright ? cFlare : cHot,
-        10 + Math.random() * 18,
-        1.4 + Math.random() * 1.6,
-        8 + Math.random() * 14
-      );
-    }
-    // Kurzer „Blitz“-Kern
-    for (let i = 0; i < 6; i++) {
-      this.pool.spawn(
-        pos,
-        backDir.clone().multiplyScalar(8 + Math.random() * 12).add(
-          new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 8)
-        ),
-        cWhite,
-        16 + Math.random() * 12,
-        0.35 + Math.random() * 0.25,
-        20
-      );
-    }
-    // Rauch-Spur der brennenden Flares
-    for (let i = 0; i < 10; i++) {
-      this.pool.spawn(
-        pos.clone().addScaledVector(backDir, Math.random() * 6),
-        backDir
+        origin.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 2)),
+        back
           .clone()
-          .multiplyScalar(4 + Math.random() * 8)
-          .add(new THREE.Vector3((Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6)),
-        this.cSmoke,
-        14 + Math.random() * 18,
-        2 + Math.random() * 1.8,
-        16
+          .multiplyScalar(12 + Math.random() * 20)
+          .add(right.clone().multiplyScalar((Math.random() - 0.5) * 18))
+          .add(up.clone().multiplyScalar((Math.random() - 0.5) * 10)),
+        Math.random() > 0.5 ? cWhite : cHot,
+        8 + Math.random() * 14,
+        0.25 + Math.random() * 0.2,
+        30
+      );
+    }
+
+    // Queue: abwechselnd links/rechts, zeitlich gestaffelt → „Schauer“ hinter dem Jet
+    for (let i = 0; i < count; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      this.flareQueue.push({
+        t: i * 0.038 + Math.random() * 0.012,
+        pos: origin.clone(),
+        back: back.clone(),
+        right: right.clone(),
+        up: up.clone(),
+        jetVel: jetVel.clone(),
+        side,
+      });
+    }
+  }
+
+  private ejectOneFlare(item: {
+    pos: THREE.Vector3;
+    back: THREE.Vector3;
+    right: THREE.Vector3;
+    up: THREE.Vector3;
+    jetVel: THREE.Vector3;
+    side: number;
+  }) {
+    // Start leicht unter/seitlich am Heck (wie Dispenser)
+    const start = item.pos
+      .clone()
+      .addScaledVector(item.back, 1.5 + Math.random() * 2)
+      .addScaledVector(item.right, item.side * (2.2 + Math.random() * 1.4))
+      .addScaledVector(item.up, -0.8 - Math.random() * 0.6);
+
+    // Geschwindigkeit: Jet-Erbe + kräftig nach hinten + seitlich raus + leicht runter
+    const vel = item.jetVel
+      .clone()
+      .multiplyScalar(0.55)
+      .addScaledVector(item.back, 28 + Math.random() * 22)
+      .addScaledVector(item.right, item.side * (12 + Math.random() * 16))
+      .addScaledVector(item.up, -6 - Math.random() * 10)
+      .add(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 6,
+          (Math.random() - 0.5) * 4,
+          (Math.random() - 0.5) * 6
+        )
+      );
+
+    this.spawnFlarePellet(start, vel);
+
+    // Kurzer Spark-Burst am Auswurf
+    const cFlare = new THREE.Color(1, 0.9, 0.35);
+    for (let i = 0; i < 3; i++) {
+      this.pool.spawn(
+        start,
+        vel
+          .clone()
+          .normalize()
+          .multiplyScalar(8 + Math.random() * 12)
+          .add(new THREE.Vector3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 10)),
+        cFlare,
+        5 + Math.random() * 6,
+        0.35 + Math.random() * 0.25,
+        8
       );
     }
   }
 
+  private updateFlarePellets(dt: number) {
+    // Gestaffelte Auswürfe abarbeiten
+    for (let i = this.flareQueue.length - 1; i >= 0; i--) {
+      this.flareQueue[i].t -= dt;
+      if (this.flareQueue[i].t <= 0) {
+        this.ejectOneFlare(this.flareQueue[i]);
+        this.flareQueue.splice(i, 1);
+      }
+    }
+
+    const cSmoke = this.cSmoke;
+    for (const p of this.flarePellets) {
+      if (!p.alive) continue;
+      p.life += dt;
+      const u = p.life / p.maxLife;
+      if (u >= 1) {
+        p.alive = false;
+        p.mesh.visible = false;
+        p.glow.visible = false;
+        continue;
+      }
+
+      // Physik: Luftwiderstand + Schwerkraft (fallen brennend nach unten)
+      p.vel.y -= 14 * dt;
+      p.vel.multiplyScalar(1 - dt * 0.35);
+      p.mesh.position.addScaledVector(p.vel, dt);
+      p.glow.position.copy(p.mesh.position);
+
+      // Flackern / Pulse
+      const flicker = 0.85 + Math.sin(p.life * 28 + p.spin) * 0.12 + Math.sin(p.life * 51) * 0.08;
+      const burn = u < 0.15 ? u / 0.15 : u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1;
+      const intensity = Math.max(0, burn * flicker);
+
+      const coreMat = p.mesh.material as THREE.MeshBasicMaterial;
+      const glowMat = p.glow.material as THREE.MeshBasicMaterial;
+      coreMat.opacity = intensity;
+      glowMat.opacity = 0.25 + intensity * 0.45;
+      // Farbe: weiß-heiß → orange → dunkelrot
+      if (u < 0.35) {
+        coreMat.color.setRGB(1, 0.95, 0.7);
+        glowMat.color.setRGB(1, 0.7, 0.25);
+      } else if (u < 0.7) {
+        coreMat.color.setRGB(1, 0.75, 0.25);
+        glowMat.color.setRGB(1, 0.45, 0.1);
+      } else {
+        coreMat.color.setRGB(1, 0.35, 0.08);
+        glowMat.color.setRGB(0.7, 0.15, 0.05);
+      }
+
+      const s = (0.85 + intensity * 0.5) * (1 + Math.sin(p.life * 40) * 0.08);
+      p.mesh.scale.setScalar(s * 0.9);
+      p.glow.scale.setScalar(s * (1.6 + intensity * 1.2));
+
+      // Rauchspur (nicht jedes Frame → Performance)
+      if (Math.random() < dt * 18 * intensity) {
+        this.pool.spawn(
+          p.mesh.position.clone(),
+          p.vel
+            .clone()
+            .multiplyScalar(0.08)
+            .add(new THREE.Vector3((Math.random() - 0.5) * 3, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 3)),
+          cSmoke,
+          5 + Math.random() * 8,
+          1.2 + Math.random() * 1.4,
+          12
+        );
+      }
+      // Gelegentliche Funken
+      if (Math.random() < dt * 6 * intensity) {
+        this.pool.spawn(
+          p.mesh.position.clone(),
+          new THREE.Vector3((Math.random() - 0.5) * 12, Math.random() * 8, (Math.random() - 0.5) * 12),
+          this.cFireBright,
+          3 + Math.random() * 4,
+          0.25 + Math.random() * 0.2,
+          -4
+        );
+      }
+    }
+  }
+
   update(dt: number) {
+    this.updateFlarePellets(dt);
     this.pool.update(dt);
   }
 }

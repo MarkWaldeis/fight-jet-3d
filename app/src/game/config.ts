@@ -82,9 +82,9 @@ export const CONFIG = {
     lockTime: 1.4,
     flareCount: 8,
     /** Pause zwischen Flare-Salven (s) */
-    flareCooldown: 0.85,
-    /** Sichtbare IR-Wolke nach Auswurf (s) */
-    flareCloudDuration: 2.4,
+    flareCooldown: 1.1,
+    /** Sichtbare IR-Wolke / Spoof-Fenster nach Auswurf (s) */
+    flareCloudDuration: 3.2,
     /**
      * Chance, dass eine eingehende Lenkwaffe den Lock verliert (pro Salve).
      * War-Thunder-Feel: ~50/50 bei korrektem Timing.
@@ -108,9 +108,14 @@ export const CONFIG = {
     missileRange: 2100,
     missileConeDeg: 28,
     /** Pause zwischen Gegner-Raketen (s) — genug Zeit für Flares */
-    missileCooldown: 9.5,
+    missileCooldown: 14,
     /** Min. Distanz, damit sie nicht sofort-Hits machen */
     missileMinRange: 380,
+    /**
+     * Pro Welle: nur EIN Bandit darf Raketen schießen,
+     * und nur so viele Schüsse insgesamt.
+     */
+    missilesPerWave: 2,
   },
   missile: {
     speed: 780,

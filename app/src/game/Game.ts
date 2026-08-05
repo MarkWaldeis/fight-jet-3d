@@ -583,13 +583,26 @@ export class Game {
     this.sams = this.sams.filter((s) => s.alive);
 
     // Bandits — frühe Wellen: mehr Legacy (Props/MiG-15), später Mix mit modernen Jets
+    const newBandits: EnemyJet[] = [];
     for (let i = 0; i < wave.bandits; i++) {
       const jetId = this.pickBanditJetId(index);
       const e = new EnemyJet(this.enemyCounter++, jetId);
       e.spawn(this.player.position);
+      e.clearMissileLoadout();
       this.enemies.push(e);
+      newBandits.push(e);
       this.engine.scene.add(e.object);
       this.applyEnemyVisual(e);
+    }
+
+    // Pro Welle: genau EIN Bandit darf Raketen schießen — und nur wenige
+    const shots = CONFIG.enemy.missilesPerWave ?? 2;
+    if (newBandits.length > 0 && shots > 0 && !forMenu) {
+      // Bevorzuge Jets die im Katalog überhaupt Raketen haben
+      const armed = newBandits.filter((b) => b.loadout.stats.missiles > 0);
+      const pool = armed.length > 0 ? armed : newBandits;
+      const shooter = pool[Math.floor(Math.random() * pool.length)];
+      shooter.assignWaveMissileLoadout(shots);
     }
 
     // SAM-Stellungen auf das Terrain setzen (mind. 1,5 km vom Spieler weg)
@@ -1093,26 +1106,30 @@ export class Game {
   }
 
   /**
-   * Flare-Salve: visuelle IR-Köder + 50/50-Chance, alle auf den Spieler
-   * gelenkten Raketen (SAMs) zu spoofen.
+   * Flare-Salve: gestaffelte IR-Köder-Wolke + 50/50-Chance,
+   * alle auf den Spieler gelenkten Raketen zu spoofen.
    */
   private popPlayerFlares() {
     const player = this.player;
     if (!player.alive || !player.hasFlares) return;
     if (!player.tryPopFlares()) return;
 
-    // Auswurf hinter dem Jet (Heck + etwas seitlich)
     const back = player.forward.clone().multiplyScalar(-1);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(player.object.quaternion);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(player.object.quaternion);
     const origin = player.position
       .clone()
-      .addScaledVector(back, 6)
-      .add(new THREE.Vector3(0, -1.2, 0));
-    this.effects.flareBurst(origin, back);
-    // Zweite Mini-Salve leicht versetzt (links/rechts)
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(player.object.quaternion);
-    this.effects.flareBurst(origin.clone().addScaledVector(right, 2.5), back);
-    this.effects.flareBurst(origin.clone().addScaledVector(right, -2.5), back);
+      .addScaledVector(back, 5.5)
+      .addScaledVector(up, -1.1);
+    // Jet-Geschwindigkeit für realistischen Flare-Trail
+    const jetVel = player.forward.clone().multiplyScalar(player.flight.speed);
 
+    this.effects.flareBurst(origin, back, {
+      right,
+      up,
+      jetVelocity: jetVel,
+      count: 16,
+    });
     this.sound.flarePop();
 
     // Spoof: jede eingehende Lenkwaffe hat ~50 % Chance, den Lock zu verlieren

@@ -18,7 +18,13 @@ export class EnemyJet extends Aircraft {
   cannonCooldown = 0;
   respawnTimer = 0;
   /** Cooldown bis nächste Luft-Luft-Rakete */
-  missileCooldown = 3 + Math.random() * 4;
+  missileCooldown = 4 + Math.random() * 5;
+  /**
+   * Pro Welle: nur EIN Bandit bekommt canFireMissiles=true
+   * und eine knappe Munition (missilesRemaining).
+   */
+  canFireMissiles = false;
+  missilesRemaining = 0;
   private waypoint = new THREE.Vector3();
   private thinkTimer = Math.random();
   private evadeTimer = 0;
@@ -92,11 +98,31 @@ export class EnemyJet extends Aircraft {
   wantsMissileFire(): boolean {
     if (!this.pendingMissile) return false;
     this.pendingMissile = false;
+    if (!this.canFireMissiles || this.missilesRemaining <= 0) return false;
+    this.missilesRemaining -= 1;
     return true;
   }
 
   private canLaunchMissile(): boolean {
-    return this.loadout.stats.missiles > 0 && this.missileCooldown <= 0;
+    return (
+      this.canFireMissiles &&
+      this.missilesRemaining > 0 &&
+      this.missileCooldown <= 0
+    );
+  }
+
+  /** Von Game pro Welle gesetzt: max. 1 Schütze, wenige Schüsse */
+  assignWaveMissileLoadout(shots: number) {
+    this.canFireMissiles = shots > 0;
+    this.missilesRemaining = Math.max(0, shots);
+    this.missileCooldown = 5 + Math.random() * 4;
+    this.pendingMissile = false;
+  }
+
+  clearMissileLoadout() {
+    this.canFireMissiles = false;
+    this.missilesRemaining = 0;
+    this.pendingMissile = false;
   }
 
   update(dt: number, player: Aircraft, terrain: HeightField) {
