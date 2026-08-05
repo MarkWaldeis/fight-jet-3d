@@ -609,12 +609,14 @@
 
 .main-cta {
   position: relative;
+  z-index: 5;
   width: 100%;
   padding: 1.1rem 1.5rem;
   border: none;
   border-radius: 18px;
   overflow: hidden;
   cursor: pointer;
+  pointer-events: auto;
   font-family: var(--font-display);
   font-weight: 800;
   font-size: clamp(0.95rem, 2.2vw, 1.15rem);

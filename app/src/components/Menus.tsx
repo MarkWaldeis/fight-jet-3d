@@ -222,6 +222,7 @@ export function Menus({
   };
 
   const startMission = () => {
+    // Explizit Mission starten (Ladescreen + Spiel)
     onStart(selectedJetId);
   };
 

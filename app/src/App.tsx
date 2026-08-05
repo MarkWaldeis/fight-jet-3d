@@ -64,18 +64,28 @@ export default function App() {
     (window as unknown as { __game: Game }).__game = game;
     game.onHud((d) => {
       setHud(d);
-      if (d.state === 'playing') updatePhase('playing');
+      // Spiel läuft → Canvas/Phase freigeben
+      if (d.state === 'playing') {
+        updatePhase('playing');
+        return;
+      }
+      // Mission beendet
       if ((d.state === 'gameover' || d.state === 'victory') && phaseRef.current === 'playing') {
-        // Award credits on mission end
         const reward = d.state === 'victory' ? 1000 : Math.floor(d.score * 0.5);
         const s = loadSettings();
         s.aeroCredits += reward;
         saveSettings(s);
         setCredits(s.aeroCredits);
         updatePhase('menu');
+        return;
       }
+      // Menü-State vom Game: Ladescreen NICHT abbrechen!
+      // Früher: jedes HUD-Tick mit state=menu setzte phase zurück auf 'menu'
+      // und hat "Mission starten" sofort wieder zunichte gemacht.
       if (d.state === 'menu') {
-        updatePhase('menu');
+        if (phaseRef.current !== 'loading') {
+          updatePhase('menu');
+        }
         setCredits(loadSettings().aeroCredits);
       }
     });
@@ -94,14 +104,24 @@ export default function App() {
   }, []);
 
   const onStart = useCallback(async (id: JetId) => {
+    // Doppelklick / mehrfacher Start während Loading ignorieren
+    if (phaseRef.current === 'loading') return;
+    if (!gameRef.current) {
+      console.error('Spiel-Engine nicht bereit');
+      return;
+    }
+
     updatePhase('loading');
     setLoadingProgress(0);
     setLoadingText('Initialisiere...');
+
+    const mapId = hud.selectedMapId;
     try {
-      await gameRef.current?.preloadAllAssets(id, hud.selectedMapId, (pct, text) => {
+      await gameRef.current.preloadAllAssets(id, mapId, (pct, text) => {
         setLoadingProgress(pct);
         setLoadingText(text);
       });
+      // Sicherstellen, dass wir im Spiel landen (auch wenn HUD schon 'playing' gemeldet hat)
       updatePhase('playing');
     } catch (err) {
       console.error('Fehler beim Laden:', err);
