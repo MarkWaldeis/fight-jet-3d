@@ -95,9 +95,12 @@ export function Menus({
   const [exitConfirm, setExitConfirm] = useState(false);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [hangarCanScrollLeft, setHangarCanScrollLeft] = useState(false);
+  const [hangarCanScrollRight, setHangarCanScrollRight] = useState(false);
   /** Verhindert Reset auf 'main' wenn z.B. aus GameOver absichtlich Garage geöffnet wird */
   const preserveScreenRef = useRef(false);
   const prevStateRef = useRef<GameState>(state);
+  const hangarScrollRef = useRef<HTMLDivElement>(null);
 
   const selected = JET_CATALOG.find((j) => j.id === selectedJetId) ?? JET_CATALOG[0];
   const selectedMap = getMapDef(selectedMapId);
@@ -135,6 +138,61 @@ export function Menus({
       }
     }
   }, [state]);
+
+  /** Hangar-Jet-Leiste: Scroll-Pfeile aktiv/inaktiv */
+  const updateHangarScrollState = () => {
+    const el = hangarScrollRef.current;
+    if (!el) {
+      setHangarCanScrollLeft(false);
+      setHangarCanScrollRight(false);
+      return;
+    }
+    const max = el.scrollWidth - el.clientWidth;
+    setHangarCanScrollLeft(el.scrollLeft > 4);
+    setHangarCanScrollRight(max > 4 && el.scrollLeft < max - 4);
+  };
+
+  const scrollHangar = (dir: -1 | 1) => {
+    const el = hangarScrollRef.current;
+    if (!el) return;
+    const step = Math.max(240, Math.floor(el.clientWidth * 0.7));
+    el.scrollBy({ left: dir * step, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (screen !== 'hangar') return;
+    const el = hangarScrollRef.current;
+    if (!el) return;
+
+    // Faction-Wechsel: an den Anfang der Leiste
+    el.scrollLeft = 0;
+
+    // Nach Faction-Wechsel Layout neu messen
+    const measure = () => updateHangarScrollState();
+    measure();
+    const t = window.setTimeout(measure, 50);
+
+    el.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+
+    // Mausrad vertikal → horizontal scrollen (sonst kommt man oft nicht zum letzten Jet)
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth + 2) return;
+      // Nur umlenken, wenn horizontaler Overflow da ist
+      if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY + e.deltaX;
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      window.clearTimeout(t);
+      el.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+      el.removeEventListener('wheel', onWheel);
+    };
+  }, [screen, faction]);
 
   if (state === 'playing') return null;
 
@@ -694,7 +752,32 @@ export function Menus({
                 ))}
               </div>
 
-              <div className="hangar-scroll-container hide-scrollbar mb-5 -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-pl-1">
+              {/* Jet-Leiste mit Pfeilen + horizontalem Scroll (Mausrad / Drag / Touch) */}
+              <div className="hangar-strip mb-5 shrink-0">
+                <button
+                  type="button"
+                  className={`hangar-scroll-btn hangar-scroll-btn-left ${hangarCanScrollLeft ? 'is-visible' : ''}`}
+                  aria-label="Jets nach links scrollen"
+                  disabled={!hangarCanScrollLeft}
+                  onClick={() => scrollHangar(-1)}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className={`hangar-scroll-btn hangar-scroll-btn-right ${hangarCanScrollRight ? 'is-visible' : ''}`}
+                  aria-label="Jets nach rechts scrollen"
+                  disabled={!hangarCanScrollRight}
+                  onClick={() => scrollHangar(1)}
+                >
+                  ›
+                </button>
+
+                <div
+                  ref={hangarScrollRef}
+                  className="hangar-scroll-container"
+                  onScroll={updateHangarScrollState}
+                >
                 {sortedJets
                   .filter((j) => j.faction === faction)
                   .map((jet) => {
@@ -709,7 +792,7 @@ export function Menus({
                         onClick={() => {
                           if (owned) onSelectJet(jet.id);
                         }}
-                        className={`glass-card relative w-[220px] flex-shrink-0 cursor-pointer snap-start text-left sm:w-[240px] ${
+                        className={`glass-card hangar-jet-card relative w-[220px] flex-shrink-0 cursor-pointer snap-start text-left sm:w-[240px] ${
                           active ? 'is-selected ring-1 ring-cyan-400/50' : ''
                         } ${locked ? 'opacity-70' : ''}`}
                       >
@@ -804,6 +887,12 @@ export function Menus({
                       </div>
                     );
                   })}
+                  {/* Spacer: letztes Jet-Card voll sichtbar / anscrollbar */}
+                  <div className="hangar-scroll-end-pad" aria-hidden="true" />
+                </div>
+                <p className="hangar-scroll-hint">
+                  ← → Pfeile · Mausrad · ziehen · Scrollleiste
+                </p>
               </div>
 
               <div className="mb-5 grid shrink-0 gap-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:grid-cols-2">
