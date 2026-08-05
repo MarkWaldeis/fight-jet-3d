@@ -17,7 +17,8 @@ export const CONFIG = {
     fogNear: 1400,
     fogFar: 34000,
   },
-  // ─── FROZEN flight feel (siehe config.baseline.json) ───────────────────
+  // ─── Flight feel (Combat-Agility-Pass: leichter zielen / wenden) ────────
+  // Baseline lag in config.baseline.json; bewusst etwas freier für Vorhalt-Schießen.
   flight: {
     // --- Geschwindigkeiten (m/s) ---
     minSpeed: 55,          // Stall-Schwelle (~200 km/h)
@@ -27,47 +28,47 @@ export const CONFIG = {
     thrustAccel: 42,
     afterburnerAccel: 70,
     dragBase: 0.012,
-    /** Induzierter Widerstand pro G über 1 (Energy Bleed in Kurven) */
-    inducedDrag: 0.045,
+    /** Induzierter Widerstand pro G über 1 (etwas weniger Energy-Bleed) */
+    inducedDrag: 0.038,
     /** Geschwindigkeitsverlust bei hohem AoA (zusätzlich) */
-    aoaDrag: 0.08,
+    aoaDrag: 0.07,
 
-    // --- Ruder-Raten (rad/s bei voller Autorität) ---
-    pitchRate: 1.55,
-    rollRate: 2.15,        // etwas gemächlicher, mit Trägheit wirkt knackig
-    yawRate: 0.5,
-    /** Roll-Winkelbeschleunigung (rad/s²) — Anlauf wie echte Querruder */
-    rollAccel: 9.5,
-    /** Roll-Dämpfung ohne Eingabe (1/s) — weiches Auslaufen */
-    rollDamping: 4.2,
+    // --- Ruder-Raten (rad/s) — freier Pitch/Roll fürs Zielen ---
+    pitchRate: 1.95,
+    rollRate: 2.75,
+    yawRate: 0.68,
+    /** Roll-Winkelbeschleunigung (rad/s²) — schnelleres Einleiten */
+    rollAccel: 12.5,
+    /** Roll-Dämpfung ohne Eingabe (1/s) */
+    rollDamping: 3.6,
 
-    // --- Mouse-Aim Fly-By-Wire ---
-    /** Wie aggressiv Roll-to-Turn den Lift-Vektor ausrichtet */
-    fbwRollGain: 3.2,
-    fbwPitchGain: 2.6,
-    fbwYawGain: 0.55,
-    /** Ab diesem lateralen Fehler (lokal X) wird Pitch gedrosselt → Roll first */
-    fbwRollPriority: 0.35,
+    // --- Mouse-Aim Fly-By-Wire (aggressiveres Folgen der Maus) ---
+    fbwRollGain: 4.0,
+    fbwPitchGain: 3.4,
+    fbwYawGain: 0.72,
+    /** Weniger „Roll first“ → Nase folgt eher der Maus beim Zielen */
+    fbwRollPriority: 0.48,
     /** Weiche Rückkehr nach Manual-Override (1/s) */
-    fbwRecaptureRate: 4.5,
+    fbwRecaptureRate: 5.2,
     /** Max. Aim-Reticle-Abstand vom Bildschirmrand (NDC, 0..1) */
-    aimMargin: 0.92,
-    /** Aim-Cursor-Geschwindigkeit im Pointer-Lock (NDC pro Pixel) */
-    aimSensitivity: 0.00135,
+    aimMargin: 0.94,
+    /** Aim-Cursor etwas empfindlicher */
+    aimSensitivity: 0.00155,
 
     // --- Velocity / AoA ---
-    /** Wie schnell Velocity-Vektor der Nase folgt (höher = knackiger) */
-    velocityAlignRate: 2.8,
-    /** Max. Anstellwinkel (rad) bevor Stall-Hinweis */
-    maxAoa: 0.55,
-    /** Angular damping (Ruder-Loslassen → weiches Auslaufen) */
-    angularDamping: 3.5,
+    /** Nase folgt der Velocity etwas knackiger */
+    velocityAlignRate: 3.2,
+    /** Max. Anstellwinkel (rad) — etwas mehr Spielraum beim Ziehen */
+    maxAoa: 0.62,
+    /** Angular damping etwas weicher = freieres Steuern */
+    angularDamping: 2.9,
 
     // A/D nur reines Rollen — kein Heading aus Bank (Kurven = Roll + Pitch/S)
     rollYawCoupling: 0,
     bankTurnRate: 0,
-    autoLevelRate: 1.2,
-    stallPitchDrop: 0.95,
+    /** Weniger Auto-Level → Schräglage hält besser beim Zielen */
+    autoLevelRate: 0.85,
+    stallPitchDrop: 0.9,
     gravityPull: 9.81,
   },
   player: {
