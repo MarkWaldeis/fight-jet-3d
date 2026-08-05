@@ -3,11 +3,9 @@ import { CONFIG } from '../config';
 import type { Damageable } from './GroundTarget';
 import type { Effects } from './Effects';
 
-// Tracer: starten exakt an den Mündungen, fliegen nur nach vorne.
-const MAX_TRACERS = 100;
+// Ballistische Kanonen-Projektile (Tracer-Grafik + echte Flugzeit / Vorhalt).
+const MAX_PROJECTILES = 200;
 const TRACER_LEN = 9;
-const TRACER_SPEED = 1050;
-const TRACER_LIFE = 0.16;
 
 // Fallback-Mündungen am Bug (local -Z = Nase/Flugrichtung) — nur wenn der
 // Schütze keine eigenen Mündungen aus dem Jet-Katalog mitbringt.
@@ -23,16 +21,45 @@ const _muzzle = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _tmp = new THREE.Vector3();
+const _tmp2 = new THREE.Vector3();
 const _flashPos = new THREE.Vector3();
 const _yAxis = new THREE.Vector3(0, 1, 0);
+const _segA = new THREE.Vector3();
+const _segB = new THREE.Vector3();
+const _closest = new THREE.Vector3();
+
+interface Projectile {
+  alive: boolean;
+  mesh: THREE.Mesh;
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  life: number;
+  maxLife: number;
+  damage: number;
+  isPlayerShot: boolean;
+  onHit: ((victim: Damageable, damage: number) => void) | null;
+  effects: Effects | null;
+}
+
+/** Punkt–Strecke-Abstand (Welt) */
+function distPointToSegment(point: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3): number {
+  _tmp2.copy(b).sub(a);
+  const lenSq = _tmp2.lengthSq();
+  if (lenSq < 1e-8) return point.distanceTo(a);
+  const t = THREE.MathUtils.clamp(_tmp.copy(point).sub(a).dot(_tmp2) / lenSq, 0, 1);
+  _closest.copy(a).addScaledVector(_tmp2, t);
+  return point.distanceTo(_closest);
+}
+
+function hitRadiusFor(target: Damageable, isPlayerShot: boolean): number {
+  if (target.name.startsWith('SAM')) return 14;
+  // Spieler trifft Luftziele: 4 m; Gegner trifft Spieler: 5 m
+  if (target.isPlayer) return 5;
+  return isPlayerShot ? 4 : 4;
+}
 
 export class CannonSystem {
-  private tracers: {
-    mesh: THREE.Mesh;
-    life: number;
-    dir: THREE.Vector3;
-    speed: number;
-  }[] = [];
+  private projectiles: Projectile[] = [];
   private flashes: {
     mesh: THREE.Mesh;
     life: number;
@@ -47,7 +74,7 @@ export class CannonSystem {
     const geo = new THREE.BoxGeometry(0.07, 0.07, TRACER_LEN);
     geo.translate(0, 0, TRACER_LEN / 2);
 
-    for (let i = 0; i < MAX_TRACERS; i++) {
+    for (let i = 0; i < MAX_PROJECTILES; i++) {
       const mat = new THREE.MeshBasicMaterial({
         color: 0xffdd66,
         transparent: true,
@@ -59,11 +86,17 @@ export class CannonSystem {
       m.visible = false;
       m.frustumCulled = false;
       this.group.add(m);
-      this.tracers.push({
+      this.projectiles.push({
+        alive: false,
         mesh: m,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
         life: 0,
-        dir: new THREE.Vector3(0, 0, -1),
-        speed: TRACER_SPEED,
+        maxLife: 1,
+        damage: 0,
+        isPlayerShot: true,
+        onHit: null,
+        effects: null,
       });
     }
 
@@ -87,7 +120,6 @@ export class CannonSystem {
 
   /** Richtet lokale +Z des Tracers auf world-dir (Schussrichtung). */
   private orientAlong(dir: THREE.Vector3): THREE.Quaternion {
-    // Stabil auch bei dir ≈ (0,0,-1)
     if (Math.abs(dir.z + 1) < 1e-4 && Math.abs(dir.x) < 1e-4 && Math.abs(dir.y) < 1e-4) {
       _quat.setFromAxisAngle(_yAxis, Math.PI);
       return _quat;
@@ -110,23 +142,36 @@ export class CannonSystem {
     f.life = 0.035 + Math.random() * 0.025;
   }
 
-  private spawnTracer(origin: THREE.Vector3, dir: THREE.Vector3) {
-    const t = this.tracers[this.cursor];
-    this.cursor = (this.cursor + 1) % MAX_TRACERS;
-    t.mesh.visible = true;
-    // Pivot am Heck des Strichs = Mündung; Geometrie geht nur nach +local Z = dir
-    t.mesh.position.copy(origin);
-    t.mesh.quaternion.copy(this.orientAlong(dir));
-    t.dir.copy(dir);
-    t.speed = TRACER_SPEED + (Math.random() - 0.5) * 80;
-    t.life = TRACER_LIFE * (0.9 + Math.random() * 0.2);
-    (t.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
-    // minimal vor die Mündung (nicht hinter den Jet!)
-    t.mesh.position.addScaledVector(dir, 0.25);
+  private spawnProjectile(
+    origin: THREE.Vector3,
+    dir: THREE.Vector3,
+    speed: number,
+    life: number,
+    damage: number,
+    isPlayerShot: boolean,
+    effects: Effects,
+    onHit: (victim: Damageable, damage: number) => void
+  ) {
+    const p = this.projectiles[this.cursor];
+    this.cursor = (this.cursor + 1) % MAX_PROJECTILES;
+    p.alive = true;
+    p.pos.copy(origin).addScaledVector(dir, 0.25);
+    p.vel.copy(dir).multiplyScalar(speed);
+    p.life = life;
+    p.maxLife = life;
+    p.damage = damage;
+    p.isPlayerShot = isPlayerShot;
+    p.onHit = onHit;
+    p.effects = effects;
+    p.mesh.visible = true;
+    p.mesh.position.copy(p.pos);
+    p.mesh.quaternion.copy(this.orientAlong(dir));
+    (p.mesh.material as THREE.MeshBasicMaterial).opacity = 0.95;
   }
 
   /**
-   * Salve aus Jet-Mündungen. Bei vollem Lock: Aim-Assist Richtung Ziel.
+   * Salve aus Jet-Mündungen — reiner Vorhalt, kein Auto-Aim.
+   * Schussrichtung = shooter.forward + Streuung. Treffer erst im update() per Ballistik.
    */
   fire(
     shooter: Damageable & {
@@ -135,11 +180,9 @@ export class CannonSystem {
       loadout?: { stats: { cannonSpread: number; cannonDamage: number } };
       getMuzzles?: () => import('three').Vector3[];
     },
-    target: Damageable | null,
+    _target: Damageable | null,
     effects: Effects,
-    onHit: (victim: Damageable, damage: number) => void,
-    /** Gelocktes Ziel für Aim-Assist (Richtung + Hitscan) */
-    aimAssist?: Damageable | null
+    onHit: (victim: Damageable, damage: number) => void
   ) {
     const q = shooter.object.quaternion;
     const pos = shooter.object.position;
@@ -160,68 +203,86 @@ export class CannonSystem {
     const indices = dual ? [first, (first + 1) % count] : [first];
     this.barrel++;
 
-    // Aim-Assist-Richtung (Welt)
-    let assistDir: THREE.Vector3 | null = null;
-    if (aimAssist?.alive) {
-      const to = aimAssist.object.position.clone().sub(pos).normalize();
-      if (to.dot(shooter.forward) > 0.15) assistDir = to;
-    }
-
-    let hitOnce = false;
-    const fireDir = assistDir ?? shooter.forward;
+    const bulletSpeed = CONFIG.player.bulletSpeed;
+    const range = shooter.isPlayer ? CONFIG.player.cannonRange : CONFIG.enemy.fireRange;
+    const life = range / bulletSpeed;
+    const dmg = dual ? baseDmg * 1.15 : baseDmg;
 
     for (const muzzleIdx of indices) {
       const local = muzzles[muzzleIdx];
       _muzzle.copy(local).applyQuaternion(q).add(pos);
 
-      _dir.copy(fireDir);
-      if (assistDir) {
-        // Leicht von Mündung zum Ziel (noch genauer)
-        _tmp.copy(aimAssist!.object.position).sub(_muzzle).normalize();
-        if (_tmp.dot(shooter.forward) > 0.1) _dir.copy(_tmp);
-      }
+      // Immer Nase / Forward + normale Streuung — kein Aim-Assist
+      _dir.copy(shooter.forward);
       _dir.x += (Math.random() - 0.5) * spread;
       _dir.y += (Math.random() - 0.5) * spread;
       _dir.z += (Math.random() - 0.5) * spread;
       _dir.normalize();
 
       this.spawnFlash(_flashPos.copy(_muzzle).addScaledVector(_dir, 0.15));
-      this.spawnTracer(_muzzle, _dir);
-
-      if (!hitOnce && target && target.alive) {
-        hitOnce = true;
-        const range = shooter.isPlayer ? CONFIG.player.cannonRange : CONFIG.enemy.fireRange;
-        const origin = _muzzle.clone();
-        const toTarget = _tmp.copy(target.object.position).sub(origin);
-        const along = toTarget.dot(_dir);
-        if (along > 0 && along < range) {
-          const closest = origin.clone().addScaledVector(_dir, along);
-          const dist = closest.distanceTo(target.object.position);
-          const baseRadius = target.isPlayer ? 6 : (target.name.startsWith('SAM') ? 14 : 6);
-          // Mit Aim-Assist etwas großzügiger
-          const assistBonus = assistDir ? 4 : 0;
-          const hitRadius = baseRadius + assistBonus + along * spread * 2;
-          if (dist < hitRadius) {
-            effects.hitSparks(closest);
-            onHit(target, dual ? baseDmg * 1.15 : baseDmg);
-          }
-        }
-      }
+      this.spawnProjectile(
+        _muzzle,
+        _dir,
+        bulletSpeed + (Math.random() - 0.5) * 40,
+        life,
+        dmg,
+        shooter.isPlayer,
+        effects,
+        onHit
+      );
     }
   }
 
-  update(dt: number) {
-    for (const t of this.tracers) {
-      if (!t.mesh.visible) continue;
-      t.life -= dt;
-      if (t.life <= 0) {
-        t.mesh.visible = false;
+  /**
+   * Ballistik-Update: Projektile bewegen, Segment-Kollision gegen Ziele.
+   * @param targets alle potenziellen Treffer (Gegner, SAMs, Spieler)
+   */
+  update(dt: number, targets: Damageable[] = []) {
+    const gravity = CONFIG.player.bulletGravity ?? 3;
+
+    for (const p of this.projectiles) {
+      if (!p.alive) continue;
+
+      _segA.copy(p.pos);
+      // Leichter Geschossabfall — Vorhalt bleibt dominant
+      p.vel.y -= gravity * dt;
+      p.pos.addScaledVector(p.vel, dt);
+      _segB.copy(p.pos);
+
+      p.life -= dt;
+      if (p.life <= 0) {
+        p.alive = false;
+        p.mesh.visible = false;
         continue;
       }
-      t.mesh.position.addScaledVector(t.dir, t.speed * dt);
-      const mat = t.mesh.material as THREE.MeshBasicMaterial;
-      mat.opacity = 0.95 * Math.max(0, t.life / TRACER_LIFE);
+
+      // Grafik
+      p.mesh.position.copy(p.pos);
+      if (p.vel.lengthSq() > 1e-6) {
+        p.mesh.quaternion.copy(this.orientAlong(_tmp.copy(p.vel).normalize()));
+      }
+      const mat = p.mesh.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.95 * Math.max(0.15, p.life / p.maxLife);
+
+      // Kollision: Strecke alt→neu gegen jedes Ziel
+      for (const target of targets) {
+        if (!target.alive) continue;
+        // Eigene Kugeln treffen den Spieler nicht; Gegner-Kugeln nicht andere Banditen
+        if (p.isPlayerShot && target.isPlayer) continue;
+        if (!p.isPlayerShot && !target.isPlayer && !target.name.startsWith('SAM')) continue;
+
+        const radius = hitRadiusFor(target, p.isPlayerShot);
+        const d = distPointToSegment(target.object.position, _segA, _segB);
+        if (d <= radius) {
+          p.effects?.hitSparks(_closest);
+          p.onHit?.(target, p.damage);
+          p.alive = false;
+          p.mesh.visible = false;
+          break;
+        }
+      }
     }
+
     for (const f of this.flashes) {
       if (!f.mesh.visible) continue;
       f.life -= dt;

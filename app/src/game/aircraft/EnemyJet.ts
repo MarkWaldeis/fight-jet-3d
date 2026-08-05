@@ -36,6 +36,9 @@ export class EnemyJet extends Aircraft {
   /** Aktueller Wind (von Game gesetzt) */
   wind = new THREE.Vector3();
 
+  /** Zusätzlicher Wellen-Faktor (Training 0.4 etc.) */
+  private waveSpeedScale = 1;
+
   constructor(index: number, jetId: JetId = 'f16') {
     const def = getJetDef(jetId);
     // Banditen-Version des Jets: etwas weniger HP als die Spieler-Variante
@@ -45,11 +48,24 @@ export class EnemyJet extends Aircraft {
     this.loadout = def;
     this.maxHp = hp;
     this.catalogMuzzles = jetFxVectors(def).muzzles;
-    // Deutlich langsamer als der Spieler → Auto-Track / Dogfight greifbarer
+    // Global + wellen-spezifisch langsamer → Ballistik / Vorhalt übungsfreundlich
     this.flight.speedMult = def.stats.speedMult * CONFIG.enemy.speedScale;
     this.flight.turnMult = def.stats.turnMult * 0.72;
     this.applyFlightPhysics(def.physics, def.engineType);
     this.pickWaypoint();
+  }
+
+  /**
+   * Wellen-Modifier: zusätzlicher Speed-Faktor + ob diese Welle Raketen erlaubt.
+   * (enemyMissiles=false → canFireMissiles bleibt aus)
+   */
+  applyWaveModifiers(opts: { speedScale?: number; enemyMissiles?: boolean }) {
+    this.waveSpeedScale = opts.speedScale ?? 1;
+    this.flight.speedMult =
+      this.loadout.stats.speedMult * CONFIG.enemy.speedScale * this.waveSpeedScale;
+    if (opts.enemyMissiles === false) {
+      this.clearMissileLoadout();
+    }
   }
 
   getMuzzles(): THREE.Vector3[] {
@@ -74,6 +90,7 @@ export class EnemyJet extends Aircraft {
       THREE.MathUtils.clamp(awayFrom.z + Math.sin(angle) * dist, -8000, 8000)
     );
     this.object.quaternion.identity();
+    // flight.speedMult enthält bereits globalen + Wellen-SpeedScale
     this.flight.speed = CONFIG.enemy.speed * this.flight.speedMult;
     this.hp = this.maxHp;
     this.alive = true;

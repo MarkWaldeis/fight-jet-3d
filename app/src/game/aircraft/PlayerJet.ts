@@ -20,6 +20,11 @@ export class PlayerJet extends Aircraft {
   /** Nächster Hardpoint-Index (rotiert L/R) */
   missileStation = 0;
   cannonCooldown = 0;
+  /** Kanonen-Munition (War-Thunder-Stil) */
+  ammo: number = CONFIG.player.cannonAmmo;
+  maxAmmo: number = CONFIG.player.cannonAmmo;
+  reloading = false;
+  reloadTimer = 0;
   lockTarget: Damageable | null = null;
   lockProgress = 0;
   score = 0;
@@ -42,6 +47,10 @@ export class PlayerJet extends Aircraft {
     this.flaresLeft = def.stats.flareCount;
     this.flareCooldown = 0;
     this.flareCloudTimer = 0;
+    this.maxAmmo = CONFIG.player.cannonAmmo;
+    this.ammo = this.maxAmmo;
+    this.reloading = false;
+    this.reloadTimer = 0;
     this.flight.speedMult = def.stats.speedMult;
     this.flight.turnMult = def.stats.turnMult;
     this.applyFlightPhysics(def.physics, def.engineType);
@@ -68,6 +77,11 @@ export class PlayerJet extends Aircraft {
     this.flaresLeft = s.flareCount;
     this.flareCooldown = 0;
     this.flareCloudTimer = 0;
+    this.maxAmmo = CONFIG.player.cannonAmmo;
+    this.ammo = this.maxAmmo;
+    this.reloading = false;
+    this.reloadTimer = 0;
+    this.cannonCooldown = 0;
     this.score = 0;
     this.lockTarget = null;
     this.lockProgress = 0;
@@ -140,6 +154,16 @@ export class PlayerJet extends Aircraft {
     this.flareCooldown = Math.max(0, this.flareCooldown - dt);
     this.flareCloudTimer = Math.max(0, this.flareCloudTimer - dt);
 
+    // Nachladen (Taste R startet von Game)
+    if (this.reloading) {
+      this.reloadTimer -= dt;
+      if (this.reloadTimer <= 0) {
+        this.reloading = false;
+        this.reloadTimer = 0;
+        this.ammo = this.maxAmmo;
+      }
+    }
+
     // Smooth Recapture: Manual Override drosselt FBW, Loslassen fährt weich hoch
     if (input.manualOverride || opts?.freeLook) {
       this.fbwBlend = 0;
@@ -199,9 +223,25 @@ export class PlayerJet extends Aircraft {
   }
 
   canFireCannon(): boolean {
-    return this.cannonCooldown <= 0;
+    return this.ammo > 0 && !this.reloading && this.cannonCooldown <= 0;
   }
+
   firedCannon() {
+    this.ammo = Math.max(0, this.ammo - 1);
     this.cannonCooldown = 60 / this.loadout.stats.cannonRPM;
+  }
+
+  /** Startet Nachladen (kein Auto-Reload). */
+  startReload(): boolean {
+    if (this.reloading || this.ammo >= this.maxAmmo || !this.alive) return false;
+    this.reloading = true;
+    this.reloadTimer = CONFIG.player.reloadTime;
+    return true;
+  }
+
+  get reloadProgress(): number {
+    if (!this.reloading) return 1;
+    const total = CONFIG.player.reloadTime;
+    return total > 0 ? 1 - this.reloadTimer / total : 1;
   }
 }

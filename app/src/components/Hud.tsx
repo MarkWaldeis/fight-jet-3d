@@ -75,6 +75,35 @@ export function Hud({ data }: { data: HudData }) {
               </svg>
             </div>
           )}
+
+          {/* Lead-Indicator (War Thunder Vorhalt) — Nase hierhin, nicht auf das Flugzeug */}
+          {data.leadIndicator?.visible && (
+            <div
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: `${data.leadIndicator.x}%`,
+                top: `${data.leadIndicator.y}%`,
+                opacity: 0.95,
+              }}
+            >
+              <svg width="40" height="40" viewBox="0 0 40 40">
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="7"
+                  fill="none"
+                  stroke="#FFE566"
+                  strokeWidth="1.6"
+                  opacity="0.95"
+                />
+                <line x1="20" y1="2" x2="20" y2="10" stroke="#FFE566" strokeWidth="1.5" />
+                <line x1="20" y1="30" x2="20" y2="38" stroke="#FFE566" strokeWidth="1.5" />
+                <line x1="2" y1="20" x2="10" y2="20" stroke="#FFE566" strokeWidth="1.5" />
+                <line x1="30" y1="20" x2="38" y2="20" stroke="#FFE566" strokeWidth="1.5" />
+                <circle cx="20" cy="20" r="1.4" fill="#FFE566" opacity="0.9" />
+              </svg>
+            </div>
+          )}
         </>
       )}
 
@@ -488,12 +517,39 @@ export function Hud({ data }: { data: HudData }) {
             })()}
           </div>
 
-          {/* Score glass bottom right */}
+          {/* Score / Weapons glass bottom right */}
           <div className="absolute bottom-5 right-5 text-right">
-            <div className="hud-glass-pill min-w-[140px]">
+            <div className="hud-glass-pill min-w-[150px]">
               <div className="hud-label">Score</div>
               <div className="hud-value text-3xl">{data.score}</div>
               <div className="mt-2 text-xs text-white/50">AIM-9 × {data.missiles}</div>
+              {/* Kanonen-Munition + Reload */}
+              <div
+                className="mt-1 text-xs font-semibold tracking-wide"
+                style={{
+                  color: data.reloading
+                    ? AMBER
+                    : data.ammo <= 50
+                      ? DANGER
+                      : 'rgba(255,255,255,0.7)',
+                }}
+              >
+                {data.reloading
+                  ? 'RELOADING…'
+                  : `AMMO ${data.ammo}`}
+              </div>
+              {data.reloading && (
+                <div className="mt-1 ml-auto h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-100"
+                    style={{
+                      width: `${Math.round((data.reloadProgress ?? 0) * 100)}%`,
+                      background: `linear-gradient(90deg, ${AMBER}, #ffe566)`,
+                      boxShadow: `0 0 8px ${AMBER}`,
+                    }}
+                  />
+                </div>
+              )}
               {data.maxFlares > 0 && (
                 <div className="text-xs text-white/50">
                   Flares × {data.flares}

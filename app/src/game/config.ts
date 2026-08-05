@@ -76,6 +76,14 @@ export const CONFIG = {
     cannonRange: 900,
     cannonSpread: 0.012,
     cannonRPM: 3000,
+    /** Geschossgeschwindigkeit (m/s) — Ballistik / Vorhalt */
+    bulletSpeed: 950,
+    /** Max. Kanonen-Munition */
+    cannonAmmo: 500,
+    /** Nachladezeit (s) mit Taste R */
+    reloadTime: 3.5,
+    /** Optionaler leichter Geschossabfall (m/s²) */
+    bulletGravity: 3,
     missileCount: 6,
     lockRange: 2500,
     lockAngleDeg: 18,
@@ -94,7 +102,7 @@ export const CONFIG = {
   enemy: {
     count: 4,
     hp: 60,
-    speed: 135,
+    speed: 115,
     turnRate: 0.75,
     cannonDamage: 2,
     fireRange: 750,
@@ -103,7 +111,8 @@ export const CONFIG = {
     thinkInterval: 0.25,
     respawnDelay: 6,
     skillEvasionChance: 0.28,
-    speedScale: 0.72,
+    /** Globaler Multiplikator auf Gegner-Geschwindigkeit (Ballistik-freundlich) */
+    speedScale: 0.55,
     /** Luft-Luft-Raketen gegen Spieler */
     missileRange: 2100,
     missileConeDeg: 28,
@@ -206,9 +215,34 @@ export const CONFIG = {
   },
   mission: {
     waves: [
-      { bandits: 3, sams: 0, label: 'WELLE 1 — Luftüberlegenheit' },
-      { bandits: 5, sams: 0, label: 'WELLE 2 — Banditen-Schwarm' },
-      { bandits: 4, sams: 4, label: 'WELLE 3 — SEAD: Zerstöre die SAM-Stellungen' },
+      {
+        bandits: 3,
+        sams: 0,
+        speedScale: 0.4,
+        enemyMissiles: false,
+        label: 'WELLE 1 · TRAINING — Langsame Banditen',
+      },
+      {
+        bandits: 3,
+        sams: 0,
+        speedScale: 1,
+        enemyMissiles: true,
+        label: 'WELLE 2 — Luftüberlegenheit',
+      },
+      {
+        bandits: 5,
+        sams: 0,
+        speedScale: 1,
+        enemyMissiles: true,
+        label: 'WELLE 3 — Banditen-Schwarm',
+      },
+      {
+        bandits: 4,
+        sams: 4,
+        speedScale: 1,
+        enemyMissiles: true,
+        label: 'WELLE 4 — SEAD: Zerstöre die SAM-Stellungen',
+      },
     ],
     waveDelay: 3.5,
     samHp: 40,

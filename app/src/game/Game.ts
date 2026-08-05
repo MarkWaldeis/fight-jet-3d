@@ -58,6 +58,14 @@ export interface HudData {
   mouseReticle: ScreenPos;   // Reticle 1: Maus-Zielkreuz
   velocityVector: ScreenPos; // Reticle 2: Velocity Vector
   gunCrosshair: ScreenPos;   // Reticle 3: Nase / Gun
+  /** Vorhalt-Fadenkreuz (Lead-Indicator) — Bildschirm-% */
+  leadIndicator: ScreenPos | null;
+  /** Kanonen-Munition */
+  ammo: number;
+  maxAmmo: number;
+  reloading: boolean;
+  /** 0..1 Fortschritt beim Nachladen */
+  reloadProgress: number;
   manualOverride: boolean;
   airbrake: boolean;
   /**
@@ -583,10 +591,16 @@ export class Game {
     this.sams = this.sams.filter((s) => s.alive);
 
     // Bandits — frühe Wellen: mehr Legacy (Props/MiG-15), später Mix mit modernen Jets
+    const waveSpeedScale = wave.speedScale ?? 1;
+    const waveEnemyMissiles = wave.enemyMissiles !== false;
     const newBandits: EnemyJet[] = [];
     for (let i = 0; i < wave.bandits; i++) {
       const jetId = this.pickBanditJetId(index);
       const e = new EnemyJet(this.enemyCounter++, jetId);
+      e.applyWaveModifiers({
+        speedScale: waveSpeedScale,
+        enemyMissiles: waveEnemyMissiles,
+      });
       e.spawn(this.player.position);
       e.clearMissileLoadout();
       this.enemies.push(e);
@@ -595,10 +609,9 @@ export class Game {
       this.applyEnemyVisual(e);
     }
 
-    // Pro Welle: genau EIN Bandit darf Raketen schießen — und nur wenige
+    // Pro Welle: max. EIN Bandit mit wenigen Raketen (Training: enemyMissiles=false)
     const shots = CONFIG.enemy.missilesPerWave ?? 2;
-    if (newBandits.length > 0 && shots > 0 && !forMenu) {
-      // Bevorzuge Jets die im Katalog überhaupt Raketen haben
+    if (newBandits.length > 0 && shots > 0 && !forMenu && waveEnemyMissiles) {
       const armed = newBandits.filter((b) => b.loadout.stats.missiles > 0);
       const pool = armed.length > 0 ? armed : newBandits;
       const shooter = pool[Math.floor(Math.random() * pool.length)];
@@ -702,7 +715,8 @@ export class Game {
     this.proceduralTerrain.update(this.time);
     this.sea.update(this.time, this.player.position);
     this.effects.update(dt);
-    this.cannons.update(dt);
+    // Ballistik: Ziele für Segment-Kollision (Gegner, SAMs, Spieler)
+    this.cannons.update(dt, this.collectCannonTargets());
     if (this.waveBannerTimer > 0) this.waveBannerTimer -= dt;
     if (this.killPopupTimer > 0) {
       this.killPopupTimer -= dt;
@@ -776,19 +790,19 @@ export class Game {
     // --- Lock-On (Luft + Boden) ---
     this.updateLock(dt);
 
-    // --- Spieler-Waffen ---
+    // --- Spieler-Waffen (kein Auto-Aim — reiner Vorhalt) ---
     if (player.alive) {
+      // Nachladen mit R
+      if (this.input.wasPressed('KeyR')) {
+        player.startReload();
+      }
       if (this.input.cannon && player.canFireCannon()) {
         player.firedCannon();
-        const target = this.pickCannonTarget();
-        const assist =
-          player.lockProgress >= 1 && player.lockTarget?.alive ? player.lockTarget : null;
         this.cannons.fire(
           player,
-          target,
+          null,
           this.effects,
-          (victim, dmg) => this.onHit(victim, dmg, player),
-          assist
+          (victim, dmg) => this.onHit(victim, dmg, player)
         );
         this.sound.cannonShot();
       }
@@ -1001,20 +1015,71 @@ export class Game {
     this.player.lockProgress = 0;
   }
 
-  private pickCannonTarget(): Damageable | null {
-    let best: Damageable | null = null;
-    let bestD = Infinity;
-    for (const e of this.enemies) {
-      if (!e.alive) continue;
-      const d = e.position.distanceTo(this.player.position);
-      if (d < bestD) { bestD = d; best = e; }
+  /** Alle Damageables für Kanonen-Ballistik */
+  private collectCannonTargets(): Damageable[] {
+    const list: Damageable[] = [];
+    if (this.player.alive) list.push(this.player);
+    for (const e of this.enemies) if (e.alive) list.push(e);
+    for (const s of this.sams) if (s.alive) list.push(s);
+    return list;
+  }
+
+  /**
+   * Lead-Indicator (War Thunder): Vorhalt-Punkt für fokussiertes Ziel.
+   * Lock-Ziel, sonst nächstes Ziel vor der Nase innerhalb cannonRange.
+   */
+  private computeLeadIndicator(): ScreenPos | null {
+    const p = this.player;
+    if (!p.alive || this.state !== 'playing') return null;
+
+    const bulletSpeed = CONFIG.player.bulletSpeed;
+    const maxRange = CONFIG.player.cannonRange;
+    const maxDisplay = 1200;
+
+    let target: Damageable | null = null;
+    if (p.lockTarget?.alive) {
+      target = p.lockTarget;
+    } else {
+      let bestD = Infinity;
+      const candidates: Damageable[] = [
+        ...this.enemies.filter((e) => e.alive),
+        ...this.sams.filter((s) => s.alive),
+      ];
+      for (const t of candidates) {
+        const to = t.object.position.clone().sub(p.position);
+        const d = to.length();
+        if (d > maxRange || d > maxDisplay || d < 20) continue;
+        to.multiplyScalar(1 / d);
+        if (to.dot(p.forward) < 0.12) continue; // grob vor der Nase
+        if (d < bestD) {
+          bestD = d;
+          target = t;
+        }
+      }
     }
-    for (const s of this.sams) {
-      if (!s.alive) continue;
-      const d = s.position.distanceTo(this.player.position);
-      if (d < bestD) { bestD = d; best = s; }
+    if (!target?.alive) return null;
+
+    const dist = target.object.position.distanceTo(p.position);
+    if (dist > maxDisplay) return null;
+
+    // Zielgeschwindigkeit (Jets über FlightModel; SAMs = 0)
+    const targetVel = new THREE.Vector3();
+    if ('flight' in target) {
+      const fl = (target as EnemyJet).flight;
+      if (fl?.velocity) targetVel.copy(fl.velocity);
     }
-    return best;
+
+    // Iterativer Vorhalt: t = dist/v, lead = pos + vel*t
+    let lead = target.object.position.clone();
+    let tHit = dist / bulletSpeed;
+    for (let i = 0; i < 3; i++) {
+      lead.copy(target.object.position).addScaledVector(targetVel, tHit);
+      tHit = p.position.distanceTo(lead) / bulletSpeed;
+    }
+
+    const screen = this.projectToScreen(lead);
+    if (!screen.visible) return null;
+    return screen;
   }
 
   private updateLock(dt: number) {
@@ -1325,6 +1390,7 @@ export class Game {
       y: (-this.input.aimY * 0.5 + 0.5) * 100,
       visible: this.state === 'playing' && !this.cam.isFreeLook,
     };
+    const leadIndicator = this.computeLeadIndicator();
 
     const wave = CONFIG.mission.waves[Math.min(this.waveIndex, CONFIG.mission.waves.length - 1)];
     const data: HudData = {
@@ -1340,6 +1406,11 @@ export class Game {
       mouseReticle,
       velocityVector,
       gunCrosshair,
+      leadIndicator,
+      ammo: p.ammo,
+      maxAmmo: p.maxAmmo,
+      reloading: p.reloading,
+      reloadProgress: p.reloadProgress,
       manualOverride: this.input.manualOverride,
       airbrake: this.input.airbrake,
       gForce: p.flight.gForce,
