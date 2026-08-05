@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/Game';
 import {
   JET_CATALOG,
@@ -33,6 +33,18 @@ const CONTROLS: { key: string; label: string }[] = [
   { key: 'V', label: 'Cockpit / Chase' },
   { key: 'P / Esc', label: 'Pause' },
 ];
+
+/** Visuelles Jet-Emoji für Top-Bar / Silhouette-Kontext */
+const JET_EMOJI: Record<JetId, string> = {
+  f16: '✈️',
+  f35: '🛫',
+  elite: '⚡',
+  f14: '🦅',
+  l39: '🛩️',
+  su25: '💥',
+  su34: '🛡️',
+  su57: '🔥',
+};
 
 function StatBar({ label, value }: { label: string; value: number }) {
   const v = Math.max(0, Math.min(100, value));
@@ -83,11 +95,15 @@ export function Menus({
   const [exitConfirm, setExitConfirm] = useState(false);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  /** Verhindert Reset auf 'main' wenn z.B. aus GameOver absichtlich Garage geöffnet wird */
+  const preserveScreenRef = useRef(false);
 
   const selected = JET_CATALOG.find((j) => j.id === selectedJetId) ?? JET_CATALOG[0];
   const selectedMap = getMapDef(selectedMapId);
   const sortedJets = jetsSortedByPrice();
   const bars = jetStatBars(selected.stats);
+  const jetEmoji = JET_EMOJI[selected.id] ?? '✈️';
+  const mapKm = selectedMap ? (selectedMap.worldSizeM / 1000).toFixed(0) : '—';
 
   const pickMap = async (id: MapId) => {
     setMapError(null);
@@ -107,7 +123,13 @@ export function Menus({
   }, [settings, onSoundChange]);
 
   useEffect(() => {
-    if (state === 'menu') setScreen('main');
+    if (state === 'menu') {
+      if (preserveScreenRef.current) {
+        preserveScreenRef.current = false;
+      } else {
+        setScreen('main');
+      }
+    }
   }, [state]);
 
   if (state === 'playing') return null;
@@ -125,10 +147,13 @@ export function Menus({
   };
 
   const confirmExit = () => {
-    // Browser kann Tabs nicht zuverlässig schließen — zurück zum Landing
     setExitConfirm(false);
     setScreen('main');
     if (state !== 'menu') onMenu();
+  };
+
+  const startMission = () => {
+    onStart(selectedJetId);
   };
 
   // ─── Sidebar Navigation ─────────────────────────────────────────────────
@@ -142,16 +167,16 @@ export function Menus({
 
   const Sidebar = () => (
     <aside className="glass-sidebar pointer-events-auto fixed left-0 top-0 z-20 flex h-full w-[232px] flex-col">
-      {/* Logo area */}
       <div className="flex items-center gap-3 border-b border-white/[0.05] px-4 py-4">
         <div className="glass-sidebar-logo">FJ</div>
         <div>
-          <div className="text-[12px] font-bold tracking-[0.08em] text-white leading-tight">FIGHT JET 3D</div>
+          <div className="font-display text-[12px] font-bold tracking-[0.08em] text-white leading-tight">
+            FIGHT JET 3D
+          </div>
           <div className="text-[8px] tracking-[0.14em] text-white/25 uppercase">Tactical Air Combat</div>
         </div>
       </div>
 
-      {/* Nav items */}
       <nav className="flex flex-1 flex-col gap-0.5 px-3 py-3">
         {NAV_ITEMS.map((item) => (
           <button
@@ -169,13 +194,8 @@ export function Menus({
         ))}
       </nav>
 
-      {/* Exit button at bottom */}
       <div className="border-t border-white/[0.05] px-3 py-2.5">
-        <button
-          type="button"
-          onClick={tryExit}
-          className="glass-sidebar-exit"
-        >
+        <button type="button" onClick={tryExit} className="glass-sidebar-exit">
           <span className="sidebar-btn-icon">🚪</span>
           <span>Beenden</span>
         </button>
@@ -183,21 +203,53 @@ export function Menus({
     </aside>
   );
 
-
   // ─── Hangar Atmosphere Background ──────────────────────────────────────
   const HangarBackground = () => (
-    <div className="hangar-bg">
+    <div className="hangar-bg" aria-hidden="true">
       <div className="hangar-bg-base" />
       <div className="hangar-spot-left" />
       <div className="hangar-spot-right" />
+      <div className="hangar-spot-center" />
       <div className="hangar-floor" />
       <div className="hangar-grid" />
       <div className="hangar-haze" />
+      <div className="hangar-beams" />
       <div className="hangar-silhouette">
-        <span className="hangar-silhouette-text">{selected.name}</span>
+        <span className="hangar-silhouette-text" key={selected.id}>
+          {selected.name}
+        </span>
       </div>
       <div className="hangar-particles">
-        {Array.from({ length: 9 }).map((_, i) => <div key={i} className="hangar-particle" />)}
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="hangar-particle" />
+        ))}
+      </div>
+      <div className="hangar-vignette" />
+    </div>
+  );
+
+  // ─── Credits Badge ──────────────────────────────────────────────────────
+  const CreditsBadge = ({ compact = false }: { compact?: boolean }) => (
+    <div
+      className={`pointer-events-auto flex items-center gap-2.5 rounded-full border border-amber-400/20 bg-black/45 backdrop-blur-2xl shadow-[0_8px_28px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.12)] ${
+        compact ? 'px-3 py-1.5' : 'px-4 py-2'
+      }`}
+      title="Aero Credits"
+    >
+      <div className={`relative shrink-0 ${compact ? 'h-6 w-6' : 'h-7 w-7'}`}>
+        <img
+          src="./aero_credits.jpg"
+          alt="Aero Credits"
+          className="h-full w-full rounded-full object-cover shadow-[0_0_12px_rgba(255,215,0,0.5),0_0_24px_rgba(255,180,0,0.2)]"
+          style={{ animation: 'coin-spin 3s linear infinite' }}
+        />
+        <div className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-b from-yellow-300/20 to-transparent" />
+      </div>
+      <div className="flex flex-col leading-tight">
+        <span className="font-display text-xs font-bold tabular-nums tracking-[0.06em] text-amber-100">
+          {aeroCredits.toLocaleString()}
+        </span>
+        <span className="text-[9px] uppercase tracking-[0.15em] text-amber-300/50">Aero Credits</span>
       </div>
     </div>
   );
@@ -205,54 +257,45 @@ export function Menus({
   // ─── Top Bar (War-Thunder style) ───────────────────────────────────────
   const TopBar = () => (
     <div className="topbar">
-      <div className="topbar-chip" onClick={openHangar} title="Jet wechseln">
-        <span className="topbar-chip-icon">✈️</span>
-        <div>
+      {/* DEIN JET */}
+      <button type="button" className="topbar-chip" onClick={openHangar} title="Jet wechseln — Garage öffnen">
+        <span className="topbar-chip-icon">{jetEmoji}</span>
+        <div className="min-w-0 text-left">
           <div className="topbar-chip-label">Dein Jet</div>
-          <div className="topbar-chip-value">{selected.name}</div>
-          <div className="topbar-chip-sub">{selected.role}</div>
+          <div className="topbar-chip-value truncate">{selected.name}</div>
+          <div className="topbar-chip-sub truncate">
+            {selected.callsign} · {selected.role}
+          </div>
         </div>
-      </div>
-      <div className="topbar-chip" onClick={() => setScreen('maps')} title="Map wechseln">
-        <span className="topbar-chip-icon">🗺️</span>
-        <div>
-          <div className="topbar-chip-label">Karte</div>
-          <div className="topbar-chip-value">{selectedMap?.name ?? selectedMapId}</div>
-          <div className="topbar-chip-sub">{selectedMap ? `${(selectedMap.worldSizeM / 1000).toFixed(0)} km` : ''}</div>
-        </div>
-      </div>
-      <div className="topbar-spacer" />
-      <button type="button" className="topbar-start" onClick={() => onStart(selectedJetId)}>
-        ⚡ ABHEBEN
       </button>
-    </div>
-  );
 
-  // ─── Credits Badge (always visible on menu) ─────────────────────────────
-  const CreditsBadge = () => (
-    <div className="pointer-events-none fixed right-5 top-5 z-30">
-      <div className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-white/15 bg-black/40 backdrop-blur-2xl px-4 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.2)]">
-        <div className="relative w-7 h-7 shrink-0">
-          <img
-            src="./aero_credits.jpg"
-            alt="Aero Credits"
-            className="w-full h-full rounded-full object-cover shadow-[0_0_12px_rgba(255,215,0,0.5),0_0_24px_rgba(255,180,0,0.2)]"
-            style={{ animation: 'coin-spin 3s linear infinite' }}
-          />
-          <div className="absolute inset-0 rounded-full bg-gradient-to-b from-yellow-300/20 to-transparent pointer-events-none" />
+      {/* KARTE */}
+      <button type="button" className="topbar-chip" onClick={() => setScreen('maps')} title="Map wechseln">
+        <span className="topbar-chip-icon">🗺️</span>
+        <div className="min-w-0 text-left">
+          <div className="topbar-chip-label">Karte</div>
+          <div className="topbar-chip-value truncate">{selectedMap?.name ?? selectedMapId}</div>
+          <div className="topbar-chip-sub">{mapKm} × {mapKm} km</div>
         </div>
-        <div className="flex flex-col leading-tight">
-          <span className="text-xs font-bold text-amber-100 tracking-[0.06em] tabular-nums">{aeroCredits.toLocaleString()}</span>
-          <span className="text-[9px] text-amber-300/50 tracking-[0.15em] uppercase">Aero Credits</span>
-        </div>
-      </div>
+      </button>
+
+      <div className="topbar-spacer" />
+
+      {/* SCHNELLSTART */}
+      <button type="button" className="topbar-start" onClick={startMission} title="Mission starten">
+        <span className="topbar-start-icon">⚡</span>
+        <span>ABHEBEN</span>
+      </button>
+
+      {/* CREDITS */}
+      <CreditsBadge compact />
     </div>
   );
 
   // ─── Exit confirm ───────────────────────────────────────────────────────
   const ExitModal = () =>
     exitConfirm ? (
-      <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-md">
         <div className="glass-panel mx-4 w-full max-w-md p-6 text-center">
           <div className="glass-eyebrow mb-2">System</div>
           <h3 className="glass-title mb-2 text-2xl">Sitzung beenden?</h3>
@@ -260,7 +303,11 @@ export function Menus({
             Du kehrst zum Hauptmenü zurück. Fortschritt in der laufenden Mission geht verloren.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <button type="button" className="glass-button glass-button-ghost" onClick={() => setExitConfirm(false)}>
+            <button
+              type="button"
+              className="glass-button glass-button-ghost"
+              onClick={() => setExitConfirm(false)}
+            >
               Abbrechen
             </button>
             <button type="button" className="glass-button glass-button-danger" onClick={confirmExit}>
@@ -275,11 +322,13 @@ export function Menus({
   const SettingsBody = () => (
     <>
       <div className="mb-4 flex flex-wrap gap-2">
-        {([
-          ['graphics', 'Grafik'],
-          ['sound', 'Sound'],
-          ['controls', 'Steuerung'],
-        ] as const).map(([id, label]) => (
+        {(
+          [
+            ['graphics', 'Grafik'],
+            ['sound', 'Sound'],
+            ['controls', 'Steuerung'],
+          ] as const
+        ).map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -421,7 +470,10 @@ export function Menus({
       <div className="absolute inset-0 z-20 flex items-center justify-center">
         <div className="menu-vignette absolute inset-0" />
         <div className="glass-panel pointer-events-auto relative z-10 mx-4 w-full max-w-md p-8 text-center">
-          <div className="glass-eyebrow mb-2" style={{ color: win ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+          <div
+            className="glass-eyebrow mb-2"
+            style={{ color: win ? 'var(--accent-success)' : 'var(--accent-danger)' }}
+          >
             {win ? 'Alle Wellen abgeschlossen' : 'Airframe lost'}
           </div>
           <h2 className="glass-title mb-2 text-4xl" style={{ color: win ? '#fff' : 'var(--accent-danger)' }}>
@@ -431,14 +483,13 @@ export function Menus({
             {win ? `Der Himmel gehört ${selected.callsign}.` : `${selected.callsign} ist abgestürzt.`}
           </p>
           <p className="mb-6 text-2xl font-bold">
-            Score{' '}
-            <span className="glass-mono text-cyan-300">{score}</span>
+            Score <span className="glass-mono text-cyan-300">{score}</span>
           </p>
           <div className="flex flex-col gap-2">
             <button
               type="button"
               className="glass-button glass-button-primary w-full py-3.5"
-              onClick={() => onStart(selectedJetId)}
+              onClick={startMission}
             >
               {win ? 'Neue Mission' : 'Erneut fliegen'} (Enter)
             </button>
@@ -446,8 +497,10 @@ export function Menus({
               type="button"
               className="glass-button glass-button-ghost w-full"
               onClick={() => {
-                onMenu();
+                preserveScreenRef.current = true;
                 setScreen('hangar');
+                setFaction(selected.faction);
+                onMenu();
               }}
             >
               Garage öffnen
@@ -460,471 +513,557 @@ export function Menus({
 
   // ─── MENU states ────────────────────────────────────────────────────────
   return (
-    <div className="absolute left-[232px] right-0 top-0 bottom-0 z-10 flex flex-col">
+    <div className="absolute bottom-0 left-[232px] right-0 top-0 z-10 flex flex-col">
       <Sidebar />
       <TopBar />
-      <div className="flex-1 relative overflow-hidden">
-        {(state === 'menu' || screen !== 'main') && <HangarBackground />}
-        <CreditsBadge />
 
-        {/* MAIN LANDING – Center Content */}
-        {screen === 'main' && (state === 'menu' || state === 'gameover' || state === 'victory') && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4">
-            <div className="pointer-events-auto w-full max-w-xl">
-              {/* Title */}
-              <div className="text-center mb-6">
-                <h1 className="text-5xl sm:text-6xl font-black tracking-[0.06em] mb-2 text-white drop-shadow-[0_0_30px_rgba(0,242,255,0.2)]"
-                  style={{ fontFamily: "'Orbitron', sans-serif" }}>
-                  FIGHT JET{' '}
-                  <span className="bg-gradient-to-r from-[#00f2ff] via-[#0a84ff] to-white bg-clip-text text-transparent">3D</span>
+      <div className="relative flex-1 overflow-hidden">
+        <HangarBackground />
+
+        {/* ═══════════════ MAIN LANDING ═══════════════ */}
+        {screen === 'main' && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-y-auto px-4 py-8 sm:px-8">
+            <div className="pointer-events-auto main-landing w-full max-w-2xl">
+              {/* Title block */}
+              <div className="mb-7 text-center">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-300/80">
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f2ff] animate-pulse" />
+                  Combat Ready
+                </div>
+                <h1 className="font-display main-title mb-2 text-5xl font-black tracking-[0.06em] sm:text-6xl md:text-7xl">
+                  <span className="text-white drop-shadow-[0_0_40px_rgba(0,242,255,0.25)]">FIGHT JET</span>{' '}
+                  <span className="main-title-gradient">3D</span>
                 </h1>
-                <p className="text-sm tracking-[0.2em] text-white/35 uppercase">Tactical Air Combat · Mouse-Aim</p>
+                <p className="text-sm uppercase tracking-[0.28em] text-white/35">
+                  Tactical Air Combat · Mouse-Aim
+                </p>
               </div>
 
-              {/* Info Cards */}
+              {/* Jet + Map info cards */}
               <div className="mb-5 grid gap-3 sm:grid-cols-2">
-                <div className="glass-panel-sm cursor-pointer p-4 hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(0,242,255,0.1)] transition-all duration-300"
-                  onClick={openHangar}>
-                  <div className="text-[10px] tracking-[0.15em] text-cyan-300/70 uppercase mb-1">Dein Jet</div>
-                  <div className="text-base font-bold text-white">{selected.name}</div>
-                  <div className="text-xs text-white/40">{selected.callsign} · {selected.role}</div>
-                  <div className="text-[10px] text-cyan-400/50 mt-1">{FACTION_LABELS[selected.faction]}</div>
-                </div>
-                <div className="glass-panel-sm cursor-pointer p-4 hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(0,242,255,0.1)] transition-all duration-300"
-                  onClick={() => setScreen('maps')}>
-                  <div className="text-[10px] tracking-[0.15em] text-cyan-300/70 uppercase mb-1">Karte</div>
-                  <div className="text-base font-bold text-white">{selectedMap?.name ?? selectedMapId}</div>
-                  <div className="text-xs text-white/40">{selectedMap ? `${(selectedMap.worldSizeM / 1000).toFixed(0)} × ${(selectedMap.worldSizeM / 1000).toFixed(0)} km` : ''}</div>
-                </div>
+                <button
+                  type="button"
+                  onClick={openHangar}
+                  className="main-info-card group text-left"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/75">
+                      Dein Jet
+                    </span>
+                    <span className="text-2xl transition-transform duration-300 group-hover:scale-110">
+                      {jetEmoji}
+                    </span>
+                  </div>
+                  <div className="font-display text-lg font-bold leading-tight text-white">{selected.name}</div>
+                  <div className="mt-0.5 text-sm text-cyan-200/80">{selected.callsign}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-white/40">
+                    <span>{selected.role}</span>
+                    <span className="text-white/20">·</span>
+                    <span className="text-cyan-400/60">{FACTION_LABELS[selected.faction]}</span>
+                  </div>
+                  <div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/25 transition-colors group-hover:text-cyan-300/70">
+                    Jet wechseln →
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setScreen('maps')}
+                  className="main-info-card group text-left"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/75">
+                      Einsatzgebiet
+                    </span>
+                    <span className="text-2xl transition-transform duration-300 group-hover:scale-110">🗺️</span>
+                  </div>
+                  <div className="font-display text-lg font-bold leading-tight text-white">
+                    {selectedMap?.name ?? selectedMapId}
+                  </div>
+                  <div className="mt-0.5 text-sm text-white/50">
+                    {selectedMap?.subtitle ?? 'Operations Area'}
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/40">
+                    {mapKm} × {mapKm} km Weltgröße
+                  </div>
+                  <div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/25 transition-colors group-hover:text-cyan-300/70">
+                    Karte wählen →
+                  </div>
+                </button>
               </div>
 
-              {/* MAIN CTA */}
-              <button type="button"
-                className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-[length:200%_100%] text-white font-bold text-lg tracking-[0.08em] shadow-[0_6px_30px_rgba(0,132,255,0.4),0_0_50px_rgba(0,242,255,0.2)] transition-all duration-300 hover:shadow-[0_8px_40px_rgba(0,242,255,0.55)] hover:-translate-y-0.5 active:scale-[0.98]"
-                style={{ fontFamily: "'Orbitron', sans-serif", animation: 'gradientShift 3s ease-in-out infinite' }}
-                onClick={() => onStart(selectedJetId)}>
-                🚀 MISSION STARTEN · {selected.callsign}
+              {/* PRIMARY CTA — Mission starten */}
+              <button
+                type="button"
+                className="main-cta"
+                onClick={startMission}
+              >
+                <span className="main-cta-glow" aria-hidden="true" />
+                <span className="relative z-10 flex items-center justify-center gap-3">
+                  <span className="text-xl">🚀</span>
+                  <span>MISSION STARTEN</span>
+                  <span className="hidden text-white/50 sm:inline">·</span>
+                  <span className="hidden font-normal tracking-[0.12em] text-white/70 sm:inline">
+                    {selected.callsign}
+                  </span>
+                </span>
               </button>
 
-              {/* Quick Links */}
+              {/* Quick links 2×2 / 4 col */}
               <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {[
                   { icon: '✈️', label: 'Garage', action: openHangar },
                   { icon: '🗺️', label: 'Maps', action: () => setScreen('maps') },
                   { icon: '🎯', label: 'Kampagne', action: () => setScreen('missions') },
-                  { icon: '⚙️', label: 'Settings', action: () => setScreen('settings') },
+                  { icon: '⚙️', label: 'Einstellungen', action: () => setScreen('settings') },
                 ].map(({ icon, label, action }) => (
-                  <button key={label} type="button" onClick={action}
-                    className="glass-panel-sm py-3 px-2 text-center text-white/60 text-xs font-semibold tracking-[0.05em] hover:text-white hover:border-white/20 transition-all duration-300">
-                    <div className="text-lg mb-0.5">{icon}</div>
+                  <button key={label} type="button" onClick={action} className="main-quick-link">
+                    <span className="mb-1 block text-lg">{icon}</span>
                     {label}
                   </button>
                 ))}
               </div>
+
+              <p className="mt-6 text-center text-[10px] uppercase tracking-[0.2em] text-white/20">
+                Esc / P · Pause im Flug · Maus steuert den Jet
+              </p>
             </div>
           </div>
         )}
 
-      {/* HANGAR / GARAGE */}
-      {screen === 'hangar' && (
-        <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-y-auto px-3 pb-8 pt-20 sm:items-center sm:pt-24">
-          <div className="glass-panel pointer-events-auto w-full max-w-5xl max-h-[min(90vh,920px)] overflow-hidden flex flex-col p-5 sm:p-7">
-            <div className="mb-1 flex items-center justify-between gap-3 shrink-0">
-              <div className="glass-eyebrow">Garage</div>
-              <button type="button" className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs" onClick={() => setScreen('main')}>
-                Zuruck
-              </button>
-            </div>
-            <h2 className="glass-title mb-1 text-3xl text-white shrink-0">Flugzeug wahlen</h2>
-            <p className="glass-subtitle mb-4 text-sm shrink-0">
-              Moderne Jets, Early Jets und WWII-Propeller — jeweils eigene Physik, Waffen und Sound.
-            </p>
-
-            <div className="mb-4 flex flex-wrap gap-2 shrink-0">
-              {(['nato', 'russia'] as JetFaction[]).map((f) => (
+        {/* ═══════════════ HANGAR / GARAGE ═══════════════ */}
+        {screen === 'hangar' && (
+          <div className="pointer-events-none absolute inset-0 flex items-start justify-center overflow-y-auto px-3 pb-8 pt-6 sm:items-center sm:pt-8">
+            <div className="glass-panel pointer-events-auto flex max-h-[min(90vh,920px)] w-full max-w-5xl flex-col overflow-hidden p-5 sm:p-7">
+              <div className="mb-1 flex shrink-0 items-center justify-between gap-3">
+                <div className="glass-eyebrow">Garage</div>
                 <button
-                  key={f}
                   type="button"
-                  className={`glass-pill px-5 py-2 text-xs font-semibold tracking-[0.1em] uppercase transition-all duration-300 ${
-                    faction === f
-                      ? 'bg-white/[0.14] text-white border-white/30 shadow-[0_0_15px_rgba(0,242,255,0.15)]'
-                      : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/75'
-                  }`}
-                  onClick={() => setFaction(f)}
+                  className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
+                  onClick={() => setScreen('main')}
                 >
-                  {FACTION_LABELS[f]} ({JET_CATALOG.filter(j => j.faction === f).length})
+                  ← Zurück
                 </button>
-              ))}
-            </div>
+              </div>
+              <h2 className="glass-title mb-1 shrink-0 text-3xl text-white">Flugzeug wählen</h2>
+              <p className="glass-subtitle mb-4 shrink-0 text-sm">
+                Moderne Jets und Early Jets — jeweils eigene Physik, Waffen und Sound.
+              </p>
 
-            <div className="mb-5 overflow-x-auto pb-2 -mx-1 px-1 hide-scrollbar flex gap-3 snap-x snap-mandatory scroll-pl-1">
-              {sortedJets
-                .filter((j) => j.faction === faction)
-                .map((jet) => {
-                  const active = jet.id === selectedJetId;
-                  const owned = isJetOwned(jet.id);
-                  const locked = !owned && jet.price > 0;
-                  const canAfford = aeroCredits >= jet.price;
-                  const jBars = jetStatBars(jet.stats);
-                  return (
-                    <div
-                      key={jet.id}
-                      onClick={() => { if (owned) { onSelectJet(jet.id); } }}
-                      className={`glass-card flex-shrink-0 w-[220px] sm:w-[240px] snap-start cursor-pointer text-left relative ${
-                        active ? 'is-selected ring-1 ring-cyan-400/50' : ''
-                      } ${locked ? 'opacity-70' : ''}`}
-                    >
-                      <div
-                        className={`h-1 -mx-[18px] -mt-[16px] rounded-t-[20px] mb-3 ${
-                          jet.faction === 'nato'
-                            ? 'bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500'
-                            : 'bg-gradient-to-r from-red-400 via-amber-400 to-red-500'
-                        }`}
-                      />
-                      {/* Jet Name + Role */}
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-xl">{jet.faction === 'nato' ? '🛩️' : '✈️'}</span>
-                        <div>
-                          <div className="text-sm font-bold leading-tight text-white">{jet.name}</div>
-                          <div className="text-[10px] text-white/35">{jet.role}</div>
-                        </div>
-                        {active && (
-                          <div className="ml-auto w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(0,242,255,0.7)] animate-pulse" />
-                        )}
-                      </div>
-
-                      {/* Neon-Blue Status Bars */}
-                      <div className="space-y-2 mb-3">
-                        {[['Speed', jBars.speed], ['Wendigkeit', jBars.maneuver], ['Panzerung', jBars.armor]].map(([label, val]) => (
-                          <div key={label as string}>
-                            <div className="flex justify-between text-[9px] mb-0.5">
-                              <span className="text-white/40 uppercase tracking-[0.1em]">{label as string}</span>
-                              <span className="font-mono text-white/50">{val as number}</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-700 ease-out"
-                                style={{
-                                  width: `${val as number}%`,
-                                  background: locked
-                                    ? 'linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.2))'
-                                    : 'linear-gradient(90deg, #00f2ff, #0a84ff)',
-                                  boxShadow: locked ? 'none' : '0 0 8px rgba(0,242,255,0.5)',
-                                }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Buy / Select Button */}
-                      {locked ? (
-                        <button
-                          type="button"
-                          className={`w-full py-2.5 rounded-xl font-bold text-[11px] tracking-[0.06em] uppercase flex items-center justify-center gap-2 transition-all duration-300 ${
-                            canAfford
-                              ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/30 text-amber-200 hover:from-amber-500/35 hover:to-yellow-500/35 hover:border-amber-300/50 hover:shadow-[0_0_20px_rgba(255,200,0,0.2)]'
-                              : 'bg-white/[0.03] border border-white/[0.06] text-white/25 cursor-not-allowed'
-                          }`}
-                          disabled={!canAfford}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (canAfford) {
-                              const ok = onPurchaseJet(jet.id, jet.price);
-                              if (ok) onSelectJet(jet.id);
-                            }
-                          }}
-                        >
-                          <img
-                            src="./aero_credits.jpg"
-                            alt="AC"
-                            className="w-4 h-4 rounded-full object-cover shadow-[0_0_8px_rgba(255,215,0,0.5)]"
-                            style={{ animation: 'coin-spin 4s linear infinite' }}
-                          />
-                          {jet.price.toLocaleString()} AC
-                        </button>
-                      ) : owned ? (
-                        <button
-                          type="button"
-                          className={`w-full py-2.5 rounded-xl font-bold text-[11px] tracking-[0.06em] uppercase transition-all duration-300 ${
-                            active
-                              ? 'bg-gradient-to-r from-cyan-500/40 to-blue-500/40 border border-cyan-400/40 text-white shadow-[0_0_15px_rgba(0,242,255,0.2)]'
-                              : 'bg-white/[0.05] border border-white/[0.08] text-white/60 hover:bg-white/[0.12] hover:text-white/90 hover:border-white/15'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectJet(jet.id);
-                          }}
-                        >
-                          {active ? 'Ausgewahlt' : 'Auswahlen'}
-                        </button>
-                      ) : null}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mb-5 grid gap-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:grid-cols-2 shrink-0">
-              <div>
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <div className="text-xl font-bold text-white">{selected.name}</div>
-                  <div
-                    className="text-xs tracking-wider uppercase"
-                    style={{ color: selected.faction === 'nato' ? '#7dd3fc' : '#fca5a5' }}
+              <div className="mb-4 flex shrink-0 flex-wrap gap-2">
+                {(['nato', 'russia'] as JetFaction[]).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={`glass-pill px-5 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition-all duration-300 ${
+                      faction === f
+                        ? 'border-white/30 bg-white/[0.14] text-white shadow-[0_0_15px_rgba(0,242,255,0.15)]'
+                        : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/75'
+                    }`}
+                    onClick={() => setFaction(f)}
                   >
-                    {FACTION_LABELS[selected.faction]}
+                    {FACTION_LABELS[f]} ({JET_CATALOG.filter((j) => j.faction === f).length})
+                  </button>
+                ))}
+              </div>
+
+              <div className="hangar-scroll-container hide-scrollbar mb-5 -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 scroll-pl-1">
+                {sortedJets
+                  .filter((j) => j.faction === faction)
+                  .map((jet) => {
+                    const active = jet.id === selectedJetId;
+                    const owned = isJetOwned(jet.id);
+                    const locked = !owned && jet.price > 0;
+                    const canAfford = aeroCredits >= jet.price;
+                    const jBars = jetStatBars(jet.stats);
+                    return (
+                      <div
+                        key={jet.id}
+                        onClick={() => {
+                          if (owned) onSelectJet(jet.id);
+                        }}
+                        className={`glass-card relative w-[220px] flex-shrink-0 cursor-pointer snap-start text-left sm:w-[240px] ${
+                          active ? 'is-selected ring-1 ring-cyan-400/50' : ''
+                        } ${locked ? 'opacity-70' : ''}`}
+                      >
+                        <div
+                          className={`-mx-[18px] -mt-[16px] mb-3 h-1 rounded-t-[20px] ${
+                            jet.faction === 'nato'
+                              ? 'bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500'
+                              : 'bg-gradient-to-r from-red-400 via-amber-400 to-red-500'
+                          }`}
+                        />
+                        <div className="mb-3 flex items-center gap-2">
+                          <span className="text-xl">{JET_EMOJI[jet.id] ?? (jet.faction === 'nato' ? '🛩️' : '✈️')}</span>
+                          <div>
+                            <div className="text-sm font-bold leading-tight text-white">{jet.name}</div>
+                            <div className="text-[10px] text-white/35">{jet.role}</div>
+                          </div>
+                          {active && (
+                            <div className="ml-auto h-2.5 w-2.5 animate-pulse rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(0,242,255,0.7)]" />
+                          )}
+                        </div>
+
+                        <div className="mb-3 space-y-2">
+                          {(
+                            [
+                              ['Speed', jBars.speed],
+                              ['Wendigkeit', jBars.maneuver],
+                              ['Panzerung', jBars.armor],
+                            ] as const
+                          ).map(([label, val]) => (
+                            <div key={label}>
+                              <div className="mb-0.5 flex justify-between text-[9px]">
+                                <span className="uppercase tracking-[0.1em] text-white/40">{label}</span>
+                                <span className="font-mono text-white/50">{val}</span>
+                              </div>
+                              <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+                                <div
+                                  className="h-full rounded-full transition-all duration-700 ease-out"
+                                  style={{
+                                    width: `${val}%`,
+                                    background: locked
+                                      ? 'linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.2))'
+                                      : 'linear-gradient(90deg, #00f2ff, #0a84ff)',
+                                    boxShadow: locked ? 'none' : '0 0 8px rgba(0,242,255,0.5)',
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {locked ? (
+                          <button
+                            type="button"
+                            className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] transition-all duration-300 ${
+                              canAfford
+                                ? 'border border-amber-400/30 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-200 hover:border-amber-300/50 hover:from-amber-500/35 hover:to-yellow-500/35 hover:shadow-[0_0_20px_rgba(255,200,0,0.2)]'
+                                : 'cursor-not-allowed border border-white/[0.06] bg-white/[0.03] text-white/25'
+                            }`}
+                            disabled={!canAfford}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (canAfford) {
+                                const ok = onPurchaseJet(jet.id, jet.price);
+                                if (ok) onSelectJet(jet.id);
+                              }
+                            }}
+                          >
+                            <img
+                              src="./aero_credits.jpg"
+                              alt="AC"
+                              className="h-4 w-4 rounded-full object-cover shadow-[0_0_8px_rgba(255,215,0,0.5)]"
+                              style={{ animation: 'coin-spin 4s linear infinite' }}
+                            />
+                            {jet.price.toLocaleString()} AC
+                          </button>
+                        ) : owned ? (
+                          <button
+                            type="button"
+                            className={`w-full rounded-xl py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] transition-all duration-300 ${
+                              active
+                                ? 'border border-cyan-400/40 bg-gradient-to-r from-cyan-500/40 to-blue-500/40 text-white shadow-[0_0_15px_rgba(0,242,255,0.2)]'
+                                : 'border border-white/[0.08] bg-white/[0.05] text-white/60 hover:border-white/15 hover:bg-white/[0.12] hover:text-white/90'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectJet(jet.id);
+                            }}
+                          >
+                            {active ? 'Ausgewählt' : 'Auswählen'}
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+              </div>
+
+              <div className="mb-5 grid shrink-0 gap-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:grid-cols-2">
+                <div>
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <div className="text-xl font-bold text-white">{selected.name}</div>
+                    <div
+                      className="text-xs uppercase tracking-wider"
+                      style={{ color: selected.faction === 'nato' ? '#7dd3fc' : '#fca5a5' }}
+                    >
+                      {FACTION_LABELS[selected.faction]}
+                    </div>
                   </div>
-                </div>
-                <p className="mt-2 text-sm text-white/65">{selected.description}</p>
-                <p className="mt-3 text-xs text-cyan-200/90">
-                  <span className="font-semibold text-cyan-300">{selected.special.label}</span>
-                  {' — '}
-                  {selected.special.detail}
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/45 sm:grid-cols-4">
-                  <div>
-                    HP <span className="glass-mono text-white">{selected.stats.hp}</span>
-                  </div>
-                  <div>
-                    Raketen{' '}
-                    <span className="glass-mono text-white">
-                      {selected.stats.missiles > 0 ? selected.stats.missiles : '—'}
-                    </span>
-                  </div>
-                  <div>
-                    Kanone{' '}
-                    <span className="glass-mono text-white">
-                      {selected.stats.cannonDamage} · {selected.stats.cannonRPM} rpm
-                    </span>
-                  </div>
-                  <div>
-                    {selected.engineType === 'piston' ? (
-                      <>
-                        Motor <span className="glass-mono text-amber-200">Kolben</span>
-                      </>
-                    ) : (
-                      <>
-                        Lock{' '}
-                        <span className="glass-mono text-white">
-                          {selected.stats.lockRange > 0 ? `${selected.stats.lockRange} m` : '—'}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {!selected.physics.hasAfterburner && (
-                  <p className="mt-2 text-[11px] text-white/40">
-                    Kein Nachbrenner
-                    {selected.engineType === 'piston'
-                      ? ' · Propeller-Torque & P-Faktor bei Vollgas'
-                      : ' · Early-Jet-Schub'}
-                    {selected.physics.windSusceptibility > 1
-                      ? ' · windempfindlich / Wing Flutter'
-                      : ''}
+                  <p className="mt-2 text-sm text-white/65">{selected.description}</p>
+                  <p className="mt-3 text-xs text-cyan-200/90">
+                    <span className="font-semibold text-cyan-300">{selected.special.label}</span>
+                    {' — '}
+                    {selected.special.detail}
                   </p>
-                )}
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/45 sm:grid-cols-4">
+                    <div>
+                      HP <span className="glass-mono text-white">{selected.stats.hp}</span>
+                    </div>
+                    <div>
+                      Raketen{' '}
+                      <span className="glass-mono text-white">
+                        {selected.stats.missiles > 0 ? selected.stats.missiles : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      Kanone{' '}
+                      <span className="glass-mono text-white">
+                        {selected.stats.cannonDamage} · {selected.stats.cannonRPM} rpm
+                      </span>
+                    </div>
+                    <div>
+                      {selected.engineType === 'piston' ? (
+                        <>
+                          Motor <span className="glass-mono text-amber-200">Kolben</span>
+                        </>
+                      ) : (
+                        <>
+                          Lock{' '}
+                          <span className="glass-mono text-white">
+                            {selected.stats.lockRange > 0 ? `${selected.stats.lockRange} m` : '—'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {!selected.physics.hasAfterburner && (
+                    <p className="mt-2 text-[11px] text-white/40">
+                      Kein Nachbrenner
+                      {selected.engineType === 'piston'
+                        ? ' · Propeller-Torque & P-Faktor bei Vollgas'
+                        : ' · Early-Jet-Schub'}
+                      {selected.physics.windSusceptibility > 1 ? ' · windempfindlich / Wing Flutter' : ''}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <StatBar label="Geschwindigkeit" value={bars.speed} />
+                  <StatBar label="Manövrierfähigkeit" value={bars.maneuver} />
+                  <StatBar label="Panzerung" value={bars.armor} />
+                  <StatBar label="Bewaffnung" value={bars.weapons} />
+                </div>
               </div>
-              <div>
-                <StatBar label="Geschwindigkeit" value={bars.speed} />
-                <StatBar label="Manovrierfahigkeit" value={bars.maneuver} />
-                <StatBar label="Panzerung" value={bars.armor} />
-                <StatBar label="Bewaffnung" value={bars.weapons} />
-              </div>
-            </div>
 
-            <button
-              type="button"
-              className={`w-full py-4 text-base font-bold rounded-2xl transition-all duration-300 shrink-0 ${
-                isJetOwned(selectedJetId)
-                  ? 'bg-gradient-to-r from-cyan-500/30 to-blue-500/30 border border-cyan-400/30 text-white hover:from-cyan-500/50 hover:to-blue-500/50 hover:border-cyan-300/50 hover:shadow-[0_0_30px_rgba(0,242,255,0.2)] backdrop-blur-xl'
-                  : 'bg-white/[0.03] border border-white/[0.06] text-white/20 cursor-not-allowed'
-              }`}
-              disabled={!isJetOwned(selectedJetId)}
-              onClick={() => onStart(selectedJetId)}
-            >
-              {isJetOwned(selectedJetId) ? `JET ABHEBEN · ${selected.callsign}` : 'JET NICHT FREIGESCHALTET'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MAPS */}
-      {screen === 'maps' && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pt-16">
-          <div className="glass-panel pointer-events-auto w-full max-w-3xl p-6 sm:p-8">
-            <div className="mb-1 flex items-center justify-between">
-              <div className="glass-eyebrow">Operations Area</div>
               <button
                 type="button"
-                className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
-                onClick={() => setScreen('main')}
+                className={`w-full shrink-0 rounded-2xl py-4 text-base font-bold transition-all duration-300 ${
+                  isJetOwned(selectedJetId)
+                    ? 'border border-cyan-400/30 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 text-white backdrop-blur-xl hover:border-cyan-300/50 hover:from-cyan-500/50 hover:to-blue-500/50 hover:shadow-[0_0_30px_rgba(0,242,255,0.2)]'
+                    : 'cursor-not-allowed border border-white/[0.06] bg-white/[0.03] text-white/20'
+                }`}
+                disabled={!isJetOwned(selectedJetId)}
+                onClick={startMission}
               >
-                ← Zurück
+                {isJetOwned(selectedJetId)
+                  ? `JET ABHEBEN · ${selected.callsign}`
+                  : 'JET NICHT FREIGESCHALTET'}
               </button>
             </div>
-            <h2 className="glass-title mb-1 text-3xl">Map wählen</h2>
-            <p className="glass-subtitle mb-4 text-sm">
-              Große Einsatzgebiete — prozedural oder 3D-Assets (nur Maps mit großer Fläche).
-            </p>
-
-            {mapLoading && (
-              <div className="mb-4 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
-                Karte wird geladen und skaliert…
-              </div>
-            )}
-            {mapError && (
-              <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {mapError}
-              </div>
-            )}
-
-            <div className="mb-5 grid gap-3 sm:grid-cols-2">
-              {MAP_CATALOG.map((m) => {
-                const active = m.id === selectedMapId;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    disabled={mapLoading}
-                    onClick={() => void pickMap(m.id)}
-                    className={`glass-card text-left ${active ? 'is-selected' : ''}`}
-                  >
-                    <div className="text-[10px] tracking-[0.18em] text-cyan-300/80 uppercase">
-                      {m.subtitle}
-                    </div>
-                    <div className="mt-1 font-bold leading-tight text-white">{m.name}</div>
-                    <div className="mt-1 glass-mono text-xs text-white/45">
-                      {(m.worldSizeM / 1000).toFixed(0)} km Welt
-                      {m.kind === 'glb' ? ` · ~${(m.targetSpanM / 1000).toFixed(0)} km Asset` : ''}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {m.tags.map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-cyan-100/90"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="mt-2 text-[11px] leading-snug text-white/50">{m.description}</p>
-                    {active && (
-                      <div className="mt-2 text-[10px] font-bold tracking-[0.2em] text-cyan-300 uppercase">
-                        Aktiv
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4">
-              <div className="text-xs tracking-[0.16em] text-white/45 uppercase">Ausgewählt</div>
-              <div className="mt-1 text-lg font-bold text-white">{selectedMap.name}</div>
-              <p className="mt-1 text-sm text-white/60">{selectedMap.description}</p>
-            </div>
-
-            <button
-              type="button"
-              className="glass-button glass-button-primary mt-4 w-full py-3.5"
-              disabled={mapLoading}
-              onClick={() => onStart(selectedJetId)}
-            >
-              Mit dieser Map abheben
-            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* MISSIONS – Campaign Level Cards */}
-      {screen === 'missions' && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pt-16">
-          <div className="glass-panel pointer-events-auto w-full max-w-3xl p-6 sm:p-8">
-            <div className="mb-1 flex items-center justify-between">
-              <div className="glass-eyebrow">Einsätze</div>
-              <button type="button" className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs" onClick={() => setScreen('main')}>
-                ← Zurück
-              </button>
-            </div>
-            <h2 className="glass-title mb-1 text-3xl">Kampagne</h2>
-            <p className="glass-subtitle mb-6 text-sm">
-              Wähle deine Mission. Weitere Einsätze werden in zukünftigen Updates freigeschaltet.
-            </p>
+        {/* ═══════════════ MAPS ═══════════════ */}
+        {screen === 'maps' && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-y-auto px-4 py-6">
+            <div className="glass-panel pointer-events-auto w-full max-w-3xl p-6 sm:p-8">
+              <div className="mb-1 flex items-center justify-between">
+                <div className="glass-eyebrow">Operations Area</div>
+                <button
+                  type="button"
+                  className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
+                  onClick={() => setScreen('main')}
+                >
+                  ← Zurück
+                </button>
+              </div>
+              <h2 className="glass-title mb-1 text-3xl">Map wählen</h2>
+              <p className="glass-subtitle mb-4 text-sm">
+                Große Einsatzgebiete — prozedural oder 3D-Assets (nur Maps mit großer Fläche).
+              </p>
 
-            <div className="mb-6 grid gap-4 sm:grid-cols-2">
-              {/* Level 1 – Playable */}
-              <div
-                className="mission-card is-playable"
-                onClick={() => onStart(selectedJetId)}
-              >
-                <div className="mission-card-nr">01</div>
-                <div className="mission-card-name">OPERATION DESERT STORM</div>
-                <p className="mission-card-desc">
-                  Eliminiere feindliche Bodentruppen in der Wüstenregion. Weiche SAM-Raketen aus und zerstöre das gegnerische Hauptquartier.
-                </p>
-                <div className="mission-difficulty">
-                  Schwierigkeit: <span className="mission-star">★★</span><span className="mission-star-empty">☆☆☆</span>
+              {mapLoading && (
+                <div className="mb-4 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+                  Karte wird geladen und skaliert…
                 </div>
-                <span className="mission-card-badge ready">🔓 Bereit</span>
+              )}
+              {mapError && (
+                <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {mapError}
+                </div>
+              )}
+
+              <div className="mb-5 grid gap-3 sm:grid-cols-2">
+                {MAP_CATALOG.map((m) => {
+                  const active = m.id === selectedMapId;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      disabled={mapLoading}
+                      onClick={() => void pickMap(m.id)}
+                      className={`glass-card text-left ${active ? 'is-selected' : ''}`}
+                    >
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-cyan-300/80">
+                        {m.subtitle}
+                      </div>
+                      <div className="mt-1 font-bold leading-tight text-white">{m.name}</div>
+                      <div className="mt-1 glass-mono text-xs text-white/45">
+                        {(m.worldSizeM / 1000).toFixed(0)} km Welt
+                        {m.kind === 'glb' ? ` · ~${(m.targetSpanM / 1000).toFixed(0)} km Asset` : ''}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {m.tags.map((t) => (
+                          <span
+                            key={t}
+                            className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-cyan-100/90"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[11px] leading-snug text-white/50">{m.description}</p>
+                      {active && (
+                        <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">
+                          Aktiv
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Level 2 – Locked */}
-              <div className="mission-card is-locked">
-                <div className="mission-card-nr">02</div>
-                <div className="mission-card-name">CANYON RUN</div>
-                <p className="mission-card-desc">Navigiere durch enge Canyons und weiche Radarfallen aus. Tiefflug-Mission bei Nacht.</p>
-                <div className="mission-difficulty">Schwierigkeit: <span className="mission-star" style={{opacity:0.5}}>★★★</span><span className="mission-star-empty">☆☆</span></div>
-                <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
+              <div className="rounded-2xl border border-white/12 bg-white/[0.04] p-4">
+                <div className="text-xs uppercase tracking-[0.16em] text-white/45">Ausgewählt</div>
+                <div className="mt-1 text-lg font-bold text-white">{selectedMap.name}</div>
+                <p className="mt-1 text-sm text-white/60">{selectedMap.description}</p>
               </div>
 
-              {/* Level 3 – Locked */}
-              <div className="mission-card is-locked">
-                <div className="mission-card-nr">03</div>
-                <div className="mission-card-name">NIGHT RAID</div>
-                <p className="mission-card-desc">Infiltriere den Luftraum bei Nacht. Zerstöre feindliche Bomber bevor sie deine Basis erreichen.</p>
-                <div className="mission-difficulty">Schwierigkeit: <span className="mission-star" style={{opacity:0.5}}>★★★★</span><span className="mission-star-empty">☆</span></div>
-                <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
-              </div>
-
-              {/* Level 4 – Locked */}
-              <div className="mission-card is-locked">
-                <div className="mission-card-nr">04</div>
-                <div className="mission-card-name">FINAL ASSAULT</div>
-                <p className="mission-card-desc">Die finale Schlacht. Stelle dich der gesamten gegnerischen Luftflotte und verteidige dein Heimatland.</p>
-                <div className="mission-difficulty">Schwierigkeit: <span className="mission-star" style={{opacity:0.5}}>★★★★★</span></div>
-                <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="glass-button glass-button-primary w-full py-3.5"
-              onClick={() => onStart(selectedJetId)}
-            >
-              🚀 Mission starten · {selected.callsign}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* SETTINGS (from menu) */}
-      {screen === 'settings' && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 pt-16">
-          <div className="glass-panel pointer-events-auto w-full max-w-lg p-6 sm:p-8">
-            <div className="mb-1 flex items-center justify-between">
-              <div className="glass-eyebrow">System</div>
-              <button type="button" className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs" onClick={() => setScreen('main')}>
-                ← Zurück
+              <button
+                type="button"
+                className="glass-button glass-button-primary mt-4 w-full py-3.5"
+                disabled={mapLoading}
+                onClick={startMission}
+              >
+                Mit dieser Map abheben
               </button>
             </div>
-            <h2 className="glass-title mb-4 text-3xl">Einstellungen</h2>
-            <SettingsBody />
           </div>
-        </div>
-      )}
+        )}
 
-      <ExitModal />
-    </div>
+        {/* ═══════════════ MISSIONS ═══════════════ */}
+        {screen === 'missions' && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-y-auto px-4 py-6">
+            <div className="glass-panel pointer-events-auto w-full max-w-3xl p-6 sm:p-8">
+              <div className="mb-1 flex items-center justify-between">
+                <div className="glass-eyebrow">Einsätze</div>
+                <button
+                  type="button"
+                  className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
+                  onClick={() => setScreen('main')}
+                >
+                  ← Zurück
+                </button>
+              </div>
+              <h2 className="glass-title mb-1 text-3xl">Kampagne</h2>
+              <p className="glass-subtitle mb-6 text-sm">
+                Wähle deine Mission. Weitere Einsätze werden in zukünftigen Updates freigeschaltet.
+              </p>
+
+              <div className="mb-6 grid gap-4 sm:grid-cols-2">
+                <div className="mission-card is-playable" onClick={startMission}>
+                  <div className="mission-card-nr">01</div>
+                  <div className="mission-card-name">OPERATION DESERT STORM</div>
+                  <p className="mission-card-desc">
+                    Eliminiere feindliche Bodentruppen in der Wüstenregion. Weiche SAM-Raketen aus und
+                    zerstöre das gegnerische Hauptquartier.
+                  </p>
+                  <div className="mission-difficulty">
+                    Schwierigkeit: <span className="mission-star">★★</span>
+                    <span className="mission-star-empty">☆☆☆</span>
+                  </div>
+                  <span className="mission-card-badge ready">🔓 Bereit</span>
+                </div>
+
+                <div className="mission-card is-locked">
+                  <div className="mission-card-nr">02</div>
+                  <div className="mission-card-name">CANYON RUN</div>
+                  <p className="mission-card-desc">
+                    Navigiere durch enge Canyons und weiche Radarfallen aus. Tiefflug-Mission bei Nacht.
+                  </p>
+                  <div className="mission-difficulty">
+                    Schwierigkeit:{' '}
+                    <span className="mission-star" style={{ opacity: 0.5 }}>
+                      ★★★
+                    </span>
+                    <span className="mission-star-empty">☆☆</span>
+                  </div>
+                  <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
+                </div>
+
+                <div className="mission-card is-locked">
+                  <div className="mission-card-nr">03</div>
+                  <div className="mission-card-name">NIGHT RAID</div>
+                  <p className="mission-card-desc">
+                    Infiltriere den Luftraum bei Nacht. Zerstöre feindliche Bomber bevor sie deine Basis
+                    erreichen.
+                  </p>
+                  <div className="mission-difficulty">
+                    Schwierigkeit:{' '}
+                    <span className="mission-star" style={{ opacity: 0.5 }}>
+                      ★★★★
+                    </span>
+                    <span className="mission-star-empty">☆</span>
+                  </div>
+                  <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
+                </div>
+
+                <div className="mission-card is-locked">
+                  <div className="mission-card-nr">04</div>
+                  <div className="mission-card-name">FINAL ASSAULT</div>
+                  <p className="mission-card-desc">
+                    Die finale Schlacht. Stelle dich der gesamten gegnerischen Luftflotte und verteidige
+                    dein Heimatland.
+                  </p>
+                  <div className="mission-difficulty">
+                    Schwierigkeit:{' '}
+                    <span className="mission-star" style={{ opacity: 0.5 }}>
+                      ★★★★★
+                    </span>
+                  </div>
+                  <span className="mission-card-badge locked-badge">🔒 Demnächst</span>
+                </div>
+              </div>
+
+              <button type="button" className="glass-button glass-button-primary w-full py-3.5" onClick={startMission}>
+                🚀 Mission starten · {selected.callsign}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════ SETTINGS ═══════════════ */}
+        {screen === 'settings' && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-y-auto px-4 py-6">
+            <div className="glass-panel pointer-events-auto w-full max-w-lg p-6 sm:p-8">
+              <div className="mb-1 flex items-center justify-between">
+                <div className="glass-eyebrow">System</div>
+                <button
+                  type="button"
+                  className="glass-button glass-button-ghost !px-3 !py-1.5 !text-xs"
+                  onClick={() => setScreen('main')}
+                >
+                  ← Zurück
+                </button>
+              </div>
+              <h2 className="glass-title mb-4 text-3xl">Einstellungen</h2>
+              <SettingsBody />
+            </div>
+          </div>
+        )}
+
+        <ExitModal />
+      </div>
     </div>
   );
 }

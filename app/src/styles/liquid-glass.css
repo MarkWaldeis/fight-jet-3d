@@ -2,6 +2,8 @@
    Apple Liquid Glass & Tactical HUD — Design Tokens & Components
    ═══════════════════════════════════════════════════════════════════════════ */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@500;600;700;800;900&display=swap');
+
 :root {
   /* Surface & Glass Materials */
   --glass-bg-dark: rgba(15, 20, 32, 0.6);
@@ -23,12 +25,16 @@
   --accent-danger: #ff3b30;
   --accent-warning: #ff9f0a;
   --accent-success: #30d158;
+  --accent-amber: #fbbf24;
+  --hangar-deep: #020508;
+  --hangar-steel: #080e1a;
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.72);
   --text-tertiary: rgba(255, 255, 255, 0.45);
 
   /* Typography */
-  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter',
+  --font-display: 'Orbitron', ui-sans-serif, system-ui, sans-serif;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
     system-ui, sans-serif;
   --font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, monospace;
 }
@@ -38,6 +44,10 @@
   font-family: var(--font-family);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -279,33 +289,396 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Hangar Atmosphere — Multi-layer Background & TopBar
+   Hangar Atmosphere — Multi-layer Background (War Thunder hangar feel)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.hangar-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-.hangar-bg-base{position:absolute;inset:0;background:radial-gradient(ellipse 65% 55% at 50% 40%,#0a1628 0%,#050c18 40%,#020610 100%)}
-.hangar-spot-left{position:absolute;top:-10%;left:-5%;width:55vw;height:55vw;border-radius:50%;background:radial-gradient(circle,rgba(0,242,255,.07) 0%,transparent 70%);animation:hangarSpotPulse 6s ease-in-out infinite}
-.hangar-spot-right{position:absolute;top:-5%;right:-8%;width:45vw;height:45vw;border-radius:50%;background:radial-gradient(circle,rgba(180,200,220,.05) 0%,transparent 70%);animation:hangarSpotPulse 7s ease-in-out 2s infinite}
-@keyframes hangarSpotPulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
-.hangar-floor{position:absolute;bottom:0;left:0;right:0;height:32%;background:linear-gradient(0deg,rgba(0,242,255,.06) 0%,rgba(10,132,255,.03) 25%,transparent 100%)}
-.hangar-grid{position:absolute;bottom:0;left:5%;right:5%;height:38%;background:repeating-linear-gradient(90deg,rgba(0,242,255,.04) 0px,rgba(0,242,255,.04) 1px,transparent 1px,transparent 80px),repeating-linear-gradient(0deg,transparent 0px,transparent 39px,rgba(0,242,255,.03) 40px);mask-image:linear-gradient(0deg,rgba(0,0,0,.4) 0%,rgba(0,0,0,0) 90%);-webkit-mask-image:linear-gradient(0deg,rgba(0,0,0,.4) 0%,rgba(0,0,0,0) 90%);transform:perspective(600px) rotateX(40deg);transform-origin:bottom center}
-.hangar-haze{position:absolute;left:15%;right:15%;top:30%;bottom:35%;background:radial-gradient(ellipse at center,rgba(0,242,255,.03) 0%,transparent 70%);animation:hangarHazePulse 8s ease-in-out infinite}
-@keyframes hangarHazePulse{0%,100%{opacity:.5}50%{opacity:1}}
-.hangar-silhouette{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;user-select:none}
-.hangar-silhouette-text{font-weight:900;font-size:clamp(5rem,14vw,15rem);letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.025);text-shadow:0 0 80px rgba(0,242,255,.05);white-space:nowrap;transition:all .8s ease;animation:silhouetteFloat 8s ease-in-out infinite}
-@keyframes silhouetteFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-.hangar-particles{position:absolute;inset:0;pointer-events:none}
-.hangar-particle{position:absolute;width:2px;height:2px;border-radius:50%;background:#00f2ff;opacity:0;animation:particleFloat linear infinite}
-.hangar-particle:nth-child(1){left:15%;animation-duration:9s;animation-delay:0s}
-.hangar-particle:nth-child(2){left:28%;animation-duration:11s;animation-delay:1.5s}
-.hangar-particle:nth-child(3){left:42%;animation-duration:8s;animation-delay:3s}
-.hangar-particle:nth-child(4){left:55%;animation-duration:10s;animation-delay:.8s}
-.hangar-particle:nth-child(5){left:68%;animation-duration:12s;animation-delay:2.2s}
-.hangar-particle:nth-child(6){left:78%;animation-duration:7s;animation-delay:4s}
-.hangar-particle:nth-child(7){left:88%;animation-duration:9.5s;animation-delay:1s}
-.hangar-particle:nth-child(8){left:35%;animation-duration:11.5s;animation-delay:5s}
-.hangar-particle:nth-child(9){left:62%;animation-duration:8.5s;animation-delay:3.5s}
-@keyframes particleFloat{0%{bottom:-5%;opacity:0;transform:translateX(0)}10%{opacity:.6}90%{opacity:.6}100%{bottom:105%;opacity:0;transform:translateX(40px)}}
+.hangar-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+/* 1) Base — deep steel hangar */
+.hangar-bg-base {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 38%, #0a1628 0%, #080e1a 42%, #020508 100%);
+}
+
+/* 2) Spotlight left — cyan tactical cone */
+.hangar-spot-left {
+  position: absolute;
+  top: -18%;
+  left: -12%;
+  width: 58vw;
+  height: 58vw;
+  max-width: 900px;
+  max-height: 900px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 242, 255, 0.1) 0%, rgba(10, 132, 255, 0.04) 42%, transparent 70%);
+  animation: hangarSpotPulse 6.5s ease-in-out infinite;
+  filter: blur(2px);
+}
+
+/* 3) Spotlight right — warm amber hangar lamp */
+.hangar-spot-right {
+  position: absolute;
+  top: -12%;
+  right: -14%;
+  width: 48vw;
+  height: 48vw;
+  max-width: 760px;
+  max-height: 760px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.07) 0%, rgba(180, 140, 80, 0.035) 45%, transparent 72%);
+  animation: hangarSpotPulse 7.5s ease-in-out 1.8s infinite;
+  filter: blur(3px);
+}
+
+/* Soft center fill light */
+.hangar-spot-center {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  width: 42vw;
+  height: 36vh;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 180, 255, 0.045) 0%, transparent 70%);
+  animation: hangarHazePulse 8s ease-in-out infinite;
+}
+
+@keyframes hangarSpotPulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* 4) Floor reflection glow */
+.hangar-floor {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32%;
+  background: linear-gradient(
+    0deg,
+    rgba(0, 242, 255, 0.07) 0%,
+    rgba(10, 132, 255, 0.035) 28%,
+    transparent 100%
+  );
+}
+
+/* 5) Perspective floor grid */
+.hangar-grid {
+  position: absolute;
+  bottom: 0;
+  left: 2%;
+  right: 2%;
+  height: 42%;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 242, 255, 0.045) 0px,
+      rgba(0, 242, 255, 0.045) 1px,
+      transparent 1px,
+      transparent 72px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 36px,
+      rgba(0, 242, 255, 0.035) 37px
+    );
+  mask-image: linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 92%);
+  -webkit-mask-image: linear-gradient(0deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 92%);
+  transform: perspective(680px) rotateX(42deg);
+  transform-origin: bottom center;
+  opacity: 0.9;
+}
+
+/* 6) Atmospheric haze */
+.hangar-haze {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 28%;
+  bottom: 32%;
+  background: radial-gradient(ellipse at center, rgba(0, 242, 255, 0.035) 0%, transparent 72%);
+  animation: hangarHazePulse 8s ease-in-out infinite;
+}
+
+@keyframes hangarHazePulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Soft volumetric light beams */
+.hangar-beams {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(118deg, transparent 38%, rgba(0, 242, 255, 0.02) 48%, transparent 58%),
+    linear-gradient(62deg, transparent 42%, rgba(251, 191, 36, 0.015) 52%, transparent 62%);
+  animation: hangarBeamDrift 10s ease-in-out infinite;
+}
+
+@keyframes hangarBeamDrift {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 7) Jet name silhouette watermark */
+.hangar-silhouette {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+}
+
+.hangar-silhouette-text {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(4.5rem, 16vw, 18rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.028);
+  text-shadow: 0 0 100px rgba(0, 242, 255, 0.06);
+  white-space: nowrap;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  animation: silhouetteFloat 8s ease-in-out infinite;
+}
+
+@keyframes silhouetteFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* 8) Floating dust / light particles */
+.hangar-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hangar-particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #00f2ff;
+  box-shadow: 0 0 6px rgba(0, 242, 255, 0.55);
+  opacity: 0;
+  animation: particleFloat linear infinite;
+}
+
+.hangar-particle:nth-child(1) { left: 12%; animation-duration: 9s; animation-delay: 0s; }
+.hangar-particle:nth-child(2) { left: 22%; animation-duration: 11s; animation-delay: 1.5s; width: 3px; height: 3px; }
+.hangar-particle:nth-child(3) { left: 34%; animation-duration: 8s; animation-delay: 3s; }
+.hangar-particle:nth-child(4) { left: 46%; animation-duration: 10s; animation-delay: 0.8s; }
+.hangar-particle:nth-child(5) { left: 55%; animation-duration: 12s; animation-delay: 2.2s; width: 3px; height: 3px; }
+.hangar-particle:nth-child(6) { left: 64%; animation-duration: 7.5s; animation-delay: 4s; }
+.hangar-particle:nth-child(7) { left: 74%; animation-duration: 9.5s; animation-delay: 1s; }
+.hangar-particle:nth-child(8) { left: 82%; animation-duration: 11.5s; animation-delay: 5s; }
+.hangar-particle:nth-child(9) { left: 18%; animation-duration: 8.5s; animation-delay: 3.5s; background: #fbbf24; box-shadow: 0 0 6px rgba(251, 191, 36, 0.4); }
+.hangar-particle:nth-child(10) { left: 40%; animation-duration: 13s; animation-delay: 2.8s; }
+.hangar-particle:nth-child(11) { left: 70%; animation-duration: 9s; animation-delay: 6s; background: #fbbf24; box-shadow: 0 0 6px rgba(251, 191, 36, 0.35); }
+.hangar-particle:nth-child(12) { left: 90%; animation-duration: 10.5s; animation-delay: 1.2s; }
+
+@keyframes particleFloat {
+  0% {
+    bottom: -5%;
+    opacity: 0;
+    transform: translateX(0);
+  }
+  12% {
+    opacity: 0.55;
+  }
+  88% {
+    opacity: 0.45;
+  }
+  100% {
+    bottom: 105%;
+    opacity: 0;
+    transform: translateX(36px);
+  }
+}
+
+/* Edge vignette for depth */
+.hangar-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, transparent 35%, rgba(2, 5, 8, 0.55) 100%),
+    linear-gradient(180deg, rgba(2, 5, 8, 0.35) 0%, transparent 18%, transparent 78%, rgba(2, 5, 8, 0.5) 100%);
+}
+
+/* ─── Main Landing Content ──────────────────────────────────────────────── */
+
+.main-landing {
+  position: relative;
+  z-index: 2;
+  animation: mainLandingIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes mainLandingIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.main-title-gradient {
+  background: linear-gradient(115deg, #00f2ff 0%, #0a84ff 48%, #ffffff 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradientShift 5s ease-in-out infinite;
+}
+
+.main-info-card {
+  position: relative;
+  padding: 18px 18px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 14, 26, 0.55);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: transform 0.3s var(--glass-ease), border-color 0.3s ease, box-shadow 0.3s ease,
+    background 0.3s ease;
+}
+
+.main-info-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(0, 242, 255, 0.32);
+  background: rgba(10, 20, 38, 0.72);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45), 0 0 28px rgba(0, 242, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.main-info-card:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+.main-cta {
+  position: relative;
+  width: 100%;
+  padding: 1.1rem 1.5rem;
+  border: none;
+  border-radius: 18px;
+  overflow: hidden;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #041018;
+  background: linear-gradient(115deg, #0a84ff 0%, #00c6ff 45%, #00f2ff 100%);
+  background-size: 200% 100%;
+  box-shadow:
+    0 10px 36px rgba(10, 132, 255, 0.42),
+    0 0 48px rgba(0, 242, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform 0.25s ease, box-shadow 0.3s ease, filter 0.25s ease;
+  animation: gradientShift 4s ease-in-out infinite;
+}
+
+.main-cta:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 14px 48px rgba(0, 242, 255, 0.5),
+    0 0 64px rgba(10, 132, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.main-cta:active {
+  transform: scale(0.985);
+}
+
+.main-cta-glow {
+  position: absolute;
+  inset: -40% -20%;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.22) 0%, transparent 55%);
+  animation: mainCtaGlow 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes mainCtaGlow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateX(-8%);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateX(8%);
+  }
+}
+
+.main-quick-link {
+  padding: 14px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s var(--glass-ease);
+}
+
+.main-quick-link:hover {
+  color: #fff;
+  border-color: rgba(0, 242, 255, 0.28);
+  background: rgba(0, 242, 255, 0.06);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 18px rgba(0, 242, 255, 0.08);
+}
+
+.main-quick-link:active {
+  transform: scale(0.97);
+}
 
 /* ─── Glass Surfaces ─────────────────────────────────────────────────────── */
 
@@ -904,15 +1277,149 @@
 }
 
 /* ─── Top Bar (War-Thunder style) ───────────────────────────────────────── */
-.topbar{position:relative;z-index:15;display:flex;align-items:center;gap:10px;padding:12px 20px;background:rgba(8,12,20,.55);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;pointer-events:auto}
-.topbar-chip{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.03);cursor:pointer;transition:all .25s ease;flex-shrink:0}
-.topbar-chip:hover{background:rgba(255,255,255,.06);border-color:rgba(0,242,255,.25);box-shadow:0 0 16px rgba(0,242,255,.08)}
-.topbar-chip-icon{font-size:20px;flex-shrink:0}
-.topbar-chip-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);line-height:1}
-.topbar-chip-value{font-weight:700;font-size:13px;color:#fff;line-height:1.2}
-.topbar-chip-sub{font-size:10px;color:rgba(255,255,255,.4)}
-.topbar-start{display:flex;align-items:center;gap:8px;padding:10px 28px;border-radius:14px;border:none;background:linear-gradient(135deg,#0a84ff,#00a6ff);color:#fff;font-weight:700;font-size:14px;letter-spacing:.06em;cursor:pointer;transition:all .3s ease;box-shadow:0 4px 20px rgba(0,132,255,.35),0 0 30px rgba(0,242,255,.15);flex-shrink:0}
-.topbar-start:hover{background:linear-gradient(135deg,#0a94ff,#00b8ff);box-shadow:0 6px 28px rgba(0,242,255,.5),0 0 50px rgba(0,132,255,.25);transform:translateY(-1px)}
-.topbar-start:active{transform:scale(.97)}
-.topbar-spacer{flex:1;min-width:20px}
-@keyframes gradientShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.topbar {
+  position: relative;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 18px;
+  background: rgba(8, 12, 20, 0.55);
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.topbar-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 280px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.topbar-chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(0, 242, 255, 0.28);
+  box-shadow: 0 0 18px rgba(0, 242, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.topbar-chip:active {
+  transform: scale(0.98);
+}
+
+.topbar-chip-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(0, 242, 255, 0.25));
+}
+
+.topbar-chip-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.topbar-chip-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.topbar-chip-sub {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 1px;
+}
+
+.topbar-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 26px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(135deg, #0a84ff 0%, #00b4ff 55%, #00f2ff 100%);
+  color: #041018;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow:
+    0 4px 22px rgba(0, 132, 255, 0.4),
+    0 0 34px rgba(0, 242, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+
+.topbar-start:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    0 6px 30px rgba(0, 242, 255, 0.55),
+    0 0 52px rgba(0, 132, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.topbar-start:active {
+  transform: scale(0.97);
+}
+
+.topbar-start-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.topbar-spacer {
+  flex: 1;
+  min-width: 12px;
+}
+
+@keyframes gradientShift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Responsive topbar collapse on narrow content area */
+@media (max-width: 900px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .topbar-chip {
+    max-width: none;
+    flex: 1 1 auto;
+  }
+  .topbar-start {
+    padding: 10px 18px;
+    font-size: 12px;
+  }
+}
