@@ -17,16 +17,15 @@ export const CONFIG = {
     fogNear: 1400,
     fogFar: 34000,
   },
-  // ─── Flight feel (Combat-Agility-Pass: leichter zielen / wenden) ────────
-  // Baseline lag in config.baseline.json; bewusst etwas freier für Vorhalt-Schießen.
+  // ─── Flight feel (langsamer + freieres Zielen) ─────────────────────────
   flight: {
-    // --- Geschwindigkeiten (m/s) ---
-    minSpeed: 55,          // Stall-Schwelle (~200 km/h)
-    cruiseSpeed: 140,
-    maxSpeed: 260,
-    afterburnerSpeed: 320, // WEP ~110%
-    thrustAccel: 42,
-    afterburnerAccel: 70,
+    // --- Geschwindigkeiten (m/s) — alle Jets spürbar langsamer ---
+    minSpeed: 48,          // Stall-Schwelle
+    cruiseSpeed: 112,
+    maxSpeed: 200,
+    afterburnerSpeed: 245, // WEP
+    thrustAccel: 34,
+    afterburnerAccel: 55,
     dragBase: 0.012,
     /** Induzierter Widerstand pro G über 1 (etwas weniger Energy-Bleed) */
     inducedDrag: 0.038,
@@ -43,17 +42,17 @@ export const CONFIG = {
     rollDamping: 3.6,
 
     // --- Mouse-Aim Fly-By-Wire (aggressiveres Folgen der Maus) ---
-    fbwRollGain: 4.0,
-    fbwPitchGain: 3.4,
-    fbwYawGain: 0.72,
+    fbwRollGain: 4.4,
+    fbwPitchGain: 3.8,
+    fbwYawGain: 0.8,
     /** Weniger „Roll first“ → Nase folgt eher der Maus beim Zielen */
-    fbwRollPriority: 0.48,
+    fbwRollPriority: 0.52,
     /** Weiche Rückkehr nach Manual-Override (1/s) */
-    fbwRecaptureRate: 5.2,
+    fbwRecaptureRate: 5.5,
     /** Max. Aim-Reticle-Abstand vom Bildschirmrand (NDC, 0..1) */
-    aimMargin: 0.94,
-    /** Aim-Cursor etwas empfindlicher */
-    aimSensitivity: 0.00155,
+    aimMargin: 0.95,
+    /** Aim-Cursor etwas empfindlicher (Lead leichter verfolgen) */
+    aimSensitivity: 0.0017,
 
     // --- Velocity / AoA ---
     /** Nase folgt der Velocity etwas knackiger */
@@ -77,8 +76,8 @@ export const CONFIG = {
     cannonRange: 900,
     cannonSpread: 0.012,
     cannonRPM: 3000,
-    /** Geschossgeschwindigkeit (m/s) — Ballistik / Vorhalt */
-    bulletSpeed: 950,
+    /** Geschossgeschwindigkeit (m/s) — etwas höher → kleinerer Vorhalt, leichter zielen */
+    bulletSpeed: 1050,
     /** Max. Kanonen-Munition */
     cannonAmmo: 500,
     /** Nachladezeit (s) mit Taste R */
@@ -103,8 +102,8 @@ export const CONFIG = {
   enemy: {
     count: 4,
     hp: 60,
-    speed: 115,
-    turnRate: 0.75,
+    speed: 95,
+    turnRate: 0.7,
     cannonDamage: 2,
     fireRange: 750,
     fireConeDeg: 8,
@@ -112,8 +111,8 @@ export const CONFIG = {
     thinkInterval: 0.25,
     respawnDelay: 6,
     skillEvasionChance: 0.28,
-    /** Globaler Multiplikator auf Gegner-Geschwindigkeit (Ballistik-freundlich) */
-    speedScale: 0.55,
+    /** Globaler Multiplikator auf Gegner-Geschwindigkeit (Lead leichter verfolgen) */
+    speedScale: 0.48,
     /** Luft-Luft-Raketen gegen Spieler */
     missileRange: 2100,
     missileConeDeg: 28,

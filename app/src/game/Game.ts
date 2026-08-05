@@ -164,6 +164,10 @@ export class Game {
   private aimDir = new THREE.Vector3(0, 0, -1);
   private _ndc = new THREE.Vector3();
   private _proj = new THREE.Vector3();
+  /** Geglättetes Lead-Fadenkreuz (Bildschirm-%) — weniger Zucken */
+  private leadSmoothX = 50;
+  private leadSmoothY = 50;
+  private leadSmoothActive = false;
   private onContextMenu = (e: Event) => e.preventDefault();
 
   constructor(canvas: HTMLCanvasElement) {
@@ -1026,15 +1030,19 @@ export class Game {
 
   /**
    * Lead-Indicator (War Thunder): Vorhalt-Punkt für fokussiertes Ziel.
-   * Lock-Ziel, sonst nächstes Ziel vor der Nase innerhalb cannonRange.
+   * Geglättet + etwas „weicherer“ Vorhalt, damit man dem gelben Fadenkreuz
+   * leichter mit der Nase folgen kann.
    */
   private computeLeadIndicator(): ScreenPos | null {
     const p = this.player;
-    if (!p.alive || this.state !== 'playing') return null;
+    if (!p.alive || this.state !== 'playing') {
+      this.leadSmoothActive = false;
+      return null;
+    }
 
     const bulletSpeed = CONFIG.player.bulletSpeed;
     const maxRange = CONFIG.player.cannonRange;
-    const maxDisplay = 1200;
+    const maxDisplay = 1300;
 
     let target: Damageable | null = null;
     if (p.lockTarget?.alive) {
@@ -1050,17 +1058,24 @@ export class Game {
         const d = to.length();
         if (d > maxRange || d > maxDisplay || d < 20) continue;
         to.multiplyScalar(1 / d);
-        if (to.dot(p.forward) < 0.12) continue; // grob vor der Nase
+        // Etwas großzügigerer Konus → Lead bleibt länger sichtbar
+        if (to.dot(p.forward) < 0.05) continue;
         if (d < bestD) {
           bestD = d;
           target = t;
         }
       }
     }
-    if (!target?.alive) return null;
+    if (!target?.alive) {
+      this.leadSmoothActive = false;
+      return null;
+    }
 
     const dist = target.object.position.distanceTo(p.position);
-    if (dist > maxDisplay) return null;
+    if (dist > maxDisplay) {
+      this.leadSmoothActive = false;
+      return null;
+    }
 
     // Zielgeschwindigkeit (Jets über FlightModel; SAMs = 0)
     const targetVel = new THREE.Vector3();
@@ -1068,6 +1083,9 @@ export class Game {
       const fl = (target as EnemyJet).flight;
       if (fl?.velocity) targetVel.copy(fl.velocity);
     }
+    // Etwas weniger Vorhalt (0.82) → Fadenkreuz näher am Jet, leichter zu folgen
+    // (Kugeln sind mit 1050 m/s schnell genug, dass es noch trifft)
+    targetVel.multiplyScalar(0.82);
 
     // Iterativer Vorhalt: t = dist/v, lead = pos + vel*t
     let lead = target.object.position.clone();
@@ -1078,8 +1096,27 @@ export class Game {
     }
 
     const screen = this.projectToScreen(lead);
-    if (!screen.visible) return null;
-    return screen;
+    if (!screen.visible) {
+      this.leadSmoothActive = false;
+      return null;
+    }
+
+    // Bildschirm-Glättung — weniger Zucken, Nase kann „mitschwimmen“
+    const smooth = 0.22;
+    if (this.leadSmoothActive) {
+      this.leadSmoothX += (screen.x - this.leadSmoothX) * smooth;
+      this.leadSmoothY += (screen.y - this.leadSmoothY) * smooth;
+    } else {
+      this.leadSmoothX = screen.x;
+      this.leadSmoothY = screen.y;
+      this.leadSmoothActive = true;
+    }
+
+    return {
+      x: this.leadSmoothX,
+      y: this.leadSmoothY,
+      visible: true,
+    };
   }
 
   private updateLock(dt: number) {
